@@ -1030,3 +1030,6 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
 .g-transition-seg-handle-hit.dragging {
   cursor: grabbing;
 }
+.g-transition-handle:hover {
+  cursor: grab;
+}

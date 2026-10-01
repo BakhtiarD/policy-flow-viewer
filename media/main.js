@@ -569,6 +569,30 @@
         return { x: -dy / len, y: dx / len };
     }
 
+    function findSegmentIndex(waypoints, pt) {
+        if (!waypoints || waypoints.length < 2) return -1;
+        let best = -1, bestDist = Infinity;
+        for (let i = 0; i < waypoints.length - 1; i++) {
+            const a = waypoints[i], b = waypoints[i + 1];
+            const d = distToSegment(pt, a, b);
+            if (d < bestDist) {
+                bestDist = d;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    function distToSegment(p, a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 0.0001) return Math.hypot(p.x - a.x, p.y - a.y);
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+    }
+
     function snapToEdge(rect, edge, pt) {
         const PAD = 10;
         if (edge === 'N') {
@@ -1571,6 +1595,37 @@
             });
     }
 
+    function removeWaypoint(transitionName, pointIdx) {
+        const t = graphData.transitions.find(x => x.name === transitionName);
+        if (!t) return;
+        if (!t.waypoints || t.waypoints.length <= 2) return;
+        if (pointIdx <= 0 || pointIdx >= t.waypoints.length - 1) return;
+
+        t.waypoints.splice(pointIdx, 1);
+        t.manual = true;
+        t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+        t.label = labelFromWaypoints(t.waypoints);
+
+        renderGraph();
+        applyViewBox();
+    }
+
+    function addWaypointAt(transitionName, segIdx, pt) {
+        const t = graphData.transitions.find(x => x.name === transitionName);
+        if (!t) return;
+        if (!t.waypoints || t.waypoints.length < 2) return;
+        if (segIdx < 0 || segIdx >= t.waypoints.length - 1) return;
+
+        // Вставляем новую точку после segIdx
+        t.waypoints.splice(segIdx + 1, 0, { x: pt.x, y: pt.y });
+        t.manual = true;
+        t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+        t.label = labelFromWaypoints(t.waypoints);
+
+        renderGraph();
+        applyViewBox();
+    }
+
     function startHandleDrag(ev, transitionName, pointIdx) {
         const t = graphData.transitions.find(x => x.name === transitionName);
         if (!t) return;
@@ -1790,6 +1845,18 @@
                 hit.addEventListener('dblclick', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
+
+                    // Alt + двойной клик — добавить точку
+                    if (ev.altKey) {
+                        const svgPt = clientToSvg(ev);
+                        const segIdx = findSegmentIndex(t.waypoints, svgPt);
+                        if (segIdx >= 0) {
+                            addWaypointAt(t.name, segIdx, svgPt);
+                        }
+                        return;
+                    }
+
+                    // Обычный двойной клик — открыть модалку
                     openTransitionForm(t.name);
                 });
 
@@ -2020,7 +2087,15 @@
                 hitZone.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
+                    if (ev.button === 2) {
+                        removeWaypoint(t.name, hi);
+                        return;
+                    }
                     startHandleDrag(ev, t.name, hi);
+                });
+                hitZone.addEventListener('contextmenu', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
                 });
                 gHandles.appendChild(hitZone);
 
@@ -2033,7 +2108,15 @@
                 handle.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
+                    if (ev.button === 2) {
+                        removeWaypoint(t.name, hi);
+                        return;
+                    }
                     startHandleDrag(ev, t.name, hi);
+                });
+                handle.addEventListener('contextmenu', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
                 });
                 gHandles.appendChild(handle);
             }
