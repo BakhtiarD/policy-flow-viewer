@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none';
+               style-src {{CSP_SOURCE}} 'unsafe-inline' https://*.vscode-cdn.net;
+               script-src {{CSP_SOURCE}} https://*.vscode-cdn.net;
+               img-src {{CSP_SOURCE}} data: https://*.vscode-cdn.net;">
+    <link rel="stylesheet" href="{{CSS_URI}}">
+    <title>Document Flow</title>
+</head>
+
+<body>
+    <div class="toolbar" id="mainToolbar">
+        <button id="addBtn" data-icon="add" title="Добавить состояние"></button>
+        <button id="reloadBtn" data-icon="refresh" title="Перезагрузить из файлов" class="secondary"></button>
+        <button id="collapseAllBtn" data-icon="collapse" title="Свернуть все блоки прав" class="secondary"></button>
+        <button id="expandAllBtn" data-icon="expand" title="Развернуть все блоки прав" class="secondary"></button>
+        <button id="viewToggle" data-icon="graph" title="Переключить таблица/граф" class="secondary"></button>
+        <button id="generateFlowBtn" data-icon="package" title="Каркас докфлоу"></button>
+        <button id="authBtn" data-icon="key" title="Авторизация"></button>
+        <button id="validateBtn" data-icon="checklist" title="Проверка"></button>
+        <button id="relationsBtn" data-icon="link" title="Связи"></button>
+        <span class="toolbar-spacer"></span>
+        <span class="hint" id="metaInfo"></span>
+        <button id="toolbarSettingsBtn" data-icon="gear" title="Расположение тулбара" class="secondary"></button>
+    </div>
+
+    <div id="tableView">
+        <table>
+            <colgroup>
+                <col class="c0">
+                <col class="c1">
+                <col class="c2">
+                <col class="c3">
+                <col class="c4">
+                <col class="c5">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="sortable" id="thState" title="Сортировать по состоянию">Состояние <span class="sort-ind"
+                            id="sortInd">⇅</span></th>
+                    <th title="Конечное состояние (isTerminal)">Конечное</th>
+                    <th>Входящие переходы</th>
+                    <th>Исходящие переходы</th>
+                    <th>Права доступа</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+
+    <div id="graphView">
+        <div class="graph-toolbar" id="graphToolbar">
+            <button id="editSelectedBtn" data-icon="edit" title="Редактировать выделенное" class="secondary"
+                disabled></button>
+            <button id="deleteSelectedBtn" data-icon="trash" title="Удалить выделенное (Delete)" class="danger"
+                disabled></button>
+            <span class="toolbar-sep"></span>
+            <button id="saveGraphBtn" data-icon="save" title="Сохранить позиции"></button>
+            <button id="fitGraphBtn" data-icon="fullscreen" title="Вписать в экран" class="secondary"></button>
+            <button id="autoLayoutBtn" data-icon="layout" title="Авто-раскладка (Dagre)" class="secondary"></button>
+            <button id="layoutDirBtn" data-icon="arrows-v" title="Сверху вниз (клик — слева направо)"
+                class="secondary"></button>
+            <button id="labelsToggleBtn" data-icon="tag" title="Показать/скрыть подписи переходов"
+                class="secondary"></button>
+            <label class="zoom-label">
+                <input type="number" id="zoomInput" min="10" max="400" step="10" value="100"> %
+            </label>
+            <span class="hint" id="graphHint"></span>
+            <span class="hint" id="selectionHint"></span>
+        </div>
+        <div class="graph-container">
+            <svg id="graphSvg" tabindex="0" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+    </div>
+
+    <div id="modalContainer"></div>
+
+    <!-- ============================================================
+       ШАБЛОНЫ
+       ============================================================ -->
+
+    <!-- Карточка актора в форме add/edit -->
+    <template id="tpl-permission-card">
+        <div class="item-card">
+            <div class="item-card-header">
+                <span class="item-card-title">Актор</span>
+                <button class="danger small" data-remove>×</button>
+            </div>
+            <div class="form-row">
+                <label>Актор</label>
+                <select class="f-actor"></select>
+                <input type="text" class="f-actor-new" placeholder="Имя нового актора"
+                    style="display:none;margin-top:4px">
+                <div class="hint">Выбери из списка или добавь нового</div>
+            </div>
+            <div class="form-row">
+                <label><input type="checkbox" class="f-allow-comments"> Разрешить комментарии</label>
+            </div>
+            <div class="form-row">
+                <label>Operations</label>
+                <div class="f-operations checkbox-group"></div>
+            </div>
+            <div class="form-row">
+                <label>Переходы (коды через запятую)</label>
+                <input type="text" class="f-transitions" placeholder="Draft_ESBDDataCheck, Draft_Discarded">
+                <div class="hint">Ссылайтесь только на исходящие переходы этого состояния</div>
+            </div>
+            <div class="form-row">
+                <label>Attachments</label>
+                <div class="f-attachments"></div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Чекбокс операции -->
+    <template id="tpl-op-check">
+        <label class="op-item">
+            <input type="checkbox" data-op>
+            <span class="op-name"></span>
+            <span class="op-exclusive" title="exclusiveToAssignedUser — доступно только назначенному пользователю">
+                <input type="checkbox" data-op-exclusive> 🔒
+            </span>
+        </label>
+    </template>
+
+    <!-- Строка прав на вложение -->
+    <template id="tpl-attach-row">
+        <div class="perm-attach-row">
+            <span class="type"></span>
+            <label><input type="checkbox" data-att value="Create"> Create</label>
+            <label><input type="checkbox" data-att value="Read"> Read</label>
+            <label><input type="checkbox" data-att value="Update"> Update</label>
+            <label><input type="checkbox" data-att value="Delete"> Delete</label>
+        </div>
+    </template>
+
+    <!-- Карточка исходящего перехода -->
+    <template id="tpl-outgoing-card">
+        <div class="item-card">
+            <div class="item-card-header">
+                <span class="item-card-title">Исходящий переход</span>
+                <button class="danger small" data-remove>×</button>
+            </div>
+            <div class="form-row">
+                <label>To (целевое состояние)</label>
+                <select class="f-to"></select>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label>Код перехода</label>
+                    <input type="text" class="f-name" placeholder="Draft_UnderReview">
+                </div>
+                <div>
+                    <label>Перевод RU перехода</label>
+                    <input type="text" class="f-ru" placeholder="На проверке">
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Модалка «Добавить состояние» -->
+    <template id="tpl-add-modal">
+        <div class="modal-backdrop">
+            <div class="modal">
+                <h2>Добавить состояние</h2>
+                <div class="grid-2">
+                    <div class="form-row">
+                        <label>Код состояния (латиница)</label>
+                        <input type="text" class="f-new-name" placeholder="UnderReview">
+                        <div class="hint">Этот же код будет записан как EN-перевод</div>
+                    </div>
+                    <div class="form-row">
+                        <label>Перевод RU</label>
+                        <input type="text" class="f-new-ru" placeholder="На проверке">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label><input type="checkbox" class="f-new-term"> Конечное состояние (isTerminal)</label>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="trans">Исходящие переходы (<span class="tab-trans-count">0</span>)
+                    </div>
+                    <div class="tab" data-tab="perms">Права (<span class="tab-perms-count">0</span>)</div>
+                </div>
+
+                <div class="tab-content active" data-tab="trans">
+                    <div class="f-trans-list"></div>
+                    <button class="secondary" data-act="add-trans">+ Добавить исходящий переход</button>
+                </div>
+
+                <div class="tab-content" data-tab="perms">
+                    <div class="f-perms-list"></div>
+                    <button class="secondary" data-act="add-perm">+ Добавить актора</button>
+                </div>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Модалка «Редактировать состояние» -->
+    <template id="tpl-edit-modal">
+        <div class="modal-backdrop">
+            <div class="modal">
+                <h2>Редактировать состояние</h2>
+                <div class="grid-2">
+                    <div class="form-row">
+                        <label>Код состояния</label>
+                        <input type="text" class="f-edit-name">
+                        <div class="hint">Переименование обновит все ссылки в 3 файлах</div>
+                    </div>
+                    <div class="form-row">
+                        <label>Перевод RU</label>
+                        <input type="text" class="f-edit-ru">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label><input type="checkbox" class="f-edit-term"> Конечное состояние (isTerminal)</label>
+                </div>
+
+                <div class="readonly-section">
+                    <div class="ro-title">Входящие переходы (только для справки):</div>
+                    <div class="f-incoming"></div>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="trans">Исходящие переходы (<span class="tab-trans-count">0</span>)
+                    </div>
+                    <div class="tab" data-tab="perms">Права (<span class="tab-perms-count">0</span>)</div>
+                </div>
+
+                <div class="tab-content active" data-tab="trans">
+                    <div class="f-trans-list"></div>
+                    <button class="secondary" data-act="add-trans">+ Добавить исходящий переход</button>
+                </div>
+
+                <div class="tab-content" data-tab="perms">
+                    <div class="f-perms-list"></div>
+                    <button class="secondary" data-act="add-perm">+ Добавить актора</button>
+                </div>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-transition-modal">
+        <div class="modal-backdrop">
+            <div class="modal">
+                <h2>Редактирование перехода</h2>
+
+                <div class="grid-2">
+                    <div class="form-row">
+                        <label>Код перехода</label>
+                        <input type="text" class="f-tr-name">
+                    </div>
+                    <div class="form-row">
+                        <label>Перевод RU</label>
+                        <input type="text" class="f-tr-ru">
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-row">
+                        <label>From</label>
+                        <input type="text" class="f-tr-from" disabled>
+                    </div>
+                    <div class="form-row">
+                        <label>To (целевое состояние)</label>
+                        <select class="f-tr-to"></select>
+                    </div>
+                </div>
+
+                <fieldset class="form-fieldset">
+                    <legend>Дополнительные свойства</legend>
+
+                    <div class="form-row">
+                        <label>actionToRunBefore</label>
+                        <input type="text" class="f-tr-action" placeholder="onBeforeESBDDataCheck">
+                        <div class="hint">Пусто — свойство не записывается</div>
+                    </div>
+
+                    <div class="form-row">
+                        <label><input type="checkbox" class="f-tr-sse"> serverSideEvents (broadcastEvent)</label>
+                    </div>
+
+                    <div class="form-row">
+                        <label>allowOnValidationErrors</label>
+                        <select class="f-tr-aove-mode">
+                            <option value="none">— не задано —</option>
+                            <option value="all-true">all = true</option>
+                            <option value="all-false">all = false</option>
+                            <option value="codes">codes (список кодов)</option>
+                            <option value="exceptForCodes">exceptForCodes (список кодов)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row f-tr-codes-row" style="display:none">
+                        <label>Коды ошибок (через запятую или с новой строки)</label>
+                        <textarea class="f-tr-codes" rows="3"
+                            placeholder="validation@fieldA, validation@fieldB"></textarea>
+                    </div>
+                </fieldset>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Диалог-сообщение -->
+    <template id="tpl-alert-modal">
+        <div class="modal-backdrop dialog-backdrop">
+            <div class="modal dialog">
+                <h2 class="dlg-title">Сообщение</h2>
+                <div class="dlg-text"></div>
+                <div class="actions">
+                    <button data-act="ok">OK</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Диалог-подтверждение -->
+    <template id="tpl-confirm-modal">
+        <div class="modal-backdrop dialog-backdrop">
+            <div class="modal dialog">
+                <h2 class="dlg-title">Подтверждение</h2>
+                <div class="dlg-text"></div>
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="ok">OK</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+
+    <template id="tpl-generate-flow-modal">
+        <div class="modal-backdrop">
+            <div class="modal gen-flow-modal">
+                <h2>Каркас докфлоу</h2>
+                <p class="hint">
+                    На пустой папке создаст configuration.json, documentFlow.json и
+                    translation/translation.csv. Если файлы уже есть — существующие
+                    состояния и переходы появятся в таблицах, а удаление строки
+                    уберёт объект из файлов со всеми зависимостями.
+                </p>
+
+                <section class="gen-section">
+                    <h3>1. Состояния</h3>
+                    <div class="gen-table-wrap">
+                        <table class="gen-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">№</th>
+                                    <th>Код</th>
+                                    <th>Перевод RU</th>
+                                    <th style="width:40px"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="f-gen-states"></tbody>
+                        </table>
+                    </div>
+                    <div class="form-row">
+                        <label>Введите коды состояний (по одному на строке; можно «Код | Перевод»)</label>
+                        <textarea class="f-gen-states-input" rows="4"
+                            placeholder="Draft | Новый&#10;Issued | Выпущен&#10;Active"></textarea>
+                    </div>
+                    <button class="secondary" data-act="add-states">Добавить состояния</button>
+                </section>
+
+                <section class="gen-section">
+                    <h3>2. Переходы</h3>
+                    <div class="gen-table-wrap">
+                        <table class="gen-table">
+                            <thead>
+                                <tr>
+                                    <th>Код</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Перевод RU</th>
+                                    <th style="width:40px"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="f-gen-transitions"></tbody>
+                        </table>
+                    </div>
+                    <div class="form-row">
+                        <label>Матрица переходов через запятую: «1-3, 3-5, 5-1» или «Draft-Issued»</label>
+                        <textarea class="f-gen-transitions-input" rows="3" placeholder="1-3, 3-5, 5-1"></textarea>
+                    </div>
+                    <button class="secondary" data-act="add-transitions">Добавить переходы</button>
+                </section>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">🏗️ Сгенерировать</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-auth-modal">
+        <div class="modal-backdrop">
+            <div class="modal auth-modal">
+                <h2>Авторизация ролей</h2>
+                <div class="hint auth-doc-hint"></div>
+                <div class="hint auth-path-hint" title=""></div>
+
+                <div class="gen-table-wrap auth-table-wrap">
+                    <table class="gen-table auth-table">
+                        <thead>
+                            <tr>
+                                <th>ApplicationRole</th>
+                                <th>Actor</th>
+                                <th style="width:130px">AssignmentOperator</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="f-auth-rows"></tbody>
+                    </table>
+                </div>
+                <button class="secondary" data-act="add-row">+ Добавить строку</button>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-copy-actor-modal">
+        <div class="modal-backdrop">
+            <div class="modal copy-actor-modal">
+                <h2>Копировать актора</h2>
+                <div class="hint">Источник: <b class="f-copy-source"></b></div>
+
+                <div class="form-row">
+                    <label>Имя актора в целевых состояниях</label>
+                    <input type="text" class="f-copy-name">
+                    <div class="hint">Оставьте прежним, чтобы просто продублировать актора в других состояниях. Измените
+                        — чтобы создать нового актора с тем же набором прав.</div>
+                </div>
+
+                <div class="form-row">
+                    <label>Состояния для копирования</label>
+                    <div class="f-copy-states"></div>
+                </div>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="submit">Копировать</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-validate-modal">
+        <div class="modal-backdrop">
+            <div class="modal validate-modal">
+                <h2>Проверка докфлоу</h2>
+                <div class="validate-summary"></div>
+                <div class="validate-body"></div>
+                <div class="actions">
+                    <button class="secondary" data-act="refresh">Пересчитать</button>
+                    <button data-act="close">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-relations-modal">
+        <div class="modal-backdrop">
+            <div class="modal relations-modal">
+                <h2>Связи документов</h2>
+                <div class="hint relations-doc-hint"></div>
+                <div class="hint relations-path-hint" title=""></div>
+                <div class="relations-body"></div>
+                <div class="actions">
+                    <button data-act="close">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script id="policyFlowData" type="application/json">{{DATA_JSON}}</script>
+    <script src="{{DAGRE_URI}}"></script>
+    <script src="{{JS_URI}}"></script>
+</body>
+
+</html>

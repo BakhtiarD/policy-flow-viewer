@@ -1,0 +1,44 @@
+{
+  "name": "adinsure-document-flow-viewer",
+  "displayName": "Adinsure Document Flow Viewer",
+  "description": "Визуализация и редактирование жизненного цикла Document по configuration.json / documentFlow.json / translation.csv",
+  "version": "0.0.1",
+  "publisher": "BakhtiarD",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BakhtiarD/policy-flow-viewer.git"
+  },
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "files": [
+    "extension.js",
+    "src/**",
+    "media/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "activationEvents": [
+    "onCommand:policyFlow.showTable"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "policyFlow.showTable",
+        "title": "Adinsure: Показать таблицу состояний (Document Flow)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "policyFlow.showTable",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@100"
+        }
+      ]
+    }
+  }
+}

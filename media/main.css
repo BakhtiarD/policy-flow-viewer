@@ -1,0 +1,967 @@
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  padding: 10px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  margin: 0;
+}
+
+/* ---------- TOOLBAR: общие стили ---------- */
+.toolbar,
+.graph-toolbar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--vscode-editor-background);
+  box-sizing: border-box;
+}
+
+.toolbar {
+  position: fixed;
+  z-index: 100;
+  padding: 6px 8px;
+  flex-wrap: nowrap;
+}
+
+.graph-toolbar {
+  padding: 0 10px 8px 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--vscode-panel-border, #ccc);
+  margin-bottom: 8px;
+}
+
+/* spacer для растяжки в горизонтальном тулбаре */
+.toolbar-spacer { flex: 1 1 auto; }
+
+/* separator */
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--vscode-panel-border, #ccc);
+  margin: 0 4px;
+}
+
+/* icon-only кнопки в тулбаре */
+.toolbar button,
+.graph-toolbar button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toolbar button svg,
+.graph-toolbar button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+
+/* ---------- Позиции главного тулбара ---------- */
+body { margin: 0; padding: 10px; }
+
+body[data-toolbar-position="top"] .toolbar {
+  top: 0; left: 0; right: 0;
+  flex-direction: row;
+  border-bottom: 1px solid var(--vscode-panel-border, #ccc);
+}
+body[data-toolbar-position="bottom"] .toolbar {
+  bottom: 0; left: 0; right: 0;
+  flex-direction: row;
+  border-top: 1px solid var(--vscode-panel-border, #ccc);
+}
+body[data-toolbar-position="left"] .toolbar {
+  top: 0; left: 0; bottom: 0;
+  flex-direction: column;
+  width: 46px;
+  border-right: 1px solid var(--vscode-panel-border, #ccc);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+body[data-toolbar-position="right"] .toolbar {
+  top: 0; right: 0; bottom: 0;
+  flex-direction: column;
+  width: 46px;
+  border-left: 1px solid var(--vscode-panel-border, #ccc);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* скрываем подсказки и spacer при вертикальном тулбаре */
+body[data-toolbar-position="left"]  .toolbar-spacer,
+body[data-toolbar-position="right"] .toolbar-spacer,
+body[data-toolbar-position="left"]  #metaInfo,
+body[data-toolbar-position="right"] #metaInfo { display: none; }
+/* конец стилей тулбара*/
+
+button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: inherit;
+}
+button:hover { background: var(--vscode-button-hoverBackground); }
+button.secondary {
+  background: var(--vscode-button-secondaryBackground, #555);
+  color: var(--vscode-button-secondaryForeground, #fff);
+}
+button.danger { background: #c33; color: #fff; }
+button.small { padding: 2px 8px; font-size: 11px; line-height: 1; }
+button.active { outline: 2px solid var(--vscode-focusBorder, #58a6ff); }
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+button:disabled:hover {
+  background: var(--vscode-button-background);
+}
+button.secondary:disabled:hover {
+  background: var(--vscode-button-secondaryBackground, #555);
+}
+button.danger:disabled {
+  background: #7a3a3a;
+}
+button.danger:disabled:hover {
+  background: #7a3a3a;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+th, td {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  padding: 6px 8px;
+  vertical-align: top;
+  text-align: left;
+  word-break: break-word;
+}
+th {
+  background: var(--vscode-editorWidget-background, #f3f3f3);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { text-decoration: underline; }
+.sort-ind { opacity: .6; font-weight: normal; margin-left: 4px; }
+
+/* Колонки: действия · состояние · конечное · входящие · исходящие · права */
+col.c0 { width: 6%; }
+col.c1 { width: 18%; }
+col.c2 { width: 6%; }
+col.c3 { width: 17%; }
+col.c4 { width: 17%; }
+col.c5 { width: 36%; }
+
+td.state {
+  font-weight: 700;
+  /* Раньше было white-space: nowrap — из-за него длинные названия
+     состояний вылезали за границу ячейки. Теперь переносим. */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.empty { opacity: .5; }
+tr:nth-child(even) td { background: rgba(127,127,127,.06); }
+.row-actions { display: flex; gap: 4px; }
+
+.group { margin-bottom: 8px; }
+.group:last-child { margin-bottom: 0; }
+.group-state { margin-bottom: 2px; }
+.state-name { font-weight: 700; }
+.state-ru { font-weight: 500; opacity: .85; }
+.group-transitions { margin: 0; padding-left: 18px; list-style: disc; }
+.group-transitions li { margin: 1px 0; }
+.trans-name { font-weight: 500; }
+.trans-ru { opacity: .8; }
+
+.perm {
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--vscode-panel-border, #ccc);
+}
+.perm:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.perm-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+.perm-header:hover { background: rgba(127,127,127,.08); border-radius: 2px; }
+.perm-toggle {
+  display: inline-block;
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+  opacity: .7;
+  transition: transform .12s ease;
+}
+.perm.collapsed .perm-toggle { transform: rotate(-90deg); }
+.perm-actor { font-weight: 700; }
+.perm-body { padding-left: 18px; }
+.perm.collapsed .perm-body { display: none; }
+.perm-section { margin-top: 4px; }
+.perm-label { font-weight: 600; font-size: 12px; opacity: .95; }
+.perm-list { margin: 2px 0 0 0; padding-left: 18px; list-style: disc; }
+.perm-list li { margin: 1px 0; }
+.perm-empty { opacity: .5; font-style: italic; padding-left: 18px; }
+
+body.vscode-light  .state-name        { color: #0969da; }
+body.vscode-light  .state-ru          { color: #0969da; }
+body.vscode-light  .trans-name        { color: #1a7f37; }
+body.vscode-light  .trans-ru          { color: #1a7f37; }
+body.vscode-light  .perm-actor        { color: #8250df; }
+body.vscode-light  .perm-label.comments { color: #8250df; }
+body.vscode-light  .perm-label.ops    { color: #1a7f37; }
+body.vscode-light  .perm-label.trs    { color: #0969da; }
+body.vscode-light  .perm-label.atts   { color: #9a6700; }
+
+body.vscode-dark   .state-name        { color: #58a6ff; }
+body.vscode-dark   .state-ru          { color: #58a6ff; }
+body.vscode-dark   .trans-name        { color: #3fb950; }
+body.vscode-dark   .trans-ru          { color: #3fb950; }
+body.vscode-dark   .perm-actor        { color: #d2a8ff; }
+body.vscode-dark   .perm-label.comments { color: #d2a8ff; }
+body.vscode-dark   .perm-label.ops    { color: #3fb950; }
+body.vscode-dark   .perm-label.trs    { color: #58a6ff; }
+body.vscode-dark   .perm-label.atts   { color: #d29922; }
+
+body.vscode-high-contrast .state-name     { color: #58a6ff; }
+body.vscode-high-contrast .state-ru       { color: #58a6ff; }
+body.vscode-high-contrast .trans-name     { color: #3fb950; }
+body.vscode-high-contrast .trans-ru       { color: #3fb950; }
+body.vscode-high-contrast .perm-actor     { color: #d2a8ff; }
+body.vscode-high-contrast .perm-label.comments { color: #d2a8ff; }
+body.vscode-high-contrast .perm-label.ops { color: #3fb950; }
+body.vscode-high-contrast .perm-label.trs { color: #58a6ff; }
+body.vscode-high-contrast .perm-label.atts{ color: #d29922; }
+
+.check-cell { text-align: center; }
+.check-cell input[type=checkbox] { transform: scale(1.2); cursor: pointer; }
+
+/* ---------- Модалки ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+.modal {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 4px;
+  padding: 20px;
+  max-width: 980px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal h2 { margin-top: 0; }
+.form-row { margin-bottom: 10px; }
+.form-row > label { display: block; margin-bottom: 3px; font-weight: 600; }
+
+input[type=text], select, textarea {
+  width: 100%;
+  padding: 5px;
+  box-sizing: border-box;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, #ccc);
+}
+.tab {
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+.tab.active {
+  background: var(--vscode-editorWidget-background, #f3f3f3);
+  border-color: var(--vscode-panel-border, #ccc);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.item-card {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 3px;
+}
+.item-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.item-card-title { font-weight: 600; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.checkbox-group { display: flex; gap: 12px; flex-wrap: wrap; }
+.checkbox-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: normal;
+}
+.perm-attach-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0;
+  flex-wrap: wrap;
+}
+.perm-attach-row .type { min-width: 180px; font-weight: 600; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.hint { font-size: 11px; opacity: .7; margin-top: 3px; }
+.readonly-section {
+  border: 1px dashed var(--vscode-panel-border, #888);
+  background: rgba(127,127,127,.06);
+  padding: 10px;
+  border-radius: 3px;
+  margin-bottom: 12px;
+}
+.readonly-section .ro-title { font-weight: 600; margin-bottom: 6px; }
+.readonly-section ul { margin: 0; padding-left: 18px; }
+.readonly-section li { margin: 2px 0; }
+
+/* ---------- GRAPH ---------- */
+#graphView { display: none; }
+#graphView.active { display: block; }
+#tableView.hidden { display: none; }
+
+.graph-container {
+  width: calc(100% - 20px);
+  height: calc(100vh - 120px);
+  min-height: 400px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  margin: 0 10px 10px 10px;
+}
+#graphSvg { display: block; width: 100%; height: 100%; cursor: grab; }
+#graphSvg.panning { cursor: grabbing; }
+
+.g-state rect {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-charts-blue, #58a6ff);
+  stroke-width: 2;
+  cursor: move;
+}
+.g-state.dragging rect { fill: rgba(88, 166, 255, .15); }
+
+.g-state text {
+  font-family: inherit;
+  fill: var(--vscode-foreground);
+  pointer-events: none;
+  user-select: none;
+}
+.g-state text[font-weight="600"] {
+  fill: var(--vscode-charts-blue, #58a6ff);
+}
+
+.g-transition path.g-transition-line {
+  fill: none;
+  stroke: var(--vscode-charts-green, #3fb950);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--vscode-panel-border, #ccc);
+  margin: 0 4px;
+}
+
+/* Выделение */
+.g-state.selected rect {
+  stroke: var(--vscode-charts-orange, #d18616);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(209, 134, 22, 0.5));
+}
+.g-state.selected text { fill: var(--vscode-charts-orange, #d18616); }
+
+.g-transition.selected path.g-transition-line {
+  stroke: var(--vscode-charts-yellow, #bf8803);
+  stroke-width: 3.5;
+}
+.g-transition.selected text {
+  fill: var(--vscode-charts-yellow, #bf8803);
+  font-weight: 600;
+}
+
+/* Мягкая подсветка связанных элементов — контрастный бирюзовый, dashed */
+.g-state.related rect {
+  stroke: #0891b2;                      /* cyan-600 */
+  stroke-width: 2.5;
+  stroke-dasharray: 5 3;
+  fill: rgba(8, 145, 178, 0.06);
+}
+.g-state.related text {
+  fill: #0e7490;                        /* cyan-700 */
+  font-weight: 600;
+}
+
+.g-transition.related path.g-transition-line {
+  stroke: #0891b2;
+  stroke-width: 2.8;
+  stroke-dasharray: 7 4;
+}
+.g-transition.related .g-transition-label-bg {
+  stroke: #0891b2;
+  stroke-width: 1.5;
+}
+.g-transition.related .g-transition-label-text {
+  fill: #0e7490;
+  font-weight: 600;
+}
+
+/* Тёмная тема — сдвигаем в сторону более светлого циана */
+body.vscode-dark .g-state.related rect {
+  stroke: #22d3ee;                      /* cyan-400 */
+  fill: rgba(34, 211, 238, 0.08);
+}
+body.vscode-dark .g-state.related text {
+  fill: #67e8f9;                        /* cyan-300 */
+}
+body.vscode-dark .g-transition.related path.g-transition-line {
+  stroke: #22d3ee;
+}
+body.vscode-dark .g-transition.related .g-transition-label-bg {
+  stroke: #22d3ee;
+}
+body.vscode-dark .g-transition.related .g-transition-label-text {
+  fill: #67e8f9;
+}
+
+/* High contrast — максимально ярко */
+body.vscode-high-contrast .g-state.related rect {
+  stroke: #22d3ee;
+  stroke-width: 3;
+  fill: rgba(34, 211, 238, 0.15);
+}
+body.vscode-high-contrast .g-state.related text {
+  fill: #67e8f9;
+}
+body.vscode-high-contrast .g-transition.related path.g-transition-line {
+  stroke: #22d3ee;
+  stroke-width: 3.2;
+}
+body.vscode-high-contrast .g-transition.related .g-transition-label-bg {
+  stroke: #22d3ee;
+}
+body.vscode-high-contrast .g-transition.related .g-transition-label-text {
+  fill: #67e8f9;
+}
+
+/* Невидимая «hit»-линия для удобного клика по переходу */
+.g-transition-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 22;
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.g-transition-label-bg {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-charts-green, #3fb950);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: all;
+  cursor: pointer;
+}
+.g-transition.selected .g-transition-label-bg {
+  stroke: var(--vscode-charts-yellow, #bf8803);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.g-transition-label-text {
+  font-family: inherit;
+  font-size: 10px;
+  fill: var(--vscode-charts-green, #3fb950);
+  pointer-events: all;
+  cursor: pointer;
+  user-select: none;
+}
+.g-transition.selected .g-transition-label-text {
+  fill: var(--vscode-charts-yellow, #bf8803);
+  font-weight: 600;
+}
+
+#layoutDirBtn {
+  min-width: 32px;
+  font-size: 14px;
+  padding: 4px 8px;
+}
+
+/* ---------- Диалоги (alert / confirm) ---------- */
+.dialog-backdrop {
+  z-index: 2000;
+}
+.dialog {
+  max-width: 520px;
+}
+.dialog .dlg-text {
+  white-space: pre-wrap;
+  margin: 8px 0 12px 0;
+  line-height: 1.4;
+}
+
+.zoom-label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.zoom-label input[type="number"] {
+  width: 66px;
+  padding: 2px 6px;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+}
+
+.form-fieldset {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 3px;
+  padding: 10px 12px;
+  margin: 12px 0 0 0;
+}
+.form-fieldset legend {
+  padding: 0 6px;
+  font-weight: 600;
+  font-size: 12px;
+  opacity: .9;
+}
+
+.op-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.op-exclusive {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: .75;
+  font-size: 12px;
+  cursor: pointer;
+}
+.op-exclusive input[type=checkbox] { transform: scale(0.9); }
+
+/* клик по переходу в таблице */
+.trans-name.clickable {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.trans-name.clickable:hover {
+  text-decoration: underline;
+}
+.gen-flow-modal { max-width: 1100px; }
+
+.gen-section {
+  margin: 16px 0 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 3px;
+}
+.gen-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gen-table-wrap { max-height: 260px; overflow: auto; margin-bottom: 10px; }
+.gen-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.gen-table th, .gen-table td {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: middle;
+}
+.gen-table th { background: var(--vscode-editorWidget-background, #f3f3f3); }
+.gen-table input[type=text] {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+}
+.gen-table input[readonly] { opacity: .7; cursor: not-allowed; }
+
+.gen-sep td {
+  background: var(--vscode-editorWidget-background, #f3f3f3);
+  font-weight: 600;
+  opacity: .8;
+  text-align: left;
+}
+.gen-empty {
+  text-align: center;
+  opacity: .55;
+  font-style: italic;
+}
+
+.gen-flow-modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+}
+
+.auth-modal { max-width: 900px; }
+.auth-table-wrap { max-height: 460px; overflow: auto; margin-bottom: 10px; }
+.auth-table select,
+.auth-table input[type=text] {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+}
+.auth-doc-hint,
+.auth-path-hint {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 11px;
+  opacity: .8;
+  margin: 2px 0;
+}
+.auth-path-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.auth-table .input-error {
+  border-color: #c33 !important;
+  box-shadow: 0 0 0 1px #c33;
+}
+.auth-table .f-auth-role-custom {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  background: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #000);
+  border: 1px solid var(--vscode-input-border, #ccc);
+  border-radius: 2px;
+}
+
+/* Кнопки действий в блоке актора */
+.perm-header { gap: 6px; }
+.perm-actor  { flex: 1 1 auto; }
+.perm-actions {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+  opacity: .55;
+  transition: opacity .1s;
+}
+.perm-header:hover .perm-actions { opacity: 1; }
+.perm-actions button {
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+/* Модалка копирования актора */
+.copy-actor-modal { max-width: 720px; }
+.f-copy-states {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 3px;
+  padding: 8px;
+}
+.f-copy-states label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.f-copy-states label:hover { background: rgba(127,127,127,.08); }
+
+.g-transition-draft {
+  fill: none;
+  stroke: var(--vscode-charts-orange, #d18616);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  pointer-events: none;
+}
+
+.validate-modal { max-width: 780px; }
+.validate-summary {
+  margin: 4px 0 14px 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.validate-summary.ok { color: var(--vscode-charts-green, #3fb950); }
+
+.validate-section {
+  border-top: 1px solid var(--vscode-panel-border, #ccc);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.validate-section:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.validate-section h3 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.validate-empty {
+  padding-left: 10px;
+  opacity: .6;
+  font-size: 12px;
+  font-style: italic;
+}
+.validate-list {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.validate-list li {
+  margin: 2px 0;
+  line-height: 1.5;
+}
+.validate-link {
+  color: var(--vscode-textLink-foreground, #006ab1);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.validate-link:hover { text-decoration: underline; }
+.validate-list code {
+  background: rgba(127,127,127,.15);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+.relations-modal { max-width: 1000px; }
+.relations-body {
+  max-height: 560px;
+  overflow: auto;
+  margin-top: 12px;
+}
+.relations-doc-hint,
+.relations-path-hint {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 11px;
+  opacity: .8;
+  margin: 2px 0;
+}
+.relations-path-hint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relation-card {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.relation-card.mine {
+  border-left: 3px solid var(--vscode-charts-blue, #0063d3);
+}
+.relation-card.has-issues {
+  border-color: #c33;
+}
+
+.relation-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.relation-card h3 .badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background, #c4c4c4);
+  color: var(--vscode-badge-foreground, #333);
+  vertical-align: middle;
+}
+.relation-card h3 .badge.mine {
+  background: var(--vscode-charts-blue, #0063d3);
+  color: #fff;
+}
+.relation-card h3 .badge.issues {
+  background: #c33;
+  color: #fff;
+}
+
+.relation-meta {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 11px;
+  opacity: .75;
+  margin: 4px 0 8px 0;
+  word-break: break-all;
+}
+
+.relation-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.relation-row .lbl {
+  min-width: 170px;
+  opacity: .7;
+}
+.relation-row .val {
+  flex: 1 1 auto;
+  word-break: break-word;
+}
+.relation-row .val code {
+  background: rgba(127,127,127,.15);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.relation-states-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.relation-states-table th,
+.relation-states-table td {
+  border: 1px solid var(--vscode-panel-border, #ccc);
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.relation-states-table th {
+  background: var(--vscode-editorWidget-background, #f3f3f3);
+}
+.relation-states-table code {
+  background: rgba(127,127,127,.15);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.relation-issues {
+  margin: 8px 0 0 0;
+  padding: 6px 10px;
+  background: rgba(204, 51, 51, .08);
+  border-left: 3px solid #c33;
+  font-size: 12px;
+}
+.relation-issues ul {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+}
+.relation-issues li { margin: 2px 0; }
+
+.relation-marker {
+  font-size: 11px;
+  cursor: help;
+  margin-right: 2px;
+}
+
+body.vscode-light  .perm-label.links { color: #8250df; }
+body.vscode-dark   .perm-label.links { color: #d2a8ff; }
+body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
+
+/* ---------- Меню расположения тулбара ---------- */
+.toolbar-settings-menu {
+  position: absolute;
+  background: var(--vscode-menu-background, #ffffff);
+  color: var(--vscode-menu-foreground, #333);
+  border: 1px solid var(--vscode-menu-border, #ccc);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 190px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+  z-index: 200;
+  font-size: 12px;
+}
+
+.toolbar-settings-menu {
+  position: fixed;   /* было absolute — теперь fixed относительно viewport */
+}
+
+.toolbar-settings-menu .menu-header {
+  padding: 6px 12px 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: .55;
+}
+
+.toolbar-settings-menu .menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+.toolbar-settings-menu .menu-item:hover {
+  background: var(--vscode-menu-selectionBackground, #0060c0);
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+.toolbar-settings-menu .menu-item .check {
+  width: 14px;
+  display: inline-block;
+  text-align: center;
+  font-size: 12px;
+}
+.toolbar-settings-menu .menu-item svg {
+  width: 14px;
+  height: 14px;
+}
