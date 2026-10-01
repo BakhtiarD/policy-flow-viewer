@@ -2,11 +2,11 @@ const vscode = require('vscode');
 const path = require('path');
 const { indexOf } = require('./utils');
 const {
-  SVG_STATE_W, SVG_STATE_H,
-  buildActorConfig, registerActorsInFlow, detectFlowName
+    SVG_STATE_W, SVG_STATE_H,
+    buildActorConfig, registerActorsInFlow, detectFlowName
 } = require('./transforms');
 const {
-  loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig
+    loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig
 } = require('./storage');
 
 /* ---------- toggle isTerminal ---------- */
@@ -445,73 +445,73 @@ async function handleEditTransition(ctx, panel, payload) {
 }
 
 async function handleAddTransition(ctx, panel, payload) {
-  const {
-    from, name, to, ru,
-    actionToRunBefore, serverSideEvents, allowOnValidationErrors
-  } = payload || {};
+    const {
+        from, name, to, ru,
+        actionToRunBefore, serverSideEvents, allowOnValidationErrors
+    } = payload || {};
 
-  if (!from) throw new Error('Не указано исходное состояние.');
-  if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
-    throw new Error('Некорректный код перехода.');
-  }
-  if (!to) throw new Error('Не указано целевое состояние.');
-
-  const { flow, config, csv } = ctx;
-
-  if (!(flow.states || []).some(s => s.name === from)) {
-    throw new Error('Состояние-источник не найдено: ' + from);
-  }
-  if (!(flow.states || []).some(s => s.name === to)) {
-    throw new Error('Целевое состояние не найдено: ' + to);
-  }
-  if ((flow.transitions || []).some(t => t.name === name)) {
-    throw new Error('Переход «' + name + '» уже существует.');
-  }
-
-  flow.transitions = flow.transitions || [];
-  const tr = { name, from, to };
-  if (allowOnValidationErrors && allowOnValidationErrors.mode &&
-      allowOnValidationErrors.mode !== 'none') {
-    const m = allowOnValidationErrors.mode;
-    if (m === 'all-true')            tr.allowOnValidationErrors = { all: true };
-    else if (m === 'all-false')      tr.allowOnValidationErrors = { all: false };
-    else if (m === 'codes')          tr.allowOnValidationErrors = { codes: allowOnValidationErrors.codes || [] };
-    else if (m === 'exceptForCodes') tr.allowOnValidationErrors = { exceptForCodes: allowOnValidationErrors.codes || [] };
-  }
-  if (actionToRunBefore && String(actionToRunBefore).trim()) {
-    tr.actionToRunBefore = String(actionToRunBefore).trim();
-  }
-  if (serverSideEvents) tr.broadcastEvent = { serverSideEvents: true };
-  flow.transitions.push(tr);
-
-  // translation.csv
-  const idx = indexOf(csv.header);
-  let found = false;
-  for (const row of csv.rows) {
-    if (row[idx['ItemType']] === 'transitions' &&
-        row[idx['TranslationKey']] === `transitions@${name}@Title`) {
-      row[idx['Translation_ru-RU']] = ru || name;
-      found = true;
-      break;
+    if (!from) throw new Error('Не указано исходное состояние.');
+    if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+        throw new Error('Некорректный код перехода.');
     }
-  }
-  if (!found) {
-    const flowName = detectFlowName(csv);
-    const row = new Array(csv.header.length).fill('');
-    row[idx['ConfigurationType']] = 'DocumentFlowDefinition';
-    row[idx['ConfigurationName']] = flowName;
-    row[idx['ItemType']]          = 'transitions';
-    row[idx['TranslationKey']]    = `transitions@${name}@Title`;
-    row[idx['Expression']]        = name;
-    row[idx['Translation_en-US']] = name;
-    row[idx['Translation_ru-RU']] = ru || name;
-    csv.rows.push(row);
-  }
+    if (!to) throw new Error('Не указано целевое состояние.');
 
-  writeAll(ctx);
-  loadData(ctx);
-  pushRender(ctx, panel);
-  vscode.window.showInformationMessage('Переход «' + name + '» создан.');
+    const { flow, config, csv } = ctx;
+
+    if (!(flow.states || []).some(s => s.name === from)) {
+        throw new Error('Состояние-источник не найдено: ' + from);
+    }
+    if (!(flow.states || []).some(s => s.name === to)) {
+        throw new Error('Целевое состояние не найдено: ' + to);
+    }
+    if ((flow.transitions || []).some(t => t.name === name)) {
+        throw new Error('Переход «' + name + '» уже существует.');
+    }
+
+    flow.transitions = flow.transitions || [];
+    const tr = { name, from, to };
+    if (allowOnValidationErrors && allowOnValidationErrors.mode &&
+        allowOnValidationErrors.mode !== 'none') {
+        const m = allowOnValidationErrors.mode;
+        if (m === 'all-true') tr.allowOnValidationErrors = { all: true };
+        else if (m === 'all-false') tr.allowOnValidationErrors = { all: false };
+        else if (m === 'codes') tr.allowOnValidationErrors = { codes: allowOnValidationErrors.codes || [] };
+        else if (m === 'exceptForCodes') tr.allowOnValidationErrors = { exceptForCodes: allowOnValidationErrors.codes || [] };
+    }
+    if (actionToRunBefore && String(actionToRunBefore).trim()) {
+        tr.actionToRunBefore = String(actionToRunBefore).trim();
+    }
+    if (serverSideEvents) tr.broadcastEvent = { serverSideEvents: true };
+    flow.transitions.push(tr);
+
+    // translation.csv
+    const idx = indexOf(csv.header);
+    let found = false;
+    for (const row of csv.rows) {
+        if (row[idx['ItemType']] === 'transitions' &&
+            row[idx['TranslationKey']] === `transitions@${name}@Title`) {
+            row[idx['Translation_ru-RU']] = ru || name;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        const flowName = detectFlowName(csv);
+        const row = new Array(csv.header.length).fill('');
+        row[idx['ConfigurationType']] = 'DocumentFlowDefinition';
+        row[idx['ConfigurationName']] = flowName;
+        row[idx['ItemType']] = 'transitions';
+        row[idx['TranslationKey']] = `transitions@${name}@Title`;
+        row[idx['Expression']] = name;
+        row[idx['Translation_en-US']] = name;
+        row[idx['Translation_ru-RU']] = ru || name;
+        csv.rows.push(row);
+    }
+
+    writeAll(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage('Переход «' + name + '» создан.');
 }
 /* ---------- save graph positions ---------- */
 async function handleSaveGraph(ctx, payload) {
@@ -537,6 +537,8 @@ async function handleSaveGraph(ctx, payload) {
         });
     }
     for (const t of transitions) {
+        if (!t.manual) continue;
+        if (!Array.isArray(t.waypoints) || t.waypoints.length < 2) continue;
         ui.push({
             id: 'transition_' + t.name,
             waypoints: t.waypoints.map(w => ({ x: w.x, y: w.y })),
@@ -744,133 +746,133 @@ async function handleGenerateFlow(ctx, panel, payload) {
 }
 
 async function handleSaveAuth(ctx, panel, payload) {
-  if (!ctx.authPath || !ctx.auth) {
-    throw new Error('Файл authorization.csv не найден.');
-  }
-
-  const newRows = (payload && payload.rows) || [];
-  const auth = ctx.auth;
-  const idx = indexOf(auth.header);
-
-  const flowPath = ctx.flowPath;
-  const docName = path.basename(path.dirname(flowPath));
-
-  const keep = auth.rows.filter(row => {
-    const codeName    = row[idx['CodeName']];
-    const conceptType = row[idx['ConceptTypeName']];
-    const permType    = row[idx['PermissionType']];
-    const isDocRow = (codeName === docName &&
-                      conceptType === 'DocumentConfiguration' &&
-                      permType === 'Allow Actor');
-    return !isDocRow;
-  });
-
-  const buildRow = (role, actor, op) => {
-    const row = new Array(auth.header.length).fill('');
-    row[idx['ApplicationRole']]    = role;
-    row[idx['PermissionType']]     = 'Allow Actor';
-    row[idx['CodeName']]           = docName;
-    row[idx['ConceptTypeName']]    = 'DocumentConfiguration';
-    row[idx['AssignedPermission']] = actor;
-    row[idx['AssignmentOperator']] = op || 'Add';
-    return row;
-  };
-
-  const seen = new Set();
-  for (const r of newRows) {
-    const role  = String(r.role || '').trim();
-    const actor = String(r.actor || '').trim();
-    const op    = r.op === 'Remove' ? 'Remove' : 'Add';
-
-    if (!role || !actor) {
-      throw new Error('У каждой строки должны быть заполнены ApplicationRole и Actor.');
+    if (!ctx.authPath || !ctx.auth) {
+        throw new Error('Файл authorization.csv не найден.');
     }
 
-    const key = role + '|' + actor + '|' + op;
-    if (seen.has(key)) {
-      throw new Error('Дубликат строки: ' + role + ' / ' + actor + ' / ' + op);
+    const newRows = (payload && payload.rows) || [];
+    const auth = ctx.auth;
+    const idx = indexOf(auth.header);
+
+    const flowPath = ctx.flowPath;
+    const docName = path.basename(path.dirname(flowPath));
+
+    const keep = auth.rows.filter(row => {
+        const codeName = row[idx['CodeName']];
+        const conceptType = row[idx['ConceptTypeName']];
+        const permType = row[idx['PermissionType']];
+        const isDocRow = (codeName === docName &&
+            conceptType === 'DocumentConfiguration' &&
+            permType === 'Allow Actor');
+        return !isDocRow;
+    });
+
+    const buildRow = (role, actor, op) => {
+        const row = new Array(auth.header.length).fill('');
+        row[idx['ApplicationRole']] = role;
+        row[idx['PermissionType']] = 'Allow Actor';
+        row[idx['CodeName']] = docName;
+        row[idx['ConceptTypeName']] = 'DocumentConfiguration';
+        row[idx['AssignedPermission']] = actor;
+        row[idx['AssignmentOperator']] = op || 'Add';
+        return row;
+    };
+
+    const seen = new Set();
+    for (const r of newRows) {
+        const role = String(r.role || '').trim();
+        const actor = String(r.actor || '').trim();
+        const op = r.op === 'Remove' ? 'Remove' : 'Add';
+
+        if (!role || !actor) {
+            throw new Error('У каждой строки должны быть заполнены ApplicationRole и Actor.');
+        }
+
+        const key = role + '|' + actor + '|' + op;
+        if (seen.has(key)) {
+            throw new Error('Дубликат строки: ' + role + ' / ' + actor + ' / ' + op);
+        }
+        seen.add(key);
+
+        keep.push(buildRow(role, actor, op));
     }
-    seen.add(key);
 
-    keep.push(buildRow(role, actor, op));
-  }
+    auth.rows = keep;
 
-  auth.rows = keep;
+    writeAuth(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
 
-  writeAuth(ctx);
-  loadData(ctx);
-  pushRender(ctx, panel);
-
-  vscode.window.showInformationMessage(
-    'Авторизация сохранена: ' + newRows.length + ' строк для ' + docName + '.'
-  );
+    vscode.window.showInformationMessage(
+        'Авторизация сохранена: ' + newRows.length + ' строк для ' + docName + '.'
+    );
 }
 
 async function handleDeleteActorFromState(ctx, panel, payload) {
-  const { stateName, actorName } = payload || {};
-  if (!stateName || !actorName) throw new Error('Не переданы stateName/actorName.');
+    const { stateName, actorName } = payload || {};
+    if (!stateName || !actorName) throw new Error('Не переданы stateName/actorName.');
 
-  const cs = (ctx.config.states || []).find(s => s.name === stateName);
-  if (!cs) throw new Error('Состояние не найдено: ' + stateName);
-  if (!Array.isArray(cs.actors)) cs.actors = [];
+    const cs = (ctx.config.states || []).find(s => s.name === stateName);
+    if (!cs) throw new Error('Состояние не найдено: ' + stateName);
+    if (!Array.isArray(cs.actors)) cs.actors = [];
 
-  const before = cs.actors.length;
-  cs.actors = cs.actors.filter(a => a.actor !== actorName);
-  if (cs.actors.length === before) {
-    throw new Error('Актор «' + actorName + '» не найден в состоянии «' + stateName + '».');
-  }
+    const before = cs.actors.length;
+    cs.actors = cs.actors.filter(a => a.actor !== actorName);
+    if (cs.actors.length === before) {
+        throw new Error('Актор «' + actorName + '» не найден в состоянии «' + stateName + '».');
+    }
 
-  writeConfig(ctx);
-  loadData(ctx);
-  pushRender(ctx, panel);
-  vscode.window.showInformationMessage(
-    'Актор «' + actorName + '» удалён из «' + stateName + '».'
-  );
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage(
+        'Актор «' + actorName + '» удалён из «' + stateName + '».'
+    );
 }
 
 async function handleCopyActor(ctx, panel, payload) {
-  const { fromState, fromActor, toActor, toStates } = payload || {};
-  if (!fromState || !fromActor || !toActor ||
-      !Array.isArray(toStates) || !toStates.length) {
-    throw new Error('Не переданы обязательные параметры копирования.');
-  }
+    const { fromState, fromActor, toActor, toStates } = payload || {};
+    if (!fromState || !fromActor || !toActor ||
+        !Array.isArray(toStates) || !toStates.length) {
+        throw new Error('Не переданы обязательные параметры копирования.');
+    }
 
-  const srcCs = (ctx.config.states || []).find(s => s.name === fromState);
-  if (!srcCs) throw new Error('Состояние-источник не найдено: ' + fromState);
-  const srcActor = (srcCs.actors || []).find(a => a.actor === fromActor);
-  if (!srcActor) throw new Error('Актор не найден в состоянии-источнике.');
+    const srcCs = (ctx.config.states || []).find(s => s.name === fromState);
+    if (!srcCs) throw new Error('Состояние-источник не найдено: ' + fromState);
+    const srcActor = (srcCs.actors || []).find(a => a.actor === fromActor);
+    if (!srcActor) throw new Error('Актор не найден в состоянии-источнике.');
 
-  // Глубокая копия через JSON — блок прав содержит вложенные массивы/объекты.
-  const template = JSON.parse(JSON.stringify(srcActor));
-  template.actor = toActor;
+    // Глубокая копия через JSON — блок прав содержит вложенные массивы/объекты.
+    const template = JSON.parse(JSON.stringify(srcActor));
+    template.actor = toActor;
 
-  let added = 0;
-  let skipped = 0;
+    let added = 0;
+    let skipped = 0;
 
-  for (const st of toStates) {
-    const cs = (ctx.config.states || []).find(s => s.name === st);
-    if (!cs) { skipped++; continue; }
-    cs.actors = cs.actors || [];
-    if (cs.actors.some(a => a.actor === toActor)) { skipped++; continue; }
-    cs.actors.push(JSON.parse(JSON.stringify(template)));
-    added++;
-  }
+    for (const st of toStates) {
+        const cs = (ctx.config.states || []).find(s => s.name === st);
+        if (!cs) { skipped++; continue; }
+        cs.actors = cs.actors || [];
+        if (cs.actors.some(a => a.actor === toActor)) { skipped++; continue; }
+        cs.actors.push(JSON.parse(JSON.stringify(template)));
+        added++;
+    }
 
-  if (!added) {
-    vscode.window.showInformationMessage(
-      'Ничего не добавлено: во всех выбранных состояниях актор «' + toActor + '» уже есть.'
-    );
-    return;
-  }
+    if (!added) {
+        vscode.window.showInformationMessage(
+            'Ничего не добавлено: во всех выбранных состояниях актор «' + toActor + '» уже есть.'
+        );
+        return;
+    }
 
-  writeConfig(ctx);
-  loadData(ctx);
-  pushRender(ctx, panel);
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
 
-  const msg = 'Актор «' + toActor + '» скопирован в ' + added + ' состояни' +
-              (added === 1 ? 'е' : 'й') +
-              (skipped ? ', пропущено: ' + skipped : '') + '.';
-  vscode.window.showInformationMessage(msg);
+    const msg = 'Актор «' + toActor + '» скопирован в ' + added + ' состояни' +
+        (added === 1 ? 'е' : 'й') +
+        (skipped ? ', пропущено: ' + skipped : '') + '.';
+    vscode.window.showInformationMessage(msg);
 }
 
 module.exports = {

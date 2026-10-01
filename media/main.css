@@ -965,3 +965,68 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
   width: 14px;
   height: 14px;
 }
+
+/* Ручки для перетаскивания промежуточных точек маршрута */
+.g-transition-handle {
+  fill: var(--vscode-editor-background, #fff);
+  stroke: var(--vscode-charts-blue, #0063d3);
+  stroke-width: 2.5;
+  cursor: grab;
+  pointer-events: all;
+}
+.g-transition-handle:hover {
+  stroke: var(--vscode-charts-orange, #d18616);
+  stroke-width: 3;
+}
+.g-transition-handle.dragging {
+  cursor: grabbing;
+  stroke: var(--vscode-charts-orange, #d18616);
+  fill: var(--vscode-charts-orange, #d18616);
+}
+
+.g-transition-handle-end {
+  r: 7;
+  stroke-dasharray: 2 1;
+}
+
+/* Подсветка состояния, к которому привязывается крайняя точка */
+.g-state.snap-target rect {
+  stroke: var(--vscode-charts-orange, #d18616);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 3;
+}
+.g-state.snap-target text {
+  fill: var(--vscode-charts-orange, #d18616);
+}
+.g-transition-handle-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: grab;
+}
+.g-handles {
+  pointer-events: none;
+}
+.g-handles > * {
+  pointer-events: all;
+}
+
+.g-transition-seg-handle {
+  stroke: var(--vscode-charts-purple, #652d90);
+  stroke-width: 4;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.g-transition-seg-handle.dragging {
+  stroke: var(--vscode-charts-orange, #d18616);
+}
+.g-transition-seg-handle-hit {
+  stroke: transparent;
+  stroke-width: 18;
+  stroke-linecap: round;
+  cursor: grab;
+  pointer-events: all;
+}
+.g-transition-seg-handle-hit.dragging {
+  cursor: grabbing;
+}

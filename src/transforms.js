@@ -151,58 +151,58 @@ function buildAuthMeta(flowPath, authCsv, authPath) {
 }
 
 function buildRelationsMeta(ctx, flow, documentTitles) {
-  const path = require('path');
-  const docName   = path.basename(path.dirname(ctx.flowPath));
-  const docStates = (flow.states || []).map(s => s.name);
-  const docActors = flow.actors || [];
-  const knownDocs = ctx.documentNames || [];
-  const titles    = documentTitles || {};
+    const path = require('path');
+    const docName = path.basename(path.dirname(ctx.flowPath));
+    const docStates = (flow.states || []).map(s => s.name);
+    const docActors = flow.actors || [];
+    const knownDocs = ctx.documentNames || [];
+    const titles = documentTitles || {};
 
-  const relations = (ctx.relations || []).map(r => {
-    const isMine = (r.sourceDocument === docName);
-    const issues = [];
+    const relations = (ctx.relations || []).map(r => {
+        const isMine = (r.sourceDocument === docName);
+        const issues = [];
 
-    if (isMine) {
-      if (r.sourceDocument && !knownDocs.includes(r.sourceDocument)) {
-        issues.push('sourceDocument «' + r.sourceDocument + '» не найден в product/document/');
-      }
-      if (r.targetDocument && !knownDocs.includes(r.targetDocument)) {
-        issues.push('targetDocument «' + r.targetDocument + '» не найден в product/document/');
-      }
-      for (const st of (r.sourceDocumentStates || [])) {
-        if (!docStates.includes(st.name)) {
-          issues.push('Состояние «' + st.name + '» отсутствует в ' + docName);
+        if (isMine) {
+            if (r.sourceDocument && !knownDocs.includes(r.sourceDocument)) {
+                issues.push('sourceDocument «' + r.sourceDocument + '» не найден в product/document/');
+            }
+            if (r.targetDocument && !knownDocs.includes(r.targetDocument)) {
+                issues.push('targetDocument «' + r.targetDocument + '» не найден в product/document/');
+            }
+            for (const st of (r.sourceDocumentStates || [])) {
+                if (!docStates.includes(st.name)) {
+                    issues.push('Состояние «' + st.name + '» отсутствует в ' + docName);
+                }
+                for (const a of (st.actors || [])) {
+                    if (!docActors.includes(a)) {
+                        issues.push('Актор «' + a + '» отсутствует в ' + docName);
+                    }
+                }
+            }
         }
-        for (const a of (st.actors || [])) {
-          if (!docActors.includes(a)) {
-            issues.push('Актор «' + a + '» отсутствует в ' + docName);
-          }
-        }
-      }
-    }
+
+        return {
+            name: r.name,
+            path: r.path,
+            sourceDocument: r.sourceDocument,
+            sourceDocumentVersion: r.sourceDocumentVersion,
+            sourceDocumentStates: r.sourceDocumentStates,
+            actionToRunBefore: r.actionToRunBefore,
+            targetDocument: r.targetDocument,
+            targetDocumentVersion: r.targetDocumentVersion,
+            targetDocumentTitle: titles[r.targetDocument] || r.targetDocument,
+            targetState: r.targetState,
+            keywords: r.keywords,
+            isMine,
+            issues
+        };
+    });
 
     return {
-      name:                   r.name,
-      path:                   r.path,
-      sourceDocument:         r.sourceDocument,
-      sourceDocumentVersion:  r.sourceDocumentVersion,
-      sourceDocumentStates:   r.sourceDocumentStates,
-      actionToRunBefore:      r.actionToRunBefore,
-      targetDocument:         r.targetDocument,
-      targetDocumentVersion:  r.targetDocumentVersion,
-      targetDocumentTitle:    titles[r.targetDocument] || r.targetDocument,
-      targetState:            r.targetState,
-      keywords:               r.keywords,
-      isMine,
-      issues
+        docName,
+        path: ctx.productLevel ? path.join(ctx.productLevel, 'documentRelation') : null,
+        relations
     };
-  });
-
-  return {
-    docName,
-    path: ctx.productLevel ? path.join(ctx.productLevel, 'documentRelation') : null,
-    relations
-  };
 }
 
 /* ============================================================
@@ -301,6 +301,7 @@ function buildStateDetails(flow, config, trans) {
  * ============================================================ */
 function buildGraph(flow, ui, trans) {
     const uiStates = {};
+    const uiWaypoints = {};
 
     if (Array.isArray(ui)) {
         for (const item of ui) {
@@ -313,6 +314,11 @@ function buildGraph(flow, ui, trans) {
                 const cx = (typeof b.x === 'number' ? b.x : 0) + w0 / 2;
                 const cy = (typeof b.y === 'number' ? b.y : 0) + h0 / 2;
                 uiStates[name] = { cx, cy };
+            } else if (item.id.startsWith('transition_')) {
+                const name = item.id.slice('transition_'.length);
+                if (Array.isArray(item.waypoints) && item.waypoints.length >= 2) {
+                    uiWaypoints[name] = item.waypoints.map(w => ({ x: w.x, y: w.y }));
+                }
             }
         }
     }
@@ -333,15 +339,20 @@ function buildGraph(flow, ui, trans) {
         w: 160, h: 50
     }));
 
-    const transitions = (flow.transitions || []).map(t => ({
-        name: t.name,
-        from: t.from,
-        to: t.to,
-        ru: trans.transTrans[t.name] || t.name,
-        actionToRunBefore: t.actionToRunBefore || '',
-        serverSideEvents: !!(t.broadcastEvent && t.broadcastEvent.serverSideEvents),
-        allowOnValidationErrors: t.allowOnValidationErrors || null
-    }));
+    const transitions = (flow.transitions || []).map(t => {
+        const manualWp = uiWaypoints[t.name] || null;
+        return {
+            name: t.name,
+            from: t.from,
+            to: t.to,
+            ru: trans.transTrans[t.name] || t.name,
+            actionToRunBefore: t.actionToRunBefore || '',
+            serverSideEvents: !!(t.broadcastEvent && t.broadcastEvent.serverSideEvents),
+            allowOnValidationErrors: t.allowOnValidationErrors || null,
+            manual: !!manualWp,
+            manualWaypoints: manualWp
+        };
+    });
 
     return { states, transitions, initialState: flow.initialState || null };
 }

@@ -1,6 +1,38 @@
 (function () {
     'use strict';
 
+    const vscode = acquireVsCodeApi();
+
+    const dataEl = document.getElementById('policyFlowData');
+    if (!dataEl) throw new Error('policyFlowData script tag not found');
+    const DATA = JSON.parse(dataEl.textContent);
+
+    const meta = DATA.meta;
+    const stateDetails = DATA.stateDetails;
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    const saved = vscode.getState() || {};
+    let sortDir = (typeof saved.sortDir === 'number') ? saved.sortDir : 0;
+    let expandedMap = saved.expandedMap || {};
+    let viewMode = saved.viewMode || 'table';
+
+    let graphData = JSON.parse(JSON.stringify(DATA.graph || { states: [], transitions: [] }));
+
+    let selectedStates = new Set();
+    let selectedTransitions = new Set();
+
+    let viewBox = { x: 0, y: 0, w: 1000, h: 1000 };
+    let zoomPercent = 100;
+    let layoutRankDir = (saved.layoutRankDir === 'LR') ? 'LR' : 'TB';
+    let showTransitionLabels = (saved.showTransitionLabels !== false);
+    let toolbarPosition = saved.toolbarPosition || 'top';
+
+    let draftTransition = null;
+    let lastContextMenuBlockUntil = 0;
+
+    /* ============================================================
+     * ИКОНКИ
+     * ============================================================ */
     const ICONS = {
         add: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
         refresh: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.5"/><path d="M13 3v3h-3"/></svg>',
@@ -27,40 +59,14 @@
         'layout-right': '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="1"/><rect x="11" y="3" width="2" height="10" fill="currentColor" stroke="none"/></svg>'
     };
 
-    const vscode = acquireVsCodeApi();
-
-    const dataEl = document.getElementById('policyFlowData');
-    if (!dataEl) throw new Error('policyFlowData script tag not found');
-    const DATA = JSON.parse(dataEl.textContent);
-
-    const meta = DATA.meta;
-    const stateDetails = DATA.stateDetails;
-    const SVG_NS = 'http://www.w3.org/2000/svg';
-
-    const saved = vscode.getState() || {};
-    let sortDir = (typeof saved.sortDir === 'number') ? saved.sortDir : 0;
-    let expandedMap = saved.expandedMap || {};
-    let viewMode = saved.viewMode || 'table';
-    let toolbarPosition = saved.toolbarPosition || 'top';
-
-    let graphData = JSON.parse(JSON.stringify(DATA.graph || { states: [], transitions: [] }));
-
-    let selectedStates = new Set();
-    let selectedTransitions = new Set();
-    let draftTransition = null;
-    let lastContextMenuBlockUntil = 0;
-
-    let viewBox = { x: 0, y: 0, w: 1000, h: 1000 };
-    let zoomPercent = 100;
-    // Направление раскладки Dagre: 'TB' (сверху вниз) или 'LR' (слева направо).
-    let layoutRankDir = (saved.layoutRankDir === 'LR') ? 'LR' : 'TB';
-    let showTransitionLabels = (saved.showTransitionLabels !== false);
-
     /* ============================================================
      * HELPERS
      * ============================================================ */
     function persistState() {
-        vscode.setState({ sortDir, expandedMap, viewMode, layoutRankDir, showTransitionLabels, toolbarPosition });
+        vscode.setState({
+            sortDir, expandedMap, viewMode, layoutRankDir,
+            showTransitionLabels, toolbarPosition
+        });
     }
 
     function permKey(stateName, actor) { return stateName + '|' + actor; }
@@ -105,6 +111,52 @@
             });
             document.getElementById('modalContainer').appendChild(backdrop);
         });
+    }
+
+    /* ============================================================
+     * RELATIONS
+     * ============================================================ */
+    const RELATION_TARGET_MAP = {
+        'AmendmentAnnulation': 'Annulled',
+        'AmendmentTermination': 'Terminated'
+    };
+
+    function resolveRelationTransitionName(fromState, targetDocument) {
+        const toState = RELATION_TARGET_MAP[targetDocument];
+        if (!toState) return null;
+        const tr = (graphData.transitions || []).find(
+            t => t.from === fromState && t.to === toState
+        );
+        return tr ? tr.name : null;
+    }
+
+    function getRelationsFor(stateName, actorName) {
+        const list = (DATA.relations && DATA.relations.relations) || [];
+        const result = [];
+        for (const rel of list) {
+            if (!rel.isMine) continue;
+            for (const st of (rel.sourceDocumentStates || [])) {
+                if (st.name !== stateName) continue;
+                if (!(st.actors || []).includes(actorName)) continue;
+                result.push({
+                    relationName: rel.name,
+                    targetDocument: rel.targetDocument,
+                    targetDocumentTitle: rel.targetDocumentTitle || rel.targetDocument,
+                    targetState: rel.targetState,
+                    transitionName: resolveRelationTransitionName(stateName, rel.targetDocument)
+                });
+                break;
+            }
+        }
+        return result;
+    }
+
+    function stateHasRelation(stateName) {
+        const list = (DATA.relations && DATA.relations.relations) || [];
+        return list.some(rel =>
+            rel.isMine &&
+            (rel.sourceDocumentStates || []).some(st => st.name === stateName)
+        );
     }
 
     /* ============================================================
@@ -200,51 +252,6 @@
         return sec;
     }
 
-    // Маппинг «целевой документ → состояние политики, куда ведёт relation».
-    // При появлении новых связей — добавлять сюда.
-    const RELATION_TARGET_MAP = {
-        'AmendmentAnnulation': 'Annulled',
-        'AmendmentTermination': 'Terminated'
-    };
-
-    function resolveRelationTransitionName(fromState, targetDocument) {
-        const toState = RELATION_TARGET_MAP[targetDocument];
-        if (!toState) return null;
-        const tr = (graphData.transitions || []).find(
-            t => t.from === fromState && t.to === toState
-        );
-        return tr ? tr.name : null;
-    }
-
-    function getRelationsFor(stateName, actorName) {
-        const list = (DATA.relations && DATA.relations.relations) || [];
-        const result = [];
-        for (const rel of list) {
-            if (!rel.isMine) continue;
-            for (const st of (rel.sourceDocumentStates || [])) {
-                if (st.name !== stateName) continue;
-                if (!(st.actors || []).includes(actorName)) continue;
-                result.push({
-                    relationName: rel.name,
-                    targetDocument: rel.targetDocument,
-                    targetDocumentTitle: rel.targetDocumentTitle || rel.targetDocument,
-                    targetState: rel.targetState,
-                    transitionName: resolveRelationTransitionName(stateName, rel.targetDocument)
-                });
-                break;
-            }
-        }
-        return result;
-    }
-
-    function stateHasRelation(stateName) {
-        const list = (DATA.relations && DATA.relations.relations) || [];
-        return list.some(rel =>
-            rel.isMine &&
-            (rel.sourceDocumentStates || []).some(st => st.name === stateName)
-        );
-    }
-
     function renderPerms(perms, stateName) {
         const frag = document.createDocumentFragment();
         if (!perms || !perms.length) {
@@ -329,8 +336,6 @@
             };
             body.appendChild(makePermSectionList('operations', p.operations || [], opsFmt));
 
-            // Обычные переходы + relation-переходы (те, что меняют статус) — в одной секции.
-            // Relation-действия без смены статуса — в отдельной секции links.
             const transItems = (p.transitions || []).map(t => ({
                 kind: 'transition',
                 label: t.name + ' (' + t.ru + ')'
@@ -400,7 +405,6 @@
 
             const tdState = document.createElement('td');
             tdState.className = 'state';
-
             if (stateHasRelation(r.stateName)) {
                 const icon = document.createElement('span');
                 icon.className = 'relation-marker';
@@ -503,7 +507,6 @@
         updateSortIndicator();
         renderTable();
     });
-
     /* ============================================================
      * GRAPH
      * ============================================================ */
@@ -523,7 +526,6 @@
         const tcy = toRect.y + toRect.h / 2;
         const dx = tcx - fcx, dy = tcy - fcy;
 
-        // Реальные зазоры между прямоугольниками (не по центрам)
         const gapX = (dx >= 0)
             ? toRect.x - (fromRect.x + fromRect.w)
             : fromRect.x - (toRect.x + toRect.w);
@@ -533,11 +535,8 @@
 
         const MIN_GAP = 30;
 
-        // Ось предпочитаем, если в этом направлении есть реальный зазор.
         if (gapX >= MIN_GAP && gapX >= gapY) return dx >= 0 ? 'E' : 'W';
         if (gapY >= MIN_GAP) return dy >= 0 ? 'S' : 'N';
-
-        // Fallback — старое правило по доминирующей оси центра-центр
         if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'E' : 'W';
         return dy >= 0 ? 'S' : 'N';
     }
@@ -550,24 +549,50 @@
         return { x: cx + offset, y: rect.y + rect.h };
     }
 
-    function computeStubs(p1, p2, startEdge, endEdge) {
-        const stub = 18;
-        const p1out = { x: p1.x, y: p1.y };
-        const p2out = { x: p2.x, y: p2.y };
+    function findNearestEdge(rect, pt) {
+        const dTop = Math.abs(pt.y - rect.y);
+        const dBottom = Math.abs(pt.y - (rect.y + rect.h));
+        const dLeft = Math.abs(pt.x - rect.x);
+        const dRight = Math.abs(pt.x - (rect.x + rect.w));
 
-        // Стаб в начале — только если он ведёт В СТОРОНУ целевой точки
-        if (startEdge === 'E' && p2.x > p1.x + stub) p1out.x = p1.x + stub;
-        else if (startEdge === 'W' && p2.x < p1.x - stub) p1out.x = p1.x - stub;
-        else if (startEdge === 'S' && p2.y > p1.y + stub) p1out.y = p1.y + stub;
-        else if (startEdge === 'N' && p2.y < p1.y - stub) p1out.y = p1.y - stub;
+        const min = Math.min(dTop, dBottom, dLeft, dRight);
+        if (min === dTop) return 'N';
+        if (min === dBottom) return 'S';
+        if (min === dLeft) return 'W';
+        return 'E';
+    }
 
-        // Стаб в конце — только если он идёт от B по направлению к источнику
-        if (endEdge === 'E' && p1.x > p2.x + stub) p2out.x = p2.x + stub;
-        else if (endEdge === 'W' && p1.x < p2.x - stub) p2out.x = p2.x - stub;
-        else if (endEdge === 'S' && p1.y > p2.y + stub) p2out.y = p2.y + stub;
-        else if (endEdge === 'N' && p1.y < p2.y - stub) p2out.y = p2.y - stub;
+    function segPerp(a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        return { x: -dy / len, y: dx / len };
+    }
 
-        return { p1out, p2out };
+    function snapToEdge(rect, edge, pt) {
+        const PAD = 10;
+        if (edge === 'N') {
+            return {
+                x: Math.min(Math.max(pt.x, rect.x + PAD), rect.x + rect.w - PAD),
+                y: rect.y
+            };
+        }
+        if (edge === 'S') {
+            return {
+                x: Math.min(Math.max(pt.x, rect.x + PAD), rect.x + rect.w - PAD),
+                y: rect.y + rect.h
+            };
+        }
+        if (edge === 'W') {
+            return {
+                x: rect.x,
+                y: Math.min(Math.max(pt.y, rect.y + PAD), rect.y + rect.h - PAD)
+            };
+        }
+        return {
+            x: rect.x + rect.w,
+            y: Math.min(Math.max(pt.y, rect.y + PAD), rect.y + rect.h - PAD)
+        };
     }
 
     function simplifyOrtho(pts) {
@@ -623,6 +648,24 @@
         return d;
     }
 
+    function computeStubs(p1, p2, startEdge, endEdge) {
+        const stub = 18;
+        const p1out = { x: p1.x, y: p1.y };
+        const p2out = { x: p2.x, y: p2.y };
+
+        if (startEdge === 'E' && p2.x > p1.x + stub) p1out.x = p1.x + stub;
+        else if (startEdge === 'W' && p2.x < p1.x - stub) p1out.x = p1.x - stub;
+        else if (startEdge === 'S' && p2.y > p1.y + stub) p1out.y = p1.y + stub;
+        else if (startEdge === 'N' && p2.y < p1.y - stub) p1out.y = p1.y - stub;
+
+        if (endEdge === 'E' && p1.x > p2.x + stub) p2out.x = p2.x + stub;
+        else if (endEdge === 'W' && p1.x < p2.x - stub) p2out.x = p2.x - stub;
+        else if (endEdge === 'S' && p1.y > p2.y + stub) p2out.y = p2.y + stub;
+        else if (endEdge === 'N' && p1.y < p2.y - stub) p2out.y = p2.y - stub;
+
+        return { p1out, p2out };
+    }
+
     function buildSimpleOrthoMiddle(p1out, p2out, startHoriz, endHoriz) {
         if (startHoriz && endHoriz) {
             const mx = (p1out.x + p2out.x) / 2;
@@ -662,17 +705,11 @@
         for (let i = 1; i < points.length; i++) {
             const a = points[i - 1], b = points[i];
 
-            // Обычные препятствия — проверяем все сегменты
             for (const o of obstacles) {
                 if (segmentHitsRect(a, b, o)) return o;
             }
 
-            // Исходное состояние: не проверяем первый сегмент (от p1 до p1out) —
-            // он по определению выходит из aRect. Остальные — проверяем.
             if (i > 1 && aRect && segmentHitsRect(a, b, aRect)) return aRect;
-
-            // Целевое состояние: не проверяем последний сегмент (p2out до p2) —
-            // он по определению входит в bRect. Остальные — проверяем.
             if (i < points.length - 1 && bRect && segmentHitsRect(a, b, bRect)) return bRect;
         }
         return null;
@@ -731,8 +768,6 @@
             return false;
         }
 
-        // Первый сегмент (выходит из aRect) не проверяем против aRect.
-        // Последний сегмент (входит в bRect) не проверяем против bRect.
         function pathCuts(pts) {
             for (let i = 0; i < pts.length - 1; i++) {
                 const a = pts[i], b = pts[i + 1];
@@ -751,12 +786,10 @@
             candidates.push([{ x: RIGHT, y: p1out.y }, { x: RIGHT, y: p2out.y }]);
         }
 
-        // Первый непересекающийся
         for (const mid of candidates) {
             if (!pathCuts([p1out, ...mid, p2out])) return mid;
         }
 
-        // Иначе — самый короткий
         const cost = (mid) => {
             const full = [p1out, ...mid, p2out];
             let c = 0;
@@ -895,6 +928,11 @@
 
         const allRects = states.map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h }));
         transitions.forEach((t, i) => {
+            if (t.manual && Array.isArray(t.manualWaypoints) && t.manualWaypoints.length >= 2) {
+                t.waypoints = t.manualWaypoints.map(p => ({ x: p.x, y: p.y }));
+                t.label = labelFromWaypoints(t.waypoints);
+                return;
+            }
             const a = stateByName[t.from], b = stateByName[t.to];
             const e = edges[i];
             if (!a || !b || !e) { t.waypoints = []; t.label = null; return; }
@@ -909,6 +947,352 @@
         spreadParallelSegments();
         for (const t of transitions) {
             t.label = labelFromWaypoints(t.waypoints);
+        }
+    }
+
+    function spreadParallelSegments() {
+        const transitions = graphData.transitions;
+        const LANE_STEP = 6;
+
+        const segs = [];
+        transitions.forEach((t, idx) => {
+            if (t.manual) return;
+            const wps = t.waypoints || [];
+            if (wps.length < 4) return;
+            for (let i = 1; i < wps.length; i++) {
+                if (i === 1 || i === wps.length - 1) continue;
+                const a = wps[i - 1], b = wps[i];
+                const len = Math.hypot(b.x - a.x, b.y - a.y);
+                if (len < 25) continue;
+                const isH = Math.abs(a.y - b.y) < 0.5;
+                const isV = Math.abs(a.x - b.x) < 0.5;
+                if (!isH && !isV) continue;
+                segs.push({ idx, i, isH, isV, a, b, len });
+            }
+        });
+
+        const groups = new Map();
+        for (const s of segs) {
+            const key = s.isH
+                ? 'H|' + Math.round(s.a.y / 2)
+                : 'V|' + Math.round(s.a.x / 2);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(s);
+        }
+
+        for (const [key, list] of groups) {
+            if (list.length < 2) continue;
+            const isH = key.startsWith('H');
+
+            let hasOverlap = false;
+            for (let i = 0; i < list.length && !hasOverlap; i++) {
+                for (let j = i + 1; j < list.length && !hasOverlap; j++) {
+                    const a = list[i], b = list[j];
+                    const rA = isH
+                        ? [Math.min(a.a.x, a.b.x), Math.max(a.a.x, a.b.x)]
+                        : [Math.min(a.a.y, a.b.y), Math.max(a.a.y, a.b.y)];
+                    const rB = isH
+                        ? [Math.min(b.a.x, b.b.x), Math.max(b.a.x, b.b.x)]
+                        : [Math.min(b.a.y, b.b.y), Math.max(b.a.y, b.b.y)];
+                    const overlap = Math.min(rA[1], rB[1]) - Math.max(rA[0], rB[0]);
+                    if (overlap > 5) hasOverlap = true;
+                }
+            }
+            if (!hasOverlap) continue;
+
+            const n = list.length;
+            for (let j = 0; j < n; j++) {
+                const off = (j - (n - 1) / 2) * LANE_STEP;
+                if (Math.abs(off) < 0.5) continue;
+                const s = list[j];
+                const t = transitions[s.idx];
+                const wps = t.waypoints;
+                if (isH) {
+                    wps[s.i - 1] = { x: wps[s.i - 1].x, y: wps[s.i - 1].y + off };
+                    wps[s.i] = { x: wps[s.i].x, y: wps[s.i].y + off };
+                } else {
+                    wps[s.i - 1] = { x: wps[s.i - 1].x + off, y: wps[s.i - 1].y };
+                    wps[s.i] = { x: wps[s.i].x + off, y: wps[s.i].y };
+                }
+            }
+        }
+    }
+
+    async function autoLayout() {
+        const n = graphData.states.length;
+        if (!n) return;
+
+        const hasExisting = DATA.hasUi || (graphData.states || []).some(s => s._fromUi);
+        if (hasExisting) {
+            const ok = await showConfirm(
+                'В документе уже есть сохранённые позиции.\n\n' +
+                'Авто-раскладка перезапишет позиции состояний и сбросит\n' +
+                'ручные маршруты переходов. Продолжить?',
+                'Авто-раскладка'
+            );
+            if (!ok) return;
+        }
+
+        if (typeof dagre === 'undefined' || !dagre || !dagre.graphlib) {
+            showAlert('Модуль раскладки (dagre) не загружен. Проверьте файл media/vendor/dagre.min.js.', 'Ошибка');
+            return;
+        }
+
+        const W = BASE_STATE_W, H = BASE_STATE_H;
+
+        const g = new dagre.graphlib.Graph();
+        g.setGraph({
+            rankdir: layoutRankDir,
+            nodesep: 60,
+            ranksep: 100,
+            edgesep: 30,
+            marginx: 40,
+            marginy: 40
+        });
+        g.setDefaultEdgeLabel(() => ({}));
+
+        for (const s of graphData.states) {
+            s.w = W;
+            s.h = H;
+            g.setNode(s.name, { width: W, height: H });
+        }
+        for (const t of graphData.transitions) {
+            if (t.from && t.to) g.setEdge(t.from, t.to);
+        }
+
+        dagre.layout(g);
+
+        for (const s of graphData.states) {
+            const pos = g.node(s.name);
+            if (!pos) continue;
+            s.x = pos.x - W / 2;
+            s.y = pos.y - H / 2;
+            s._fromUi = false;
+        }
+
+        for (const t of graphData.transitions) {
+            t.manual = false;
+            t.manualWaypoints = null;
+        }
+
+        rerouteAll();
+        renderGraph();
+        fitGraph();
+    }
+
+    function computeBBox() {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of graphData.states) {
+            minX = Math.min(minX, s.x);
+            minY = Math.min(minY, s.y);
+            maxX = Math.max(maxX, s.x + s.w);
+            maxY = Math.max(maxY, s.y + s.h);
+        }
+        for (const t of graphData.transitions) {
+            for (const w of t.waypoints || []) {
+                minX = Math.min(minX, w.x); minY = Math.min(minY, w.y);
+                maxX = Math.max(maxX, w.x); maxY = Math.max(maxY, w.y);
+            }
+            if (t.label && showTransitionLabels) {
+                const labelText = t.name + (t.manual ? ' ✎' : '') +
+                    (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+                const textW = Math.max(30, labelText.length * 5.5 + 8);
+                const boxW = textW + 8;
+                const boxH = 16;
+                if (t.label.orientation === 'h') {
+                    minX = Math.min(minX, t.label.x - boxW / 2);
+                    maxX = Math.max(maxX, t.label.x + boxW / 2);
+                    minY = Math.min(minY, t.label.y - boxH / 2 - 6);
+                    maxY = Math.max(maxY, t.label.y + boxH / 2 - 6);
+                } else {
+                    minX = Math.min(minX, t.label.x + 10 - boxW / 2);
+                    maxX = Math.max(maxX, t.label.x + 10 + boxW / 2);
+                    minY = Math.min(minY, t.label.y - boxH / 2);
+                    maxY = Math.max(maxY, t.label.y + boxH / 2);
+                }
+            }
+        }
+        if (!isFinite(minX)) return { x: 0, y: 0, w: 100, h: 100 };
+        const pad = 40;
+        return {
+            x: minX - pad, y: minY - pad,
+            w: Math.max(100, (maxX - minX) + pad * 2),
+            h: Math.max(100, (maxY - minY) + pad * 2)
+        };
+    }
+
+    function applyViewBox() {
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+        svg.setAttribute('viewBox',
+            viewBox.x + ' ' + viewBox.y + ' ' + viewBox.w + ' ' + viewBox.h);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    }
+
+    function syncZoomInput() {
+        const el = document.getElementById('zoomInput');
+        if (el) el.value = Math.round(zoomPercent);
+    }
+
+    function fitGraph() {
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+        const bbox = computeBBox();
+        viewBox = { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h };
+        zoomPercent = 100;
+        syncZoomInput();
+        applyViewBox();
+    }
+
+    function zoomAt(factor, anchor) {
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+        const newW = viewBox.w / factor;
+        const newH = viewBox.h / factor;
+        const kx = (anchor.x - viewBox.x) / viewBox.w;
+        const ky = (anchor.y - viewBox.y) / viewBox.h;
+        viewBox.x = anchor.x - kx * newW;
+        viewBox.y = anchor.y - ky * newH;
+        viewBox.w = newW;
+        viewBox.h = newH;
+        zoomPercent *= factor;
+        syncZoomInput();
+        applyViewBox();
+    }
+
+    function setZoomPercent(p) {
+        if (!isFinite(p) || p <= 0) return;
+        const factor = p / zoomPercent;
+        const cx = viewBox.x + viewBox.w / 2;
+        const cy = viewBox.y + viewBox.h / 2;
+        zoomAt(factor, { x: cx, y: cy });
+    }
+
+    function computeRelated() {
+        const relStates = new Set();
+        const relTransitions = new Set();
+
+        if (!selectedStates.size && !selectedTransitions.size) {
+            return { relStates, relTransitions };
+        }
+
+        const transitions = graphData.transitions || [];
+
+        for (const sName of selectedStates) {
+            for (const t of transitions) {
+                if (t.from === sName || t.to === sName) {
+                    if (!selectedTransitions.has(t.name)) relTransitions.add(t.name);
+                    const other = (t.from === sName) ? t.to : t.from;
+                    if (!selectedStates.has(other)) relStates.add(other);
+                }
+            }
+        }
+
+        const endpoints = new Set();
+        for (const tName of selectedTransitions) {
+            const t = transitions.find(x => x.name === tName);
+            if (!t) continue;
+            endpoints.add(t.from);
+            endpoints.add(t.to);
+        }
+        for (const sName of endpoints) {
+            if (!selectedStates.has(sName)) relStates.add(sName);
+            for (const t of transitions) {
+                if (t.from === sName || t.to === sName) {
+                    if (!selectedTransitions.has(t.name)) relTransitions.add(t.name);
+                }
+            }
+        }
+
+        for (const x of selectedStates) relStates.delete(x);
+        for (const x of selectedTransitions) relTransitions.delete(x);
+
+        return { relStates, relTransitions };
+    }
+
+    function updateSelectionClasses() {
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+
+        const { relStates, relTransitions } = computeRelated();
+
+        svg.querySelectorAll('.g-state').forEach(g => {
+            const n = g.dataset.stateName;
+            g.classList.toggle('selected', selectedStates.has(n));
+            g.classList.toggle('related', !selectedStates.has(n) && relStates.has(n));
+        });
+        svg.querySelectorAll('.g-transition').forEach(g => {
+            const n = g.dataset.transitionName;
+            g.classList.toggle('selected', selectedTransitions.has(n));
+            g.classList.toggle('related', !selectedTransitions.has(n) && relTransitions.has(n));
+        });
+    }
+
+    function clearSelection() {
+        selectedStates.clear();
+        selectedTransitions.clear();
+        updateSelectionClasses();
+        updateSelectionToolbar();
+        renderGraph();
+        applyViewBox();
+    }
+
+    function updateSelectionToolbar() {
+        const editBtn = document.getElementById('editSelectedBtn');
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        const hint = document.getElementById('selectionHint');
+        if (!editBtn || !deleteBtn) return;
+
+        const total = selectedStates.size + selectedTransitions.size;
+        editBtn.disabled = total !== 1;
+        deleteBtn.disabled = total === 0;
+
+        const parts = [];
+        if (selectedStates.size) parts.push('состояний: ' + selectedStates.size);
+        if (selectedTransitions.size) parts.push('переходов: ' + selectedTransitions.size);
+        if (hint) hint.textContent = parts.length ? 'выделено ' + parts.join(', ') : '';
+    }
+
+    function editSelected() {
+        const total = selectedStates.size + selectedTransitions.size;
+        if (total !== 1) return;
+        if (selectedStates.size === 1) {
+            const name = [...selectedStates][0];
+            openEditForm(name);
+        } else {
+            const name = [...selectedTransitions][0];
+            openTransitionForm(name);
+        }
+    }
+
+    async function deleteSelected() {
+        const stCount = selectedStates.size;
+        const trCount = selectedTransitions.size;
+        if (!stCount && !trCount) return;
+
+        const lines = [];
+        if (stCount) lines.push('состояний: ' + stCount + (stCount === 1 ? ' (' + [...selectedStates][0] + ')' : ''));
+        if (trCount) lines.push('переходов: ' + trCount + (trCount === 1 ? ' (' + [...selectedTransitions][0] + ')' : ''));
+
+        const ok = await showConfirm(
+            'Удалить выделенное?\n\n' + lines.join('\n') + '\n\n' +
+            'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json',
+            'Удаление выделенного'
+        );
+        if (!ok) return;
+
+        const statesArr = [...selectedStates];
+        const transitionsArr = [...selectedTransitions];
+
+        selectedStates.clear();
+        selectedTransitions.clear();
+        updateSelectionToolbar();
+
+        for (const name of statesArr) {
+            vscode.postMessage({ type: 'deleteState', state: name });
+        }
+        if (transitionsArr.length) {
+            vscode.postMessage({ type: 'deleteTransitions', names: transitionsArr });
         }
     }
 
@@ -992,14 +1376,12 @@
     function createDraftTransition(fromName, toName) {
         const code = fromName + '_' + toName;
 
-        // Такой переход уже есть в модели
         const existing = graphData.transitions.find(t => t.name === code);
         if (existing) {
             openTransitionForm(existing.name);
             return;
         }
 
-        // Уже есть переход с такими же from/to — открываем его
         const sameEndpoints = graphData.transitions.find(
             t => t.from === fromName && t.to === toName
         );
@@ -1016,6 +1398,8 @@
             actionToRunBefore: '',
             serverSideEvents: false,
             allowOnValidationErrors: null,
+            manual: false,
+            manualWaypoints: null,
             _isNew: true
         };
         graphData.transitions.push(draft);
@@ -1025,354 +1409,316 @@
         openTransitionForm(code);
     }
 
-    function spreadParallelSegments() {
-        const transitions = graphData.transitions;
-        const LANE_STEP = 6;
+    function clientToSvg(evt) {
+        const svg = document.getElementById('graphSvg');
+        const pt = svg.createSVGPoint();
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        return pt.matrixTransform(svg.getScreenCTM().inverse());
+    }
 
-        const segs = [];
-        transitions.forEach((t, idx) => {
-            const wps = t.waypoints || [];
-            if (wps.length < 4) return;
-            for (let i = 1; i < wps.length; i++) {
-                if (i === 1 || i === wps.length - 1) continue;
-                const a = wps[i - 1], b = wps[i];
-                const len = Math.hypot(b.x - a.x, b.y - a.y);
-                if (len < 25) continue;
-                const isH = Math.abs(a.y - b.y) < 0.5;
-                const isV = Math.abs(a.x - b.x) < 0.5;
-                if (!isH && !isV) continue;
-                segs.push({ idx, i, isH, isV, a, b, len });
-            }
-        });
+    function startDrag(ev, state, gEl) {
+        const start = clientToSvg(ev);
+        const origX = state.x, origY = state.y;
 
-        const groups = new Map();
-        for (const s of segs) {
-            const key = s.isH
-                ? 'H|' + Math.round(s.a.y / 2)
-                : 'V|' + Math.round(s.a.x / 2);
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(s);
-        }
+        gEl.classList.add('dragging');
 
-        for (const [key, list] of groups) {
-            if (list.length < 2) continue;
-            const isH = key.startsWith('H');
-
-            let hasOverlap = false;
-            for (let i = 0; i < list.length && !hasOverlap; i++) {
-                for (let j = i + 1; j < list.length && !hasOverlap; j++) {
-                    const a = list[i], b = list[j];
-                    const rA = isH
-                        ? [Math.min(a.a.x, a.b.x), Math.max(a.a.x, a.b.x)]
-                        : [Math.min(a.a.y, a.b.y), Math.max(a.a.y, a.b.y)];
-                    const rB = isH
-                        ? [Math.min(b.a.x, b.b.x), Math.max(b.a.x, b.b.x)]
-                        : [Math.min(b.a.y, b.b.y), Math.max(b.a.y, b.b.y)];
-                    const overlap = Math.min(rA[1], rB[1]) - Math.max(rA[0], rB[0]);
-                    if (overlap > 5) hasOverlap = true;
-                }
-            }
-            if (!hasOverlap) continue;
-
-            const n = list.length;
-            for (let j = 0; j < n; j++) {
-                const off = (j - (n - 1) / 2) * LANE_STEP;
-                if (Math.abs(off) < 0.5) continue;
-                const s = list[j];
-                const t = transitions[s.idx];
-                const wps = t.waypoints;
-                if (isH) {
-                    wps[s.i - 1] = { x: wps[s.i - 1].x, y: wps[s.i - 1].y + off };
-                    wps[s.i] = { x: wps[s.i].x, y: wps[s.i].y + off };
-                } else {
-                    wps[s.i - 1] = { x: wps[s.i - 1].x + off, y: wps[s.i - 1].y };
-                    wps[s.i] = { x: wps[s.i].x + off, y: wps[s.i].y };
+        function onMove(e) {
+            const cur = clientToSvg(e);
+            state.x = origX + (cur.x - start.x);
+            state.y = origY + (cur.y - start.y);
+            const rect = gEl.querySelector('rect');
+            rect.setAttribute('x', state.x);
+            rect.setAttribute('y', state.y);
+            const texts = gEl.querySelectorAll('text');
+            if (texts.length) {
+                const cx = state.x + state.w / 2;
+                const cy = state.y + state.h / 2;
+                const hasRu = texts.length > 1;
+                texts[0].setAttribute('x', cx);
+                texts[0].setAttribute('y', hasRu ? cy - 7 : cy);
+                if (texts[1]) {
+                    texts[1].setAttribute('x', cx);
+                    texts[1].setAttribute('y', cy + 13);
                 }
             }
         }
-    }
 
-    async function autoLayout() {
-        const n = graphData.states.length;
-        if (!n) return;
-
-        // Предупреждение о перезаписи существующих позиций
-        const hasExisting = DATA.hasUi || (graphData.states || []).some(s => s._fromUi);
-        if (hasExisting) {
-            const ok = await showConfirm(
-                'В документе уже есть сохранённые позиции.\n\n' +
-                'Авто-раскладка перезапишет их. Продолжить?',
-                'Авто-раскладка'
-            );
-            if (!ok) return;
-        }
-
-        if (typeof dagre === 'undefined' || !dagre || !dagre.graphlib) {
-            showAlert('Модуль раскладки (dagre) не загружен. Проверьте файл media/vendor/dagre.min.js.', 'Ошибка');
-            return;
-        }
-
-        const W = BASE_STATE_W, H = BASE_STATE_H;
-
-        const g = new dagre.graphlib.Graph();
-        g.setGraph({
-            rankdir: layoutRankDir,   // 'TB' или 'LR'
-            nodesep: 60,
-            ranksep: 100,
-            edgesep: 30,
-            marginx: 40,
-            marginy: 40
-        });
-        g.setDefaultEdgeLabel(() => ({}));
-
-        for (const s of graphData.states) {
-            s.w = W;
-            s.h = H;
-            g.setNode(s.name, { width: W, height: H });
-        }
-        for (const t of graphData.transitions) {
-            if (t.from && t.to) g.setEdge(t.from, t.to);
-        }
-
-        dagre.layout(g);
-
-        for (const s of graphData.states) {
-            const pos = g.node(s.name);
-            if (!pos) continue;
-            s.x = pos.x - W / 2;
-            s.y = pos.y - H / 2;
-            s._fromUi = false;
-        }
-
-        rerouteAll();
-        renderGraph();
-        fitGraph();
-    }
-
-    function computeBBox() {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const s of graphData.states) {
-            minX = Math.min(minX, s.x);
-            minY = Math.min(minY, s.y);
-            maxX = Math.max(maxX, s.x + s.w);
-            maxY = Math.max(maxY, s.y + s.h);
-        }
-        for (const t of graphData.transitions) {
-            for (const w of t.waypoints || []) {
-                minX = Math.min(minX, w.x); minY = Math.min(minY, w.y);
-                maxX = Math.max(maxX, w.x); maxY = Math.max(maxY, w.y);
-            }
-            if (t.label && showTransitionLabels) {
-                const labelText = t.name + (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
-                const textW = Math.max(30, labelText.length * 5.5 + 8);
-                const boxW = textW + 8;
-                const boxH = 16;
-                if (t.label.orientation === 'h') {
-                    minX = Math.min(minX, t.label.x - boxW / 2);
-                    maxX = Math.max(maxX, t.label.x + boxW / 2);
-                    minY = Math.min(minY, t.label.y - boxH / 2 - 6);
-                    maxY = Math.max(maxY, t.label.y + boxH / 2 - 6);
-                } else {
-                    minX = Math.min(minX, t.label.x + 10 - boxW / 2);
-                    maxX = Math.max(maxX, t.label.x + 10 + boxW / 2);
-                    minY = Math.min(minY, t.label.y - boxH / 2);
-                    maxY = Math.max(maxY, t.label.y + boxH / 2);
-                }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            gEl.classList.remove('dragging');
+            if (state.x !== origX || state.y !== origY) {
+                rerouteAll();
+                renderGraph();
+                applyViewBox();
             }
         }
-        if (!isFinite(minX)) return { x: 0, y: 0, w: 100, h: 100 };
-        const pad = 40;
-        return {
-            x: minX - pad, y: minY - pad,
-            w: Math.max(100, (maxX - minX) + pad * 2),
-            h: Math.max(100, (maxY - minY) + pad * 2)
-        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     }
 
-    function applyViewBox() {
+    function startPan(ev) {
+        const svg = document.getElementById('graphSvg');
+        svg.classList.add('panning');
+
+        let lastX = ev.clientX, lastY = ev.clientY;
+        const box = svg.getBoundingClientRect();
+
+        function onMove(e) {
+            const scaleX = viewBox.w / box.width;
+            const scaleY = viewBox.h / box.height;
+            viewBox.x -= (e.clientX - lastX) * scaleX;
+            viewBox.y -= (e.clientY - lastY) * scaleY;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            applyViewBox();
+        }
+
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            svg.classList.remove('panning');
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    /* ============================================================
+     * MANUAL ROUTE DRAG
+     * ============================================================ */
+    function updateTransitionDom(t) {
         const svg = document.getElementById('graphSvg');
         if (!svg) return;
-        svg.setAttribute('viewBox',
-            viewBox.x + ' ' + viewBox.y + ' ' + viewBox.w + ' ' + viewBox.h);
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    }
+        const transName = t.name.replace(/"/g, '\\"');
+        const g = svg.querySelector('.g-transition[data-transition-name="' + transName + '"]');
+        if (!g) return;
 
-    function syncZoomInput() {
-        const el = document.getElementById('zoomInput');
-        if (el) el.value = Math.round(zoomPercent);
-    }
+        const d = buildRoundedPath(t.waypoints, 10);
 
-    function fitGraph() {
-        const svg = document.getElementById('graphSvg');
-        if (!svg) return;
-        const bbox = computeBBox();
-        viewBox = { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h };
-        zoomPercent = 100;
-        syncZoomInput();
-        applyViewBox();
-    }
+        const linePath = g.querySelector('path.g-transition-line');
+        if (linePath) linePath.setAttribute('d', d);
 
-    function centerOnState(name) {
-        const s = graphData.states.find(x => x.name === name);
-        if (!s) return;
-        viewBox.x = s.x + s.w / 2 - viewBox.w / 2;
-        viewBox.y = s.y + s.h / 2 - viewBox.h / 2;
-        applyViewBox();
-    }
+        const hitPath = g.querySelector('path.g-transition-hit');
+        if (hitPath) hitPath.setAttribute('d', d);
 
-    function zoomAt(factor, anchor) {
-        const svg = document.getElementById('graphSvg');
-        if (!svg) return;
-        const newW = viewBox.w / factor;
-        const newH = viewBox.h / factor;
-        const kx = (anchor.x - viewBox.x) / viewBox.w;
-        const ky = (anchor.y - viewBox.y) / viewBox.h;
-        viewBox.x = anchor.x - kx * newW;
-        viewBox.y = anchor.y - ky * newH;
-        viewBox.w = newW;
-        viewBox.h = newH;
-        zoomPercent *= factor;
-        syncZoomInput();
-        applyViewBox();
-    }
+        if (t.label) {
+            const labelText = t.name + (t.manual ? ' ✎' : '') +
+                (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+            const textW = Math.max(30, labelText.length * 5.5 + 8);
+            const boxW = textW + 8;
+            const boxH = 16;
 
-    function setZoomPercent(p) {
-        if (!isFinite(p) || p <= 0) return;
-        const factor = p / zoomPercent;
-        const cx = viewBox.x + viewBox.w / 2;
-        const cy = viewBox.y + viewBox.h / 2;
-        zoomAt(factor, { x: cx, y: cy });
-    }
+            let boxCx, boxCy;
+            if (t.label.orientation === 'h') {
+                boxCx = t.label.x;
+                boxCy = t.label.y - boxH / 2 - 6;
+            } else {
+                boxCx = t.label.x + boxW / 2 + 10;
+                boxCy = t.label.y;
+            }
 
-    function updateSelectionClasses() {
-        const svg = document.getElementById('graphSvg');
-        if (!svg) return;
-
-        const { relStates, relTransitions } = computeRelated();
-
-        svg.querySelectorAll('.g-state').forEach(g => {
-            const n = g.dataset.stateName;
-            g.classList.toggle('selected', selectedStates.has(n));
-            g.classList.toggle('related', !selectedStates.has(n) && relStates.has(n));
-        });
-        svg.querySelectorAll('.g-transition').forEach(g => {
-            const n = g.dataset.transitionName;
-            g.classList.toggle('selected', selectedTransitions.has(n));
-            g.classList.toggle('related', !selectedTransitions.has(n) && relTransitions.has(n));
-        });
-    }
-
-    function computeRelated() {
-        const relStates = new Set();
-        const relTransitions = new Set();
-
-        if (!selectedStates.size && !selectedTransitions.size) {
-            return { relStates, relTransitions };
-        }
-
-        const transitions = graphData.transitions || [];
-
-        // От выделенных состояний — все входящие/исходящие переходы + соседи
-        for (const sName of selectedStates) {
-            for (const t of transitions) {
-                if (t.from === sName || t.to === sName) {
-                    if (!selectedTransitions.has(t.name)) relTransitions.add(t.name);
-                    const other = (t.from === sName) ? t.to : t.from;
-                    if (!selectedStates.has(other)) relStates.add(other);
-                }
+            const bg = g.querySelector('.g-transition-label-bg');
+            if (bg) {
+                bg.setAttribute('x', boxCx - boxW / 2);
+                bg.setAttribute('y', boxCy - boxH / 2);
+                bg.setAttribute('width', boxW);
+                bg.setAttribute('height', boxH);
+            }
+            const textEl = g.querySelector('.g-transition-label-text');
+            if (textEl) {
+                textEl.setAttribute('x', boxCx);
+                textEl.setAttribute('y', boxCy);
+                textEl.textContent = labelText;
             }
         }
 
-        // От выделенных переходов — их концы + соседи концов
-        const endpoints = new Set();
-        for (const tName of selectedTransitions) {
-            const t = transitions.find(x => x.name === tName);
-            if (!t) continue;
-            endpoints.add(t.from);
-            endpoints.add(t.to);
-        }
-        for (const sName of endpoints) {
-            if (!selectedStates.has(sName)) relStates.add(sName);
-            for (const t of transitions) {
-                if (t.from === sName || t.to === sName) {
-                    if (!selectedTransitions.has(t.name)) relTransitions.add(t.name);
-                }
-            }
-        }
+        svg.querySelectorAll('.g-transition-handle[data-transition="' + transName + '"][data-idx]').forEach(h => {
+            const idx = parseInt(h.getAttribute('data-idx'), 10);
+            if (!t.waypoints[idx]) return;
+            h.setAttribute('cx', t.waypoints[idx].x);
+            h.setAttribute('cy', t.waypoints[idx].y);
+        });
 
-        // Исключаем то, что уже выделено в основном слое
-        for (const x of selectedStates) relStates.delete(x);
-        for (const x of selectedTransitions) relTransitions.delete(x);
+        svg.querySelectorAll('.g-transition-handle-hit[data-transition="' + transName + '"][data-idx]').forEach(hit => {
+            const idx = parseInt(hit.getAttribute('data-idx'), 10);
+            if (!t.waypoints[idx]) return;
+            hit.setAttribute('cx', t.waypoints[idx].x);
+            hit.setAttribute('cy', t.waypoints[idx].y);
+        });
 
-        return { relStates, relTransitions };
+        svg.querySelectorAll('.g-transition-seg-handle[data-transition="' + transName + '"], ' +
+            '.g-transition-seg-handle-hit[data-transition="' + transName + '"]')
+            .forEach(el => {
+                const si = parseInt(el.getAttribute('data-seg'), 10);
+                const a = t.waypoints[si];
+                const b = t.waypoints[si + 1];
+                if (!a || !b) return;
+                const mx = (a.x + b.x) / 2;
+                const my = (a.y + b.y) / 2;
+                const perp = segPerp(a, b);
+                const half = 8;
+                const x1 = mx - perp.x * half;
+                const y1 = my - perp.y * half;
+                const x2 = mx + perp.x * half;
+                const y2 = my + perp.y * half;
+                el.setAttribute('x1', x1);
+                el.setAttribute('y1', y1);
+                el.setAttribute('x2', x2);
+                el.setAttribute('y2', y2);
+            });
     }
 
-    function clearSelection() {
-        selectedStates.clear();
-        selectedTransitions.clear();
-        updateSelectionClasses();
-        updateSelectionToolbar();
-    }
+    function startHandleDrag(ev, transitionName, pointIdx) {
+        const t = graphData.transitions.find(x => x.name === transitionName);
+        if (!t) return;
 
-    function updateSelectionToolbar() {
-        const editBtn = document.getElementById('editSelectedBtn');
-        const deleteBtn = document.getElementById('deleteSelectedBtn');
-        const hint = document.getElementById('selectionHint');
-        if (!editBtn || !deleteBtn) return;
+        if (!t.manual) t.manual = true;
+        t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
 
-        const total = selectedStates.size + selectedTransitions.size;
-        editBtn.disabled = total !== 1;
-        deleteBtn.disabled = total === 0;
+        const start = clientToSvg(ev);
+        const origPt = { x: t.waypoints[pointIdx].x, y: t.waypoints[pointIdx].y };
 
-        const parts = [];
-        if (selectedStates.size) parts.push('состояний: ' + selectedStates.size);
-        if (selectedTransitions.size) parts.push('переходов: ' + selectedTransitions.size);
-        if (hint) hint.textContent = parts.length ? 'выделено ' + parts.join(', ') : '';
-    }
-
-    function editSelected() {
-        const total = selectedStates.size + selectedTransitions.size;
-        if (total !== 1) return;
-        if (selectedStates.size === 1) {
-            const name = [...selectedStates][0];
-            openEditForm(name);
-        } else {
-            const name = [...selectedTransitions][0];
-            openTransitionForm(name);
-        }
-    }
-
-    async function deleteSelected() {
-        const stCount = selectedStates.size;
-        const trCount = selectedTransitions.size;
-        if (!stCount && !trCount) return;
-
-        const lines = [];
-        if (stCount) lines.push('состояний: ' + stCount + (stCount === 1 ? ' (' + [...selectedStates][0] + ')' : ''));
-        if (trCount) lines.push('переходов: ' + trCount + (trCount === 1 ? ' (' + [...selectedTransitions][0] + ')' : ''));
-
-        const ok = await showConfirm(
-            'Удалить выделенное?\n\n' + lines.join('\n') + '\n\n' +
-            'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json',
-            'Удаление выделенного'
+        const svg = document.getElementById('graphSvg');
+        const transName = t.name.replace(/"/g, '\\"');
+        const handle = svg.querySelector(
+            '.g-transition-handle[data-transition="' + transName + '"][data-idx="' + pointIdx + '"]'
         );
-        if (!ok) return;
+        if (handle) handle.classList.add('dragging');
 
-        const statesArr = [...selectedStates];
-        const transitionsArr = [...selectedTransitions];
+        function onMove(e) {
+            const cur = clientToSvg(e);
+            const dx = cur.x - start.x;
+            const dy = cur.y - start.y;
 
-        selectedStates.clear();
-        selectedTransitions.clear();
-        updateSelectionToolbar();
+            const newPt = { x: origPt.x + dx, y: origPt.y + dy };
+            t.waypoints[pointIdx] = newPt;
+            t.manualWaypoints[pointIdx] = { x: newPt.x, y: newPt.y };
+            t.label = labelFromWaypoints(t.waypoints);
 
-        for (const name of statesArr) {
-            vscode.postMessage({ type: 'deleteState', state: name });
+            updateTransitionDom(t);
         }
-        if (transitionsArr.length) {
-            vscode.postMessage({ type: 'deleteTransitions', names: transitionsArr });
+
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (handle) handle.classList.remove('dragging');
         }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     }
 
+    function startEndPointDrag(ev, transitionName, which) {
+        const t = graphData.transitions.find(x => x.name === transitionName);
+        if (!t) return;
+
+        const stateName = which === 'start' ? t.from : t.to;
+        const stateObj = graphData.states.find(s => s.name === stateName);
+        if (!stateObj) return;
+
+        const idx = which === 'start' ? 0 : t.waypoints.length - 1;
+        const start = clientToSvg(ev);
+        const origPt = { x: t.waypoints[idx].x, y: t.waypoints[idx].y };
+
+        const svg = document.getElementById('graphSvg');
+        const transName = t.name.replace(/"/g, '\\"');
+        const handle = svg.querySelector(
+            '.g-transition-handle-end[data-transition="' + transName + '"][data-end="' + which + '"]'
+        );
+        if (handle) handle.classList.add('dragging');
+
+        const stateG = svg.querySelector('.g-state[data-state-name="' + stateName.replace(/"/g, '\\"') + '"]');
+        if (stateG) stateG.classList.add('snap-target');
+
+        function onMove(e) {
+            const cur = clientToSvg(e);
+            const dx = cur.x - start.x;
+            const dy = cur.y - start.y;
+            t.waypoints[idx] = { x: origPt.x + dx, y: origPt.y + dy };
+            t.label = labelFromWaypoints(t.waypoints);
+            updateTransitionDom(t);
+        }
+
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (handle) handle.classList.remove('dragging');
+            if (stateG) stateG.classList.remove('snap-target');
+
+            const pt = t.waypoints[idx];
+            const edge = findNearestEdge(stateObj, pt);
+            const snapped = snapToEdge(stateObj, edge, pt);
+            t.waypoints[idx] = snapped;
+
+            t.manual = true;
+            t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+            t.label = labelFromWaypoints(t.waypoints);
+
+            renderGraph();
+            applyViewBox();
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    function startSegmentDrag(ev, transitionName, segIdx) {
+        const t = graphData.transitions.find(x => x.name === transitionName);
+        if (!t) return;
+        const p1 = t.waypoints[segIdx];
+        const p2 = t.waypoints[segIdx + 1];
+        if (!p1 || !p2) return;
+
+        const orig1 = { x: p1.x, y: p1.y };
+        const orig2 = { x: p2.x, y: p2.y };
+        const perp = segPerp(orig1, orig2);
+
+        t.manual = true;
+        t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+
+        const start = clientToSvg(ev);
+
+        const svg = document.getElementById('graphSvg');
+        const hitEl = svg.querySelector(
+            '.g-transition-seg-handle-hit[data-transition="' + t.name.replace(/"/g, '\\"') +
+            '"][data-seg="' + segIdx + '"]'
+        );
+        if (hitEl) hitEl.classList.add('dragging');
+
+        function onMove(e) {
+            const cur = clientToSvg(e);
+            const dx = cur.x - start.x;
+            const dy = cur.y - start.y;
+
+            // Проекция движения мыши на перпендикуляр к сегменту
+            const proj = dx * perp.x + dy * perp.y;
+            const nx = proj * perp.x;
+            const ny = proj * perp.y;
+
+            t.waypoints[segIdx] = { x: orig1.x + nx, y: orig1.y + ny };
+            t.waypoints[segIdx + 1] = { x: orig2.x + nx, y: orig2.y + ny };
+            t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+            t.label = labelFromWaypoints(t.waypoints);
+
+            updateTransitionDom(t);
+        }
+
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (hitEl) hitEl.classList.remove('dragging');
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    /* ============================================================
+     * RENDER GRAPH
+     * ============================================================ */
     function renderGraph() {
         const svg = document.getElementById('graphSvg');
         if (!svg) return;
@@ -1412,32 +1758,47 @@
                 }));
 
                 const hit = svgEl('path', { d: d, class: 'g-transition-hit' });
+
                 hit.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
                     svg.focus();
+
                     if (ev.ctrlKey || ev.metaKey) {
                         if (selectedTransitions.has(t.name)) selectedTransitions.delete(t.name);
                         else selectedTransitions.add(t.name);
-                    } else {
-                        selectedStates.clear();
-                        selectedTransitions.clear();
-                        selectedTransitions.add(t.name);
+                        renderGraph();
+                        applyViewBox();
+                        updateSelectionToolbar();
+                        return;
                     }
-                    updateSelectionClasses();
+
+                    const alreadySoleSelected =
+                        selectedTransitions.size === 1 && selectedTransitions.has(t.name) &&
+                        selectedStates.size === 0;
+
+                    if (alreadySoleSelected) return;
+
+                    selectedStates.clear();
+                    selectedTransitions.clear();
+                    selectedTransitions.add(t.name);
+                    renderGraph();
+                    applyViewBox();
                     updateSelectionToolbar();
                 });
+
                 hit.addEventListener('dblclick', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
                     openTransitionForm(t.name);
                 });
+
                 g.appendChild(hit);
             }
 
-            // label with dashed border (compact)
             if (t.label && showTransitionLabels) {
-                const labelText = t.name + (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+                const labelText = t.name + (t.manual ? ' ✎' : '') +
+                    (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
                 const textW = Math.max(30, labelText.length * 5.5 + 8);
                 const boxW = textW + 8;
                 const boxH = 16;
@@ -1475,15 +1836,27 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     svg.focus();
+
                     if (ev.ctrlKey || ev.metaKey) {
                         if (selectedTransitions.has(t.name)) selectedTransitions.delete(t.name);
                         else selectedTransitions.add(t.name);
-                    } else {
-                        selectedStates.clear();
-                        selectedTransitions.clear();
-                        selectedTransitions.add(t.name);
+                        renderGraph();
+                        applyViewBox();
+                        updateSelectionToolbar();
+                        return;
                     }
-                    updateSelectionClasses();
+
+                    const alreadySoleSelected =
+                        selectedTransitions.size === 1 && selectedTransitions.has(t.name) &&
+                        selectedStates.size === 0;
+
+                    if (alreadySoleSelected) return;
+
+                    selectedStates.clear();
+                    selectedTransitions.clear();
+                    selectedTransitions.add(t.name);
+                    renderGraph();
+                    applyViewBox();
                     updateSelectionToolbar();
                 };
                 const onLabelDbl = (ev) => {
@@ -1565,8 +1938,18 @@
                     selectedStates.clear();
                     selectedTransitions.clear();
                     selectedStates.add(s.name);
-                    updateSelectionClasses();
+                    renderGraph();
+                    applyViewBox();
                     updateSelectionToolbar();
+                    const newG = document.querySelector(
+                        '.g-state[data-state-name="' + s.name.replace(/"/g, '\\"') + '"]'
+                    );
+                    if (newG) {
+                        const newRect = newG.querySelector('rect');
+                        startDrag(ev, s, newG);
+                        if (newRect && newRect.focus) newRect.focus();
+                    }
+                    return;
                 }
 
                 startDrag(ev, s, g);
@@ -1584,8 +1967,135 @@
         }
         root.appendChild(gS);
 
+        // --- handles (поверх всего) ---
+        const gHandles = svgEl('g', { class: 'g-handles' });
+        for (const t of graphData.transitions) {
+            if (!selectedTransitions.has(t.name)) continue;
+            if (!t.waypoints || t.waypoints.length < 2) continue;
+
+            const lastIdx = t.waypoints.length - 1;
+
+            // --- крайние точки ---
+            for (const [idx, end] of [[0, 'start'], [lastIdx, 'end']]) {
+                const p = t.waypoints[idx];
+
+                const hitZone = svgEl('circle', {
+                    class: 'g-transition-handle-hit',
+                    cx: p.x, cy: p.y, r: 14,
+                    'data-idx': String(idx),
+                    'data-transition': t.name
+                });
+                hitZone.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startEndPointDrag(ev, t.name, end);
+                });
+                gHandles.appendChild(hitZone);
+
+                const handle = svgEl('circle', {
+                    class: 'g-transition-handle g-transition-handle-end',
+                    cx: p.x, cy: p.y, r: 9,
+                    'data-idx': String(idx),
+                    'data-end': end,
+                    'data-transition': t.name
+                });
+                handle.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startEndPointDrag(ev, t.name, end);
+                });
+                gHandles.appendChild(handle);
+            }
+
+            // --- промежуточные точки ---
+            for (let hi = 1; hi < lastIdx; hi++) {
+                const p = t.waypoints[hi];
+
+                const hitZone = svgEl('circle', {
+                    class: 'g-transition-handle-hit',
+                    cx: p.x, cy: p.y, r: 12,
+                    'data-idx': String(hi),
+                    'data-transition': t.name
+                });
+                hitZone.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startHandleDrag(ev, t.name, hi);
+                });
+                gHandles.appendChild(hitZone);
+
+                const handle = svgEl('circle', {
+                    class: 'g-transition-handle',
+                    cx: p.x, cy: p.y, r: 8,
+                    'data-idx': String(hi),
+                    'data-transition': t.name
+                });
+                handle.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startHandleDrag(ev, t.name, hi);
+                });
+                gHandles.appendChild(handle);
+            }
+
+            // --- полоски средних сегментов ---
+            for (let si = 1; si < lastIdx - 1; si++) {
+                const a = t.waypoints[si];
+                const b = t.waypoints[si + 1];
+                if (!a || !b) continue;
+                if (Math.hypot(b.x - a.x, b.y - a.y) < 3) continue;
+
+                const mx = (a.x + b.x) / 2;
+                const my = (a.y + b.y) / 2;
+                const perp = segPerp(a, b);
+                const half = 8;
+
+                const x1 = mx - perp.x * half;
+                const y1 = my - perp.y * half;
+                const x2 = mx + perp.x * half;
+                const y2 = my + perp.y * half;
+
+                const hit = svgEl('line', {
+                    class: 'g-transition-seg-handle-hit',
+                    x1, y1, x2, y2,
+                    'data-transition': t.name,
+                    'data-seg': String(si)
+                });
+                hit.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startSegmentDrag(ev, t.name, si);
+                });
+                gHandles.appendChild(hit);
+
+                const vis = svgEl('line', {
+                    class: 'g-transition-seg-handle',
+                    x1, y1, x2, y2,
+                    'data-transition': t.name,
+                    'data-seg': String(si)
+                });
+                gHandles.appendChild(vis);
+            }
+        }
+        root.appendChild(gHandles);
+
+        if (draftTransition) {
+            root.appendChild(draftTransition.line);
+        }
+
+        attachGraphSvgHandlers();
+        attachGraphKeydown();
+        updateSelectionClasses();
+    }
+
+    function attachGraphSvgHandlers() {
+        const svg = document.getElementById('graphSvg');
+        if (!svg || svg.dataset.svgHandlersAttached === '1') return;
+        svg.dataset.svgHandlersAttached = '1';
+
         svg.addEventListener('mousedown', (ev) => {
-            const isBg = (ev.target === svg || ev.target === root || ev.target.tagName === 'svg');
+            const rootG = svg.querySelector('g');
+            const isBg = (ev.target === svg || ev.target === rootG || ev.target.tagName === 'svg');
             if (!isBg) return;
             if (!ev.ctrlKey && !ev.metaKey) {
                 if (selectedStates.size || selectedTransitions.size) {
@@ -1605,9 +2115,6 @@
         }, { passive: false });
 
         svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
-
-        attachGraphKeydown();
-        updateSelectionClasses();
     }
 
     function attachGraphKeydown() {
@@ -1639,85 +2146,6 @@
             applyViewBox();
         });
     }
-
-    function clientToSvg(evt) {
-        const svg = document.getElementById('graphSvg');
-        const pt = svg.createSVGPoint();
-        pt.x = evt.clientX;
-        pt.y = evt.clientY;
-        return pt.matrixTransform(svg.getScreenCTM().inverse());
-    }
-
-    function startDrag(ev, state, gEl) {
-        const svg = document.getElementById('graphSvg');
-        const start = clientToSvg(ev);
-        const origX = state.x, origY = state.y;
-
-        gEl.classList.add('dragging');
-
-        function onMove(e) {
-            const cur = clientToSvg(e);
-            state.x = origX + (cur.x - start.x);
-            state.y = origY + (cur.y - start.y);
-            const rect = gEl.querySelector('rect');
-            rect.setAttribute('x', state.x);
-            rect.setAttribute('y', state.y);
-            const texts = gEl.querySelectorAll('text');
-            if (texts.length) {
-                const cx = state.x + state.w / 2;
-                const cy = state.y + state.h / 2;
-                const hasRu = texts.length > 1;
-                texts[0].setAttribute('x', cx);
-                texts[0].setAttribute('y', hasRu ? cy - 7 : cy);
-                if (texts[1]) {
-                    texts[1].setAttribute('x', cx);
-                    texts[1].setAttribute('y', cy + 13);
-                }
-            }
-        }
-
-        function onUp() {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            gEl.classList.remove('dragging');
-            if (state.x !== origX || state.y !== origY) {
-                rerouteAll();
-                renderGraph();
-                applyViewBox();
-            }
-        }
-
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-    }
-
-    function startPan(ev) {
-        const svg = document.getElementById('graphSvg');
-        svg.classList.add('panning');
-
-        let lastX = ev.clientX, lastY = ev.clientY;
-        const box = svg.getBoundingClientRect();
-
-        function onMove(e) {
-            const scaleX = viewBox.w / box.width;
-            const scaleY = viewBox.h / box.height;
-            viewBox.x -= (e.clientX - lastX) * scaleX;
-            viewBox.y -= (e.clientY - lastY) * scaleY;
-            lastX = e.clientX;
-            lastY = e.clientY;
-            applyViewBox();
-        }
-
-        function onUp() {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            svg.classList.remove('panning');
-        }
-
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-    }
-
     /* ============================================================
      * VIEW TOGGLE
      * ============================================================ */
@@ -1759,6 +2187,135 @@
     });
 
     document.getElementById('fitGraphBtn').addEventListener('click', fitGraph);
+
+    /* ============================================================
+     * TOOLBAR
+     * ============================================================ */
+    function injectIcons(root) {
+        (root || document).querySelectorAll('[data-icon]').forEach(el => {
+            const key = el.getAttribute('data-icon');
+            if (!ICONS[key]) return;
+            el.innerHTML = ICONS[key];
+        });
+    }
+
+    function updateViewToggleIcon() {
+        const btn = document.getElementById('viewToggle');
+        if (!btn) return;
+        const key = viewMode === 'graph' ? 'table' : 'graph';
+        btn.setAttribute('data-icon', key);
+        btn.title = viewMode === 'graph' ? 'Показать таблицу' : 'Показать граф';
+        btn.innerHTML = ICONS[key];
+    }
+
+    function adjustBodyPaddingForToolbar() {
+        const toolbar = document.getElementById('mainToolbar');
+        if (!toolbar) return;
+        const pos = document.body.getAttribute('data-toolbar-position') || 'top';
+        const h = toolbar.offsetHeight;
+        const w = toolbar.offsetWidth;
+        const GAP = 10;
+
+        document.body.style.paddingTop = '';
+        document.body.style.paddingBottom = '';
+        document.body.style.paddingLeft = '';
+        document.body.style.paddingRight = '';
+
+        if (pos === 'top') document.body.style.paddingTop = (h + GAP) + 'px';
+        if (pos === 'bottom') document.body.style.paddingBottom = (h + GAP) + 'px';
+        if (pos === 'left') document.body.style.paddingLeft = (w + GAP) + 'px';
+        if (pos === 'right') document.body.style.paddingRight = (w + GAP) + 'px';
+    }
+
+    function applyToolbarPosition() {
+        document.body.setAttribute('data-toolbar-position', toolbarPosition);
+        updateViewToggleIcon();
+        adjustBodyPaddingForToolbar();
+    }
+
+    function closeToolbarMenu() {
+        const m = document.getElementById('toolbarSettingsMenu');
+        if (m) m.remove();
+    }
+
+    function openToolbarMenu() {
+        closeToolbarMenu();
+        const btn = document.getElementById('toolbarSettingsBtn');
+        if (!btn) return;
+
+        const menu = document.createElement('div');
+        menu.className = 'toolbar-settings-menu';
+        menu.id = 'toolbarSettingsMenu';
+
+        const positions = [
+            { value: 'top', label: 'Сверху', icon: 'layout-top' },
+            { value: 'right', label: 'Справа', icon: 'layout-right' },
+            { value: 'bottom', label: 'Снизу', icon: 'layout-bottom' },
+            { value: 'left', label: 'Слева', icon: 'layout-left' }
+        ];
+
+        let html = '<div class="menu-header">Расположение тулбара</div>';
+        for (const p of positions) {
+            const checked = toolbarPosition === p.value ? '✓' : '';
+            html += '<div class="menu-item" data-pos="' + p.value + '">' +
+                '<span class="check">' + checked + '</span>' +
+                ICONS[p.icon] +
+                '<span>' + p.label + '</span>' +
+                '</div>';
+        }
+        menu.innerHTML = html;
+
+        document.body.appendChild(menu);
+
+        const r = btn.getBoundingClientRect();
+        const mw = menu.offsetWidth || 200;
+        const mh = menu.offsetHeight || 160;
+        const GAP = 6;
+
+        if (toolbarPosition === 'top') {
+            menu.style.top = (r.bottom + GAP) + 'px';
+            menu.style.left = Math.max(4, Math.min(r.right - mw, window.innerWidth - mw - 4)) + 'px';
+        } else if (toolbarPosition === 'bottom') {
+            menu.style.top = (r.top - mh - GAP) + 'px';
+            menu.style.left = Math.max(4, Math.min(r.right - mw, window.innerWidth - mw - 4)) + 'px';
+        } else if (toolbarPosition === 'left') {
+            menu.style.left = (r.right + GAP) + 'px';
+            menu.style.top = Math.max(4, Math.min(r.top, window.innerHeight - mh - 4)) + 'px';
+        } else if (toolbarPosition === 'right') {
+            menu.style.left = (r.left - mw - GAP) + 'px';
+            menu.style.top = Math.max(4, Math.min(r.top, window.innerHeight - mh - 4)) + 'px';
+        }
+
+        menu.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                toolbarPosition = item.getAttribute('data-pos');
+                persistState();
+                applyToolbarPosition();
+                closeToolbarMenu();
+            });
+        });
+    }
+
+    const layoutDirBtn = document.getElementById('layoutDirBtn');
+    function updateLayoutDirBtn() {
+        if (!layoutDirBtn) return;
+        const key = layoutRankDir === 'TB' ? 'arrows-v' : 'arrows-h';
+        layoutDirBtn.setAttribute('data-icon', key);
+        layoutDirBtn.title = layoutRankDir === 'TB'
+            ? 'Сверху вниз (клик — слева направо)'
+            : 'Слева направо (клик — сверху вниз)';
+        layoutDirBtn.innerHTML = ICONS[key];
+    }
+
+    const labelsToggleBtn = document.getElementById('labelsToggleBtn');
+    function updateLabelsToggleBtn() {
+        if (!labelsToggleBtn) return;
+        labelsToggleBtn.style.opacity = showTransitionLabels ? '1' : '0.55';
+        labelsToggleBtn.title = showTransitionLabels
+            ? 'Скрыть подписи переходов'
+            : 'Показать подписи переходов';
+    }
 
     /* ============================================================
      * SELECT BUILDERS
@@ -2311,6 +2868,36 @@
         modeSelect.addEventListener('change', updateCodesVisibility);
         updateCodesVisibility();
 
+        const resetBtn = backdrop.querySelector('[data-act="reset-route"]');
+        if (resetBtn && t.manual && !isNew) {
+            resetBtn.style.display = '';
+            resetBtn.addEventListener('click', async () => {
+                const ok = await showConfirm(
+                    'Сбросить ручной маршрут перехода «' + name + '»?\n\n' +
+                    'Маршрут вернётся к авто-расчёту. Изменение сохранится в documentFlow.ui.json.',
+                    'Сброс маршрута'
+                );
+                if (!ok) return;
+
+                t.manual = false;
+                t.manualWaypoints = null;
+
+                rerouteAll();
+                renderGraph();
+                applyViewBox();
+
+                vscode.postMessage({
+                    type: 'saveGraph',
+                    payload: {
+                        states: graphData.states,
+                        transitions: graphData.transitions
+                    }
+                });
+
+                backdrop.remove();
+            });
+        }
+
         backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => {
             if (isNew) {
                 const i = graphData.transitions.findIndex(x => x.name === name);
@@ -2345,8 +2932,9 @@
             }
 
             const lines = [];
-            if (isNew) lines.push('Новый переход: ' + t.from + ' → ' + newTo);
-            else {
+            if (isNew) {
+                lines.push('Новый переход: ' + t.from + ' → ' + newTo);
+            } else {
                 if (newName !== name) lines.push('Код: ' + name + ' → ' + newName);
                 if (newTo !== t.to) lines.push('To: ' + t.to + ' → ' + newTo);
             }
@@ -2386,6 +2974,692 @@
             }
             backdrop.remove();
         });
+    }
+
+    function openGenerateFlowForm() {
+        const container = document.getElementById('modalContainer');
+        const backdrop = cloneTemplate('tpl-generate-flow-modal');
+        container.appendChild(backdrop);
+
+        const existingStates = (DATA.graph.states || []).map(s => ({
+            name: s.name,
+            ru: (meta.translations.stateTrans && meta.translations.stateTrans[s.name]) || s.ru || s.name,
+            existing: true
+        }));
+
+        const existingTransitions = (DATA.graph.transitions || []).map(t => ({
+            name: t.name,
+            from: t.from,
+            to: t.to,
+            ru: (meta.translations.transTrans && meta.translations.transTrans[t.name]) || t.ru || t.name,
+            existing: true
+        }));
+
+        const genFlowState = {
+            states: existingStates.slice(),
+            transitions: existingTransitions.slice()
+        };
+
+        const tbodyS = backdrop.querySelector('.f-gen-states');
+        const tbodyT = backdrop.querySelector('.f-gen-transitions');
+
+        function buildStateRow(s) {
+            const tr = document.createElement('tr');
+            const idx = genFlowState.states.indexOf(s);
+
+            const tdN = document.createElement('td');
+            tdN.textContent = String(idx + 1);
+            tr.appendChild(tdN);
+
+            const tdCode = document.createElement('td');
+            const codeInput = document.createElement('input');
+            codeInput.type = 'text';
+            codeInput.value = s.name;
+            if (s.existing) codeInput.readOnly = true;
+            codeInput.addEventListener('input', () => { s.name = codeInput.value.trim(); });
+            tdCode.appendChild(codeInput);
+            tr.appendChild(tdCode);
+
+            const tdRu = document.createElement('td');
+            const ruInput = document.createElement('input');
+            ruInput.type = 'text';
+            ruInput.value = s.ru;
+            ruInput.addEventListener('input', () => { s.ru = ruInput.value; });
+            tdRu.appendChild(ruInput);
+            tr.appendChild(tdRu);
+
+            const tdDel = document.createElement('td');
+            const delBtn = document.createElement('button');
+            delBtn.className = 'danger small';
+            delBtn.textContent = '×';
+            delBtn.title = s.existing ? 'Удалить (со всеми ссылками в файлах)' : 'Убрать';
+            delBtn.addEventListener('click', () => {
+                const i = genFlowState.states.indexOf(s);
+                if (i >= 0) genFlowState.states.splice(i, 1);
+                renderStatesTable();
+            });
+            tdDel.appendChild(delBtn);
+            tr.appendChild(tdDel);
+
+            return tr;
+        }
+
+        function renderStatesTable() {
+            tbodyS.innerHTML = '';
+            const existing = genFlowState.states.filter(s => s.existing);
+            const fresh = genFlowState.states.filter(s => !s.existing);
+
+            const addSep = (text) => {
+                const tr = document.createElement('tr');
+                tr.className = 'gen-sep';
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.textContent = text;
+                tr.appendChild(td);
+                tbodyS.appendChild(tr);
+            };
+
+            if (existing.length) { addSep('Существующие'); existing.forEach(s => tbodyS.appendChild(buildStateRow(s))); }
+            if (fresh.length) { addSep('Новые'); fresh.forEach(s => tbodyS.appendChild(buildStateRow(s))); }
+            if (!existing.length && !fresh.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'gen-empty';
+                td.textContent = 'Нет состояний';
+                tr.appendChild(td);
+                tbodyS.appendChild(tr);
+            }
+        }
+
+        function buildTransitionRow(t) {
+            const tr = document.createElement('tr');
+
+            const tdCode = document.createElement('td');
+            const codeInput = document.createElement('input');
+            codeInput.type = 'text';
+            codeInput.value = t.name;
+            if (t.existing) codeInput.readOnly = true;
+            codeInput.addEventListener('input', () => { t.name = codeInput.value.trim(); });
+            tdCode.appendChild(codeInput);
+            tr.appendChild(tdCode);
+
+            const tdFrom = document.createElement('td');
+            tdFrom.textContent = t.from;
+            tr.appendChild(tdFrom);
+
+            const tdTo = document.createElement('td');
+            tdTo.textContent = t.to;
+            tr.appendChild(tdTo);
+
+            const tdRu = document.createElement('td');
+            const ruInput = document.createElement('input');
+            ruInput.type = 'text';
+            ruInput.value = t.ru;
+            ruInput.addEventListener('input', () => { t.ru = ruInput.value; });
+            tdRu.appendChild(ruInput);
+            tr.appendChild(tdRu);
+
+            const tdDel = document.createElement('td');
+            const delBtn = document.createElement('button');
+            delBtn.className = 'danger small';
+            delBtn.textContent = '×';
+            delBtn.title = t.existing ? 'Удалить (со всеми ссылками в файлах)' : 'Убрать';
+            delBtn.addEventListener('click', () => {
+                const i = genFlowState.transitions.indexOf(t);
+                if (i >= 0) genFlowState.transitions.splice(i, 1);
+                renderTransitionsTable();
+            });
+            tdDel.appendChild(delBtn);
+            tr.appendChild(tdDel);
+
+            return tr;
+        }
+
+        function renderTransitionsTable() {
+            tbodyT.innerHTML = '';
+            const existing = genFlowState.transitions.filter(t => t.existing);
+            const fresh = genFlowState.transitions.filter(t => !t.existing);
+
+            const addSep = (text) => {
+                const tr = document.createElement('tr');
+                tr.className = 'gen-sep';
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.textContent = text;
+                tr.appendChild(td);
+                tbodyT.appendChild(tr);
+            };
+
+            if (existing.length) { addSep('Существующие'); existing.forEach(t => tbodyT.appendChild(buildTransitionRow(t))); }
+            if (fresh.length) { addSep('Новые'); fresh.forEach(t => tbodyT.appendChild(buildTransitionRow(t))); }
+            if (!existing.length && !fresh.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'gen-empty';
+                td.textContent = 'Нет переходов';
+                tr.appendChild(td);
+                tbodyT.appendChild(tr);
+            }
+        }
+
+        renderStatesTable();
+        renderTransitionsTable();
+
+        backdrop.querySelector('[data-act="add-states"]').addEventListener('click', () => {
+            const ta = backdrop.querySelector('.f-gen-states-input');
+            const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            for (const line of lines) {
+                const parts = line.split('|').map(x => x.trim());
+                const name = parts[0];
+                const ru = parts[1] || name;
+                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) continue;
+                if (genFlowState.states.some(s => s.name === name)) continue;
+                genFlowState.states.push({ name, ru, existing: false });
+            }
+            ta.value = '';
+            renderStatesTable();
+        });
+
+        backdrop.querySelector('[data-act="add-transitions"]').addEventListener('click', () => {
+            const ta = backdrop.querySelector('.f-gen-transitions-input');
+            const items = ta.value.split(/[\s,;]+/).filter(Boolean);
+            const byNumber = (n) => {
+                const i = parseInt(n, 10);
+                if (!Number.isFinite(i) || i < 1 || i > genFlowState.states.length) return null;
+                return genFlowState.states[i - 1].name;
+            };
+            for (const item of items) {
+                const m = item.match(/^(.+?)-(.+)$/);
+                if (!m) continue;
+                let fromRaw = m[1].trim(), toRaw = m[2].trim();
+                const from = /^\d+$/.test(fromRaw) ? byNumber(fromRaw) : fromRaw;
+                const to = /^\d+$/.test(toRaw) ? byNumber(toRaw) : toRaw;
+                if (!from || !to) continue;
+                if (!genFlowState.states.some(s => s.name === from)) continue;
+                if (!genFlowState.states.some(s => s.name === to)) continue;
+                const code = from + '_' + to;
+                if (genFlowState.transitions.some(t => t.name === code)) continue;
+                genFlowState.transitions.push({ name: code, from, to, ru: code, existing: false });
+            }
+            ta.value = '';
+            renderTransitionsTable();
+        });
+
+        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => {
+            backdrop.remove();
+        });
+
+        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
+            const seenS = new Set();
+            for (const s of genFlowState.states) {
+                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(s.name)) {
+                    showAlert('Некорректный код состояния: ' + s.name); return;
+                }
+                if (seenS.has(s.name)) { showAlert('Дубликат состояния: ' + s.name); return; }
+                seenS.add(s.name);
+            }
+            const seenT = new Set();
+            for (const t of genFlowState.transitions) {
+                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t.name)) {
+                    showAlert('Некорректный код перехода: ' + t.name); return;
+                }
+                if (seenT.has(t.name)) { showAlert('Дубликат перехода: ' + t.name); return; }
+                seenT.add(t.name);
+            }
+
+            const hasExisting = genFlowState.states.some(s => s.existing) ||
+                genFlowState.transitions.some(t => t.existing);
+            const title = hasExisting ? 'Обновить каркас' : 'Создать каркас';
+            const ok = await showConfirm(
+                (hasExisting ? 'Применить изменения к существующим файлам?\n\n'
+                    : 'Создать файлы докфлоу?\n\n') +
+                'Состояний: ' + genFlowState.states.length + '\n' +
+                'Переходов: ' + genFlowState.transitions.length + '\n\n' +
+                'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json',
+                title
+            );
+            if (!ok) return;
+
+            vscode.postMessage({
+                type: 'generateFlow',
+                payload: {
+                    states: genFlowState.states,
+                    transitions: genFlowState.transitions
+                }
+            });
+            backdrop.remove();
+        });
+    }
+
+    function openCopyActorForm(stateName, actorName) {
+        const stateDet = stateDetails[stateName];
+        if (!stateDet) { showAlert('Нет данных для состояния ' + stateName); return; }
+        const sourceActor = (stateDet.permissions || []).find(x => x.actor === actorName);
+        if (!sourceActor) { showAlert('Актор не найден: ' + actorName); return; }
+
+        const container = document.getElementById('modalContainer');
+        const backdrop = cloneTemplate('tpl-copy-actor-modal');
+        container.appendChild(backdrop);
+
+        backdrop.querySelector('.f-copy-source').textContent = actorName + ' @ ' + stateName;
+
+        const nameInput = backdrop.querySelector('.f-copy-name');
+        nameInput.value = actorName;
+
+        const statesCont = backdrop.querySelector('.f-copy-states');
+        const allStates = meta.states || [];
+        const selected = new Set([stateName]);
+
+        for (const st of allStates) {
+            const label = document.createElement('label');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = st;
+            if (st === stateName) cb.checked = true;
+            cb.addEventListener('change', () => {
+                if (cb.checked) selected.add(st);
+                else selected.delete(st);
+            });
+            label.appendChild(cb);
+
+            const txt = document.createElement('span');
+            const ru = (meta.translations.stateTrans && meta.translations.stateTrans[st]) || st;
+            txt.textContent = st + ' (' + ru + ')';
+            label.appendChild(txt);
+
+            statesCont.appendChild(label);
+        }
+
+        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => backdrop.remove());
+
+        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
+            const newName = nameInput.value.trim();
+            nameInput.classList.remove('input-error');
+
+            if (!newName) {
+                nameInput.classList.add('input-error');
+                showAlert('Введите имя актора');
+                nameInput.focus();
+                return;
+            }
+            if (!selected.size) {
+                showAlert('Выберите хотя бы одно состояние');
+                return;
+            }
+
+            const targetStates = [...selected];
+            const willApply = [];
+            const skipped = [];
+
+            for (const st of targetStates) {
+                const det = stateDetails[st];
+                const exists = det && (det.permissions || []).some(x => x.actor === newName);
+                if (exists) skipped.push(st);
+                else willApply.push(st);
+            }
+
+            const lines = [];
+            lines.push('Источник: ' + actorName + ' @ ' + stateName);
+            lines.push('Новое имя: ' + newName);
+            lines.push('Выбрано состояний: ' + targetStates.length);
+            if (willApply.length) lines.push('  • добавлено в: ' + willApply.join(', '));
+            if (skipped.length) lines.push('  • пропущено (актор уже есть): ' + skipped.join(', '));
+
+            if (!willApply.length) {
+                showAlert(lines.join('\n') + '\n\nНечего копировать.');
+                return;
+            }
+            lines.push('');
+            lines.push('Будет изменён configuration.json.');
+
+            const ok = await showConfirm(lines.join('\n'), 'Копирование актора');
+            if (!ok) return;
+
+            vscode.postMessage({
+                type: 'copyActor',
+                payload: {
+                    fromState: stateName,
+                    fromActor: actorName,
+                    toActor: newName,
+                    toStates: targetStates
+                }
+            });
+            backdrop.remove();
+        });
+    }
+
+    function openAuthForm() {
+        const auth = DATA.auth || {};
+        if (!auth.found) {
+            showAlert(
+                'Файл authorization.csv не найден.\n\n' +
+                'Ожидаемый путь: <папка-пакета>/authorization/authorization.csv',
+                'Авторизация — файл не найден'
+            );
+            return;
+        }
+
+        const container = document.getElementById('modalContainer');
+        const backdrop = cloneTemplate('tpl-auth-modal');
+        container.appendChild(backdrop);
+
+        backdrop.querySelector('.auth-doc-hint').textContent = 'Документ: ' + auth.docName;
+        const pathEl = backdrop.querySelector('.auth-path-hint');
+        pathEl.textContent = auth.path || '';
+        pathEl.title = auth.path || '';
+
+        const localRows = (auth.rows || []).map(r => ({
+            role: r.role, actor: r.actor, op: r.op || 'Add'
+        }));
+
+        const tbody = backdrop.querySelector('.f-auth-rows');
+        const allRoles = auth.allRoles || [];
+        const allActors = meta.actors || [];
+
+        function buildRoleCell(r) {
+            const td = document.createElement('td');
+            const sel = document.createElement('select');
+            sel.className = 'f-auth-role-sel';
+
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = '— выберите —';
+            sel.appendChild(ph);
+
+            for (const role of allRoles) {
+                const opt = document.createElement('option');
+                opt.value = role;
+                opt.textContent = role;
+                sel.appendChild(opt);
+            }
+            const newOpt = document.createElement('option');
+            newOpt.value = '__NEW__';
+            newOpt.textContent = '➕ Другая роль…';
+            sel.appendChild(newOpt);
+
+            const custom = document.createElement('input');
+            custom.type = 'text';
+            custom.className = 'f-auth-role-custom';
+            custom.placeholder = 'Имя новой роли';
+            custom.style.display = 'none';
+            custom.style.marginTop = '4px';
+
+            const isCustom = r.role && !allRoles.includes(r.role);
+            if (isCustom) {
+                sel.value = '__NEW__';
+                custom.value = r.role;
+                custom.style.display = '';
+            } else if (r.role) {
+                sel.value = r.role;
+            } else {
+                sel.value = '';
+            }
+
+            sel.addEventListener('change', () => {
+                if (sel.value === '__NEW__') {
+                    custom.style.display = '';
+                    custom.focus();
+                    r.role = custom.value.trim();
+                } else {
+                    custom.style.display = 'none';
+                    custom.value = '';
+                    r.role = sel.value;
+                }
+                sel.classList.remove('input-error');
+                custom.classList.remove('input-error');
+            });
+
+            custom.addEventListener('input', () => {
+                r.role = custom.value.trim();
+                custom.classList.remove('input-error');
+            });
+
+            td.appendChild(sel);
+            td.appendChild(custom);
+            return td;
+        }
+
+        function buildActorCell(r) {
+            const td = document.createElement('td');
+            const sel = document.createElement('select');
+            sel.className = 'f-auth-actor-sel';
+
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = '— выберите —';
+            sel.appendChild(ph);
+
+            for (const a of allActors) {
+                const opt = document.createElement('option');
+                opt.value = a;
+                opt.textContent = a;
+                sel.appendChild(opt);
+            }
+            sel.value = r.actor || '';
+
+            sel.addEventListener('change', () => {
+                r.actor = sel.value;
+                sel.classList.remove('input-error');
+            });
+
+            td.appendChild(sel);
+            return td;
+        }
+
+        function buildOpCell(r) {
+            const td = document.createElement('td');
+            const sel = document.createElement('select');
+            for (const v of ['Add', 'Remove']) {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                if (v === (r.op || 'Add')) opt.selected = true;
+                sel.appendChild(opt);
+            }
+            sel.addEventListener('change', () => { r.op = sel.value; });
+            td.appendChild(sel);
+            return td;
+        }
+
+        function renderRows() {
+            tbody.innerHTML = '';
+            if (!localRows.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'gen-empty';
+                td.textContent = 'Нет строк для этого документа';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            localRows.forEach((r, i) => {
+                const tr = document.createElement('tr');
+                tr.appendChild(buildRoleCell(r));
+                tr.appendChild(buildActorCell(r));
+                tr.appendChild(buildOpCell(r));
+
+                const tdDel = document.createElement('td');
+                const delBtn = document.createElement('button');
+                delBtn.className = 'danger small';
+                delBtn.textContent = '×';
+                delBtn.title = 'Убрать строку';
+                delBtn.addEventListener('click', () => {
+                    localRows.splice(i, 1);
+                    renderRows();
+                });
+                tdDel.appendChild(delBtn);
+                tr.appendChild(tdDel);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        renderRows();
+
+        backdrop.querySelector('[data-act="add-row"]').addEventListener('click', () => {
+            localRows.push({ role: '', actor: '', op: 'Add' });
+            renderRows();
+            const rows = tbody.querySelectorAll('tr');
+            if (rows.length) rows[rows.length - 1].scrollIntoView({ block: 'nearest' });
+        });
+
+        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => backdrop.remove());
+
+        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
+            backdrop.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+
+            const trs = tbody.querySelectorAll('tr');
+            const invalidInputs = [];
+
+            localRows.forEach((r, i) => {
+                const tr = trs[i];
+                if (!tr) return;
+
+                const roleSel = tr.querySelector('.f-auth-role-sel');
+                const roleCustom = tr.querySelector('.f-auth-role-custom');
+                const actorSel = tr.querySelector('.f-auth-actor-sel');
+
+                const roleEmpty = !r.role || !String(r.role).trim();
+                const actorEmpty = !r.actor || !String(r.actor).trim();
+
+                if (roleEmpty) {
+                    const target = (roleSel && roleSel.value === '__NEW__') ? roleCustom : roleSel;
+                    if (target) {
+                        target.classList.add('input-error');
+                        invalidInputs.push(target);
+                    }
+                }
+                if (actorEmpty) {
+                    if (actorSel) {
+                        actorSel.classList.add('input-error');
+                        invalidInputs.push(actorSel);
+                    }
+                }
+            });
+
+            if (invalidInputs.length) {
+                showAlert('Заполните подсвеченные поля: ApplicationRole и Actor обязательны.');
+                if (invalidInputs[0] && invalidInputs[0].focus) invalidInputs[0].focus();
+                return;
+            }
+
+            const seen = new Set();
+            for (const r of localRows) {
+                const key = String(r.role).trim() + '|' + r.actor + '|' + r.op;
+                if (seen.has(key)) {
+                    showAlert('Дубликат: ' + r.role + ' / ' + r.actor + ' / ' + r.op);
+                    return;
+                }
+                seen.add(key);
+            }
+
+            const ok = await showConfirm(
+                'Сохранить авторизацию?\n\n' +
+                'Документ: ' + auth.docName + '\n' +
+                'Строк для этого документа: ' + localRows.length + '\n\n' +
+                'Файл: ' + (auth.path || ''),
+                'Сохранение авторизации'
+            );
+            if (!ok) return;
+
+            vscode.postMessage({
+                type: 'saveAuth',
+                payload: {
+                    rows: localRows.map(r => ({
+                        role: String(r.role).trim(),
+                        actor: r.actor,
+                        op: r.op
+                    }))
+                }
+            });
+            backdrop.remove();
+        });
+    }
+
+    function validateFlow() {
+        const graphStates = (DATA.graph && DATA.graph.states) || [];
+        const graphTransitions = (DATA.graph && DATA.graph.transitions) || [];
+        const initialState = DATA.graph && DATA.graph.initialState;
+        const stateTrans = (meta.translations && meta.translations.stateTrans) || {};
+        const transTrans = (meta.translations && meta.translations.transTrans) || {};
+
+        const rowByName = {};
+        for (const r of (DATA.rows || [])) rowByName[r.stateName] = r;
+
+        const issues = {
+            unreachable: [],
+            terminalWithOutgoing: [],
+            missingStateTranslations: [],
+            missingTransitionTranslations: [],
+            noActors: [],
+            relations: []
+        };
+
+        if (!initialState) {
+            issues.unreachable.push({ name: null, note: 'initialState не задан в documentFlow.json' });
+        } else {
+            const reached = new Set();
+            const stack = [initialState];
+            while (stack.length) {
+                const cur = stack.pop();
+                if (reached.has(cur)) continue;
+                reached.add(cur);
+                for (const t of graphTransitions) {
+                    if (t.from === cur && !reached.has(t.to)) stack.push(t.to);
+                }
+            }
+            for (const s of graphStates) {
+                if (!reached.has(s.name)) issues.unreachable.push({ name: s.name });
+            }
+        }
+
+        for (const s of graphStates) {
+            const row = rowByName[s.name];
+            const isTerminal = row && row.flags && row.flags.isTerminal;
+            if (!isTerminal) continue;
+            const outgoing = graphTransitions.filter(t => t.from === s.name);
+            if (outgoing.length) {
+                issues.terminalWithOutgoing.push({
+                    name: s.name,
+                    transitions: outgoing.map(t => t.name)
+                });
+            }
+        }
+
+        for (const s of graphStates) {
+            const ru = stateTrans[s.name];
+            if (!ru || !String(ru).trim()) issues.missingStateTranslations.push({ name: s.name });
+        }
+        for (const t of graphTransitions) {
+            const ru = transTrans[t.name];
+            if (!ru || !String(ru).trim()) issues.missingTransitionTranslations.push({ name: t.name });
+        }
+
+        for (const r of (DATA.rows || [])) {
+            if (!r.perms || !r.perms.length) issues.noActors.push({ name: r.stateName });
+        }
+
+        const rel = DATA.relations || {};
+        for (const r of (rel.relations || [])) {
+            if (!r.isMine) continue;
+            for (const msg of (r.issues || [])) {
+                issues.relations.push({ name: r.name, note: msg });
+            }
+        }
+
+        return issues;
+    }
+
+    function centerOnState(name) {
+        const s = graphData.states.find(x => x.name === name);
+        if (!s) return;
+        viewBox.x = s.x + s.w / 2 - viewBox.w / 2;
+        viewBox.y = s.y + s.h / 2 - viewBox.h / 2;
+        applyViewBox();
     }
 
     function openValidationForm() {
@@ -2583,825 +3857,12 @@
         backdrop.querySelector('[data-act="close"]').addEventListener('click', () => backdrop.remove());
     }
 
-    function openCopyActorForm(stateName, actorName) {
-        const stateDet = stateDetails[stateName];
-        if (!stateDet) { showAlert('Нет данных для состояния ' + stateName); return; }
-        const sourceActor = (stateDet.permissions || []).find(x => x.actor === actorName);
-        if (!sourceActor) { showAlert('Актор не найден: ' + actorName); return; }
-
-        const container = document.getElementById('modalContainer');
-        const backdrop = cloneTemplate('tpl-copy-actor-modal');
-        container.appendChild(backdrop);
-
-        backdrop.querySelector('.f-copy-source').textContent = actorName + ' @ ' + stateName;
-
-        const nameInput = backdrop.querySelector('.f-copy-name');
-        nameInput.value = actorName;
-
-        const statesCont = backdrop.querySelector('.f-copy-states');
-        const allStates = meta.states || [];
-        const selected = new Set([stateName]);
-
-        for (const st of allStates) {
-            const label = document.createElement('label');
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.value = st;
-            if (st === stateName) cb.checked = true;
-            cb.addEventListener('change', () => {
-                if (cb.checked) selected.add(st);
-                else selected.delete(st);
-            });
-            label.appendChild(cb);
-
-            const txt = document.createElement('span');
-            const ru = (meta.translations.stateTrans && meta.translations.stateTrans[st]) || st;
-            txt.textContent = st + ' (' + ru + ')';
-            label.appendChild(txt);
-
-            statesCont.appendChild(label);
-        }
-
-        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => backdrop.remove());
-
-        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
-            const newName = nameInput.value.trim();
-            nameInput.classList.remove('input-error');
-
-            if (!newName) {
-                nameInput.classList.add('input-error');
-                showAlert('Введите имя актора');
-                nameInput.focus();
-                return;
-            }
-            if (!selected.size) {
-                showAlert('Выберите хотя бы одно состояние');
-                return;
-            }
-
-            const targetStates = [...selected];
-            const willApply = [];
-            const skipped = [];
-
-            for (const st of targetStates) {
-                const det = stateDetails[st];
-                const exists = det && (det.permissions || []).some(x => x.actor === newName);
-                if (exists) skipped.push(st);
-                else willApply.push(st);
-            }
-
-            const lines = [];
-            lines.push('Источник: ' + actorName + ' @ ' + stateName);
-            lines.push('Новое имя: ' + newName);
-            lines.push('Выбрано состояний: ' + targetStates.length);
-            if (willApply.length) lines.push('  • добавлено в: ' + willApply.join(', '));
-            if (skipped.length) lines.push('  • пропущено (актор уже есть): ' + skipped.join(', '));
-
-            if (!willApply.length) {
-                showAlert(lines.join('\n') + '\n\nНечего копировать.');
-                return;
-            }
-            lines.push('');
-            lines.push('Будет изменён configuration.json.');
-
-            const ok = await showConfirm(lines.join('\n'), 'Копирование актора');
-            if (!ok) return;
-
-            vscode.postMessage({
-                type: 'copyActor',
-                payload: {
-                    fromState: stateName,
-                    fromActor: actorName,
-                    toActor: newName,
-                    toStates: targetStates
-                }
-            });
-            backdrop.remove();
-        });
-    }
-
-    let genFlowState = null;
-
-    function openGenerateFlowForm() {
-        const container = document.getElementById('modalContainer');
-        const backdrop = cloneTemplate('tpl-generate-flow-modal');
-        container.appendChild(backdrop);
-
-        // Собираем существующие данные
-        const existingStates = (DATA.graph.states || []).map(s => ({
-            name: s.name,
-            ru: (meta.translations.stateTrans && meta.translations.stateTrans[s.name]) || s.ru || s.name,
-            existing: true
-        }));
-
-        const existingTransitions = (DATA.graph.transitions || []).map(t => ({
-            name: t.name,
-            from: t.from,
-            to: t.to,
-            ru: (meta.translations.transTrans && meta.translations.transTrans[t.name]) || t.ru || t.name,
-            existing: true
-        }));
-
-        genFlowState = {
-            states: existingStates.slice(),
-            transitions: existingTransitions.slice()
-        };
-
-        const tbodyS = backdrop.querySelector('.f-gen-states');
-        const tbodyT = backdrop.querySelector('.f-gen-transitions');
-
-        /* ---------- Рендер таблицы состояний ---------- */
-        function buildStateRow(s) {
-            const tr = document.createElement('tr');
-            const idx = genFlowState.states.indexOf(s);
-
-            const tdN = document.createElement('td');
-            tdN.textContent = String(idx + 1);
-            tr.appendChild(tdN);
-
-            const tdCode = document.createElement('td');
-            const codeInput = document.createElement('input');
-            codeInput.type = 'text';
-            codeInput.value = s.name;
-            if (s.existing) codeInput.readOnly = true;
-            codeInput.addEventListener('input', () => { s.name = codeInput.value.trim(); });
-            tdCode.appendChild(codeInput);
-            tr.appendChild(tdCode);
-
-            const tdRu = document.createElement('td');
-            const ruInput = document.createElement('input');
-            ruInput.type = 'text';
-            ruInput.value = s.ru;
-            ruInput.addEventListener('input', () => { s.ru = ruInput.value; });
-            tdRu.appendChild(ruInput);
-            tr.appendChild(tdRu);
-
-            const tdDel = document.createElement('td');
-            const delBtn = document.createElement('button');
-            delBtn.className = 'danger small';
-            delBtn.textContent = '×';
-            delBtn.title = s.existing ? 'Удалить (со всеми ссылками в файлах)' : 'Убрать';
-            delBtn.addEventListener('click', () => {
-                const i = genFlowState.states.indexOf(s);
-                if (i >= 0) genFlowState.states.splice(i, 1);
-                renderStatesTable();
-            });
-            tdDel.appendChild(delBtn);
-            tr.appendChild(tdDel);
-
-            return tr;
-        }
-
-        function renderStatesTable() {
-            tbodyS.innerHTML = '';
-            const existing = genFlowState.states.filter(s => s.existing);
-            const fresh = genFlowState.states.filter(s => !s.existing);
-
-            const addSep = (text) => {
-                const tr = document.createElement('tr');
-                tr.className = 'gen-sep';
-                const td = document.createElement('td');
-                td.colSpan = 4;
-                td.textContent = text;
-                tr.appendChild(td);
-                tbodyS.appendChild(tr);
-            };
-
-            if (existing.length) { addSep('Существующие'); existing.forEach(s => tbodyS.appendChild(buildStateRow(s))); }
-            if (fresh.length) { addSep('Новые'); fresh.forEach(s => tbodyS.appendChild(buildStateRow(s))); }
-            if (!existing.length && !fresh.length) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 4;
-                td.className = 'gen-empty';
-                td.textContent = 'Нет состояний';
-                tr.appendChild(td);
-                tbodyS.appendChild(tr);
-            }
-        }
-
-        /* ---------- Рендер таблицы переходов ---------- */
-        function buildTransitionRow(t) {
-            const tr = document.createElement('tr');
-            const idx = genFlowState.transitions.indexOf(t);
-
-            const tdCode = document.createElement('td');
-            const codeInput = document.createElement('input');
-            codeInput.type = 'text';
-            codeInput.value = t.name;
-            if (t.existing) codeInput.readOnly = true;
-            codeInput.addEventListener('input', () => { t.name = codeInput.value.trim(); });
-            tdCode.appendChild(codeInput);
-            tr.appendChild(tdCode);
-
-            const tdFrom = document.createElement('td');
-            tdFrom.textContent = t.from;
-            tr.appendChild(tdFrom);
-
-            const tdTo = document.createElement('td');
-            tdTo.textContent = t.to;
-            tr.appendChild(tdTo);
-
-            const tdRu = document.createElement('td');
-            const ruInput = document.createElement('input');
-            ruInput.type = 'text';
-            ruInput.value = t.ru;
-            ruInput.addEventListener('input', () => { t.ru = ruInput.value; });
-            tdRu.appendChild(ruInput);
-            tr.appendChild(tdRu);
-
-            const tdDel = document.createElement('td');
-            const delBtn = document.createElement('button');
-            delBtn.className = 'danger small';
-            delBtn.textContent = '×';
-            delBtn.title = t.existing ? 'Удалить (со всеми ссылками в файлах)' : 'Убрать';
-            delBtn.addEventListener('click', () => {
-                const i = genFlowState.transitions.indexOf(t);
-                if (i >= 0) genFlowState.transitions.splice(i, 1);
-                renderTransitionsTable();
-            });
-            tdDel.appendChild(delBtn);
-            tr.appendChild(tdDel);
-
-            return tr;
-        }
-
-        function renderTransitionsTable() {
-            tbodyT.innerHTML = '';
-            const existing = genFlowState.transitions.filter(t => t.existing);
-            const fresh = genFlowState.transitions.filter(t => !t.existing);
-
-            const addSep = (text) => {
-                const tr = document.createElement('tr');
-                tr.className = 'gen-sep';
-                const td = document.createElement('td');
-                td.colSpan = 5;
-                td.textContent = text;
-                tr.appendChild(td);
-                tbodyT.appendChild(tr);
-            };
-
-            if (existing.length) { addSep('Существующие'); existing.forEach(t => tbodyT.appendChild(buildTransitionRow(t))); }
-            if (fresh.length) { addSep('Новые'); fresh.forEach(t => tbodyT.appendChild(buildTransitionRow(t))); }
-            if (!existing.length && !fresh.length) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 5;
-                td.className = 'gen-empty';
-                td.textContent = 'Нет переходов';
-                tr.appendChild(td);
-                tbodyT.appendChild(tr);
-            }
-        }
-
-        renderStatesTable();
-        renderTransitionsTable();
-
-        /* ---------- Добавить состояния ---------- */
-        backdrop.querySelector('[data-act="add-states"]').addEventListener('click', () => {
-            const ta = backdrop.querySelector('.f-gen-states-input');
-            const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-            for (const line of lines) {
-                const parts = line.split('|').map(x => x.trim());
-                const name = parts[0];
-                const ru = parts[1] || name;
-                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) continue;
-                if (genFlowState.states.some(s => s.name === name)) continue;
-                genFlowState.states.push({ name, ru, existing: false });
-            }
-            ta.value = '';
-            renderStatesTable();
-        });
-
-        /* ---------- Добавить переходы ---------- */
-        backdrop.querySelector('[data-act="add-transitions"]').addEventListener('click', () => {
-            const ta = backdrop.querySelector('.f-gen-transitions-input');
-            const items = ta.value.split(/[\s,;]+/).filter(Boolean);
-            const byNumber = (n) => {
-                const i = parseInt(n, 10);
-                if (!Number.isFinite(i) || i < 1 || i > genFlowState.states.length) return null;
-                return genFlowState.states[i - 1].name;
-            };
-            for (const item of items) {
-                const m = item.match(/^(.+?)-(.+)$/);
-                if (!m) continue;
-                let fromRaw = m[1].trim(), toRaw = m[2].trim();
-                const from = /^\d+$/.test(fromRaw) ? byNumber(fromRaw) : fromRaw;
-                const to = /^\d+$/.test(toRaw) ? byNumber(toRaw) : toRaw;
-                if (!from || !to) continue;
-                if (!genFlowState.states.some(s => s.name === from)) continue;
-                if (!genFlowState.states.some(s => s.name === to)) continue;
-                const code = from + '_' + to;
-                if (genFlowState.transitions.some(t => t.name === code)) continue;
-                genFlowState.transitions.push({ name: code, from, to, ru: code, existing: false });
-            }
-            ta.value = '';
-            renderTransitionsTable();
-        });
-
-        /* ---------- Отмена ---------- */
-        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => {
-            genFlowState = null;
-            backdrop.remove();
-        });
-
-        /* ---------- Сгенерировать ---------- */
-        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
-            const seenS = new Set();
-            for (const s of genFlowState.states) {
-                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(s.name)) {
-                    showAlert('Некорректный код состояния: ' + s.name); return;
-                }
-                if (seenS.has(s.name)) { showAlert('Дубликат состояния: ' + s.name); return; }
-                seenS.add(s.name);
-            }
-            const seenT = new Set();
-            for (const t of genFlowState.transitions) {
-                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t.name)) {
-                    showAlert('Некорректный код перехода: ' + t.name); return;
-                }
-                if (seenT.has(t.name)) { showAlert('Дубликат перехода: ' + t.name); return; }
-                seenT.add(t.name);
-            }
-
-            const hasExisting = genFlowState.states.some(s => s.existing) ||
-                genFlowState.transitions.some(t => t.existing);
-            const title = hasExisting ? 'Обновить каркас' : 'Создать каркас';
-            const ok = await showConfirm(
-                (hasExisting ? 'Применить изменения к существующим файлам?\n\n'
-                    : 'Создать файлы докфлоу?\n\n') +
-                'Состояний: ' + genFlowState.states.length + '\n' +
-                'Переходов: ' + genFlowState.transitions.length + '\n\n' +
-                'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json',
-                title
-            );
-            if (!ok) return;
-
-            vscode.postMessage({
-                type: 'generateFlow',
-                payload: {
-                    states: genFlowState.states,
-                    transitions: genFlowState.transitions
-                }
-            });
-            genFlowState = null;
-            backdrop.remove();
-        });
-    }
-
-    function openAuthForm() {
-        const auth = DATA.auth || {};
-        if (!auth.found) {
-            showAlert(
-                'Файл authorization.csv не найден.\n\n' +
-                'Ожидаемый путь: <папка-пакета>/authorization/authorization.csv\n' +
-                '(обычно на 2 уровня выше папки документа).',
-                'Авторизация — файл не найден'
-            );
-            return;
-        }
-
-        const container = document.getElementById('modalContainer');
-        const backdrop = cloneTemplate('tpl-auth-modal');
-        container.appendChild(backdrop);
-
-        backdrop.querySelector('.auth-doc-hint').textContent = 'Документ: ' + auth.docName;
-        const pathEl = backdrop.querySelector('.auth-path-hint');
-        pathEl.textContent = auth.path || '';
-        pathEl.title = auth.path || '';
-
-        const localRows = (auth.rows || []).map(r => ({
-            role: r.role, actor: r.actor, op: r.op || 'Add'
-        }));
-
-        const tbody = backdrop.querySelector('.f-auth-rows');
-        const allRoles = auth.allRoles || [];
-        const allActors = meta.actors || [];
-
-        /* ----- Ячейка ApplicationRole: select + «➕ Другая роль…» + текст ----- */
-        function buildRoleCell(r) {
-            const td = document.createElement('td');
-
-            const sel = document.createElement('select');
-            sel.className = 'f-auth-role-sel';
-
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = '— выберите —';
-            sel.appendChild(ph);
-
-            for (const role of allRoles) {
-                const opt = document.createElement('option');
-                opt.value = role;
-                opt.textContent = role;
-                sel.appendChild(opt);
-            }
-            const newOpt = document.createElement('option');
-            newOpt.value = '__NEW__';
-            newOpt.textContent = '➕ Другая роль…';
-            sel.appendChild(newOpt);
-
-            const custom = document.createElement('input');
-            custom.type = 'text';
-            custom.className = 'f-auth-role-custom';
-            custom.placeholder = 'Имя новой роли';
-            custom.style.display = 'none';
-            custom.style.marginTop = '4px';
-
-            const isCustom = r.role && !allRoles.includes(r.role);
-            if (isCustom) {
-                sel.value = '__NEW__';
-                custom.value = r.role;
-                custom.style.display = '';
-            } else if (r.role) {
-                sel.value = r.role;
-            } else {
-                sel.value = '';
-            }
-
-            sel.addEventListener('change', () => {
-                if (sel.value === '__NEW__') {
-                    custom.style.display = '';
-                    custom.focus();
-                    r.role = custom.value.trim();
-                } else {
-                    custom.style.display = 'none';
-                    custom.value = '';
-                    r.role = sel.value;
-                }
-                sel.classList.remove('input-error');
-                custom.classList.remove('input-error');
-            });
-
-            custom.addEventListener('input', () => {
-                r.role = custom.value.trim();
-                custom.classList.remove('input-error');
-            });
-
-            td.appendChild(sel);
-            td.appendChild(custom);
-            return td;
-        }
-
-        /* ----- Ячейка Actor: select с плейсхолдером ----- */
-        function buildActorCell(r) {
-            const td = document.createElement('td');
-            const sel = document.createElement('select');
-            sel.className = 'f-auth-actor-sel';
-
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = '— выберите —';
-            sel.appendChild(ph);
-
-            for (const a of allActors) {
-                const opt = document.createElement('option');
-                opt.value = a;
-                opt.textContent = a;
-                sel.appendChild(opt);
-            }
-            sel.value = r.actor || '';
-
-            sel.addEventListener('change', () => {
-                r.actor = sel.value;
-                sel.classList.remove('input-error');
-            });
-
-            td.appendChild(sel);
-            return td;
-        }
-
-        /* ----- Ячейка AssignmentOperator ----- */
-        function buildOpCell(r) {
-            const td = document.createElement('td');
-            const sel = document.createElement('select');
-            for (const v of ['Add', 'Remove']) {
-                const opt = document.createElement('option');
-                opt.value = v;
-                opt.textContent = v;
-                if (v === (r.op || 'Add')) opt.selected = true;
-                sel.appendChild(opt);
-            }
-            sel.addEventListener('change', () => { r.op = sel.value; });
-            td.appendChild(sel);
-            return td;
-        }
-
-        /* ----- Отрисовка всех строк ----- */
-        function renderRows() {
-            tbody.innerHTML = '';
-            if (!localRows.length) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 4;
-                td.className = 'gen-empty';
-                td.textContent = 'Нет строк для этого документа';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
-                return;
-            }
-
-            localRows.forEach((r, i) => {
-                const tr = document.createElement('tr');
-                tr.appendChild(buildRoleCell(r));
-                tr.appendChild(buildActorCell(r));
-                tr.appendChild(buildOpCell(r));
-
-                const tdDel = document.createElement('td');
-                const delBtn = document.createElement('button');
-                delBtn.className = 'danger small';
-                delBtn.textContent = '×';
-                delBtn.title = 'Убрать строку';
-                delBtn.addEventListener('click', () => {
-                    localRows.splice(i, 1);
-                    renderRows();
-                });
-                tdDel.appendChild(delBtn);
-                tr.appendChild(tdDel);
-
-                tbody.appendChild(tr);
-            });
-        }
-
-        renderRows();
-
-        backdrop.querySelector('[data-act="add-row"]').addEventListener('click', () => {
-            localRows.push({ role: '', actor: '', op: 'Add' });
-            renderRows();
-            // прокрутить к новой строке
-            const rows = tbody.querySelectorAll('tr');
-            if (rows.length) rows[rows.length - 1].scrollIntoView({ block: 'nearest' });
-        });
-
-        backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => {
-            backdrop.remove();
-        });
-
-        backdrop.querySelector('[data-act="submit"]').addEventListener('click', async () => {
-            // сброс прошлой подсветки
-            backdrop.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-
-            // валидация с подсветкой
-            const trs = tbody.querySelectorAll('tr');
-            const invalidInputs = [];
-
-            localRows.forEach((r, i) => {
-                const tr = trs[i];
-                if (!tr) return;
-
-                const roleSel = tr.querySelector('.f-auth-role-sel');
-                const roleCustom = tr.querySelector('.f-auth-role-custom');
-                const actorSel = tr.querySelector('.f-auth-actor-sel');
-
-                const roleEmpty = !r.role || !String(r.role).trim();
-                const actorEmpty = !r.actor || !String(r.actor).trim();
-
-                if (roleEmpty) {
-                    const target = (roleSel && roleSel.value === '__NEW__') ? roleCustom : roleSel;
-                    if (target) {
-                        target.classList.add('input-error');
-                        invalidInputs.push(target);
-                    }
-                }
-                if (actorEmpty) {
-                    if (actorSel) {
-                        actorSel.classList.add('input-error');
-                        invalidInputs.push(actorSel);
-                    }
-                }
-            });
-
-            if (invalidInputs.length) {
-                showAlert('Заполните подсвеченные поля: ApplicationRole и Actor обязательны.');
-                if (invalidInputs[0] && invalidInputs[0].focus) invalidInputs[0].focus();
-                return;
-            }
-
-            // проверка дубликатов
-            const seen = new Set();
-            for (const r of localRows) {
-                const key = String(r.role).trim() + '|' + r.actor + '|' + r.op;
-                if (seen.has(key)) {
-                    showAlert('Дубликат: ' + r.role + ' / ' + r.actor + ' / ' + r.op);
-                    return;
-                }
-                seen.add(key);
-            }
-
-            const ok = await showConfirm(
-                'Сохранить авторизацию?\n\n' +
-                'Документ: ' + auth.docName + '\n' +
-                'Строк для этого документа: ' + localRows.length + '\n\n' +
-                'Файл: ' + (auth.path || ''),
-                'Сохранение авторизации'
-            );
-            if (!ok) return;
-
-            vscode.postMessage({
-                type: 'saveAuth',
-                payload: {
-                    rows: localRows.map(r => ({
-                        role: String(r.role).trim(),
-                        actor: r.actor,
-                        op: r.op
-                    }))
-                }
-            });
-            backdrop.remove();
-        });
-    }
-
-    function validateFlow() {
-        const graphStates = (DATA.graph && DATA.graph.states) || [];
-        const graphTransitions = (DATA.graph && DATA.graph.transitions) || [];
-        const initialState = DATA.graph && DATA.graph.initialState;
-        const stateTrans = (meta.translations && meta.translations.stateTrans) || {};
-        const transTrans = (meta.translations && meta.translations.transTrans) || {};
-
-        const rowByName = {};
-        for (const r of (DATA.rows || [])) rowByName[r.stateName] = r;
-
-        const issues = {
-            unreachable: [],
-            terminalWithOutgoing: [],
-            missingStateTranslations: [],
-            missingTransitionTranslations: [],
-            noActors: [],
-            relations: []
-        };
-
-        // 1) Недостижимые состояния
-        if (!initialState) {
-            issues.unreachable.push({ name: null, note: 'initialState не задан в documentFlow.json' });
-        } else {
-            const reached = new Set();
-            const stack = [initialState];
-            while (stack.length) {
-                const cur = stack.pop();
-                if (reached.has(cur)) continue;
-                reached.add(cur);
-                for (const t of graphTransitions) {
-                    if (t.from === cur && !reached.has(t.to)) stack.push(t.to);
-                }
-            }
-            for (const s of graphStates) {
-                if (!reached.has(s.name)) issues.unreachable.push({ name: s.name });
-            }
-        }
-
-        // 2) Терминальные с исходящими
-        for (const s of graphStates) {
-            const row = rowByName[s.name];
-            const isTerminal = row && row.flags && row.flags.isTerminal;
-            if (!isTerminal) continue;
-            const outgoing = graphTransitions.filter(t => t.from === s.name);
-            if (outgoing.length) {
-                issues.terminalWithOutgoing.push({
-                    name: s.name,
-                    transitions: outgoing.map(t => t.name)
-                });
-            }
-        }
-
-        // 3) Нет переводов
-        for (const s of graphStates) {
-            const ru = stateTrans[s.name];
-            if (!ru || !String(ru).trim()) issues.missingStateTranslations.push({ name: s.name });
-        }
-        for (const t of graphTransitions) {
-            const ru = transTrans[t.name];
-            if (!ru || !String(ru).trim()) issues.missingTransitionTranslations.push({ name: t.name });
-        }
-
-        // 4) Нет акторов
-        for (const r of (DATA.rows || [])) {
-            if (!r.perms || !r.perms.length) issues.noActors.push({ name: r.stateName });
-        }
-
-        // 5) Проблемы в documentRelation (только для нашего документа)
-        const rel = DATA.relations || {};
-        for (const r of (rel.relations || [])) {
-            if (!r.isMine) continue;
-            for (const msg of (r.issues || [])) {
-                issues.relations.push({ name: r.name, note: msg });
-            }
-        }
-
-        return issues;
-    }
-
-    function injectIcons(root) {
-        (root || document).querySelectorAll('[data-icon]').forEach(el => {
-            const key = el.getAttribute('data-icon');
-            if (!ICONS[key]) return;
-            // не перезаписываем уже вставленную иконку, кроме случаев смены data-icon
-            el.innerHTML = ICONS[key];
-        });
-    }
-
-    function applyToolbarPosition() {
-        document.body.setAttribute('data-toolbar-position', toolbarPosition);
-        // Обновить иконку у viewToggle в зависимости от текущего режима
-        updateViewToggleIcon();
-        adjustBodyPaddingForToolbar();
-    }
-
-    function adjustBodyPaddingForToolbar() {
-        const toolbar = document.getElementById('mainToolbar');
-        if (!toolbar) return;
-        const pos = document.body.getAttribute('data-toolbar-position') || 'top';
-        const h = toolbar.offsetHeight;
-        const w = toolbar.offsetWidth;
-        const GAP = 10;
-
-        document.body.style.paddingTop = '';
-        document.body.style.paddingBottom = '';
-        document.body.style.paddingLeft = '';
-        document.body.style.paddingRight = '';
-
-        if (pos === 'top') document.body.style.paddingTop = (h + GAP) + 'px';
-        if (pos === 'bottom') document.body.style.paddingBottom = (h + GAP) + 'px';
-        if (pos === 'left') document.body.style.paddingLeft = (w + GAP) + 'px';
-        if (pos === 'right') document.body.style.paddingRight = (w + GAP) + 'px';
-    }
-
-    function updateViewToggleIcon() {
-        const btn = document.getElementById('viewToggle');
-        if (!btn) return;
-        const key = viewMode === 'graph' ? 'table' : 'graph';
-        btn.setAttribute('data-icon', key);
-        btn.title = viewMode === 'graph' ? 'Показать таблицу' : 'Показать граф';
-        btn.innerHTML = ICONS[key];
-    }
-
-    function closeToolbarMenu() {
-        const m = document.getElementById('toolbarSettingsMenu');
-        if (m) m.remove();
-    }
-
-    function openToolbarMenu() {
-        closeToolbarMenu();
-        const btn = document.getElementById('toolbarSettingsBtn');
-        if (!btn) return;
-
-        const menu = document.createElement('div');
-        menu.className = 'toolbar-settings-menu';
-        menu.id = 'toolbarSettingsMenu';
-
-        const positions = [
-            { value: 'top', label: 'Сверху', icon: 'layout-top' },
-            { value: 'right', label: 'Справа', icon: 'layout-right' },
-            { value: 'bottom', label: 'Снизу', icon: 'layout-bottom' },
-            { value: 'left', label: 'Слева', icon: 'layout-left' }
-        ];
-
-        let html = '<div class="menu-header">Расположение тулбара</div>';
-        for (const p of positions) {
-            const checked = toolbarPosition === p.value ? '✓' : '';
-            html += '<div class="menu-item" data-pos="' + p.value + '">' +
-                '<span class="check">' + checked + '</span>' +
-                ICONS[p.icon] +
-                '<span>' + p.label + '</span>' +
-                '</div>';
-        }
-        menu.innerHTML = html;
-
-        document.body.appendChild(menu);
-
-        // Позиционируем меню относительно кнопки ⚙
-        const r = btn.getBoundingClientRect();
-        const mw = menu.offsetWidth || 200;
-        const mh = menu.offsetHeight || 160;
-        const GAP = 6;
-
-        if (toolbarPosition === 'top') {
-            menu.style.top = (r.bottom + GAP) + 'px';
-            menu.style.left = Math.max(4, Math.min(r.right - mw, window.innerWidth - mw - 4)) + 'px';
-        } else if (toolbarPosition === 'bottom') {
-            menu.style.top = (r.top - mh - GAP) + 'px';
-            menu.style.left = Math.max(4, Math.min(r.right - mw, window.innerWidth - mw - 4)) + 'px';
-        } else if (toolbarPosition === 'left') {
-            menu.style.left = (r.right + GAP) + 'px';
-            menu.style.top = Math.max(4, Math.min(r.top, window.innerHeight - mh - 4)) + 'px';
-        } else if (toolbarPosition === 'right') {
-            menu.style.left = (r.left - mw - GAP) + 'px';
-            menu.style.top = Math.max(4, Math.min(r.top, window.innerHeight - mh - 4)) + 'px';
-        }
-
-        menu.querySelectorAll('.menu-item').forEach(item => {
-            item.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                toolbarPosition = item.getAttribute('data-pos');
-                persistState();
-                applyToolbarPosition();
-                closeToolbarMenu();
-            });
-        });
-    }
-
     /* ============================================================
      * BIND
      * ============================================================ */
+    injectIcons(document);
+    applyToolbarPosition();
+
     document.getElementById('addBtn').addEventListener('click', openAddForm);
     document.getElementById('reloadBtn').addEventListener('click', () =>
         vscode.postMessage({ type: 'reload' })
@@ -3417,18 +3878,6 @@
     const autoLayoutBtn = document.getElementById('autoLayoutBtn');
     if (autoLayoutBtn) autoLayoutBtn.addEventListener('click', () => { autoLayout(); });
 
-    const genBtn = document.getElementById('generateFlowBtn');
-    if (genBtn) genBtn.addEventListener('click', openGenerateFlowForm);
-
-    const authBtn = document.getElementById('authBtn');
-    if (authBtn) authBtn.addEventListener('click', openAuthForm);
-
-    const validateBtn = document.getElementById('validateBtn');
-    if (validateBtn) validateBtn.addEventListener('click', openValidationForm);
-
-    const relationsBtn = document.getElementById('relationsBtn');
-    if (relationsBtn) relationsBtn.addEventListener('click', openRelationsForm);
-
     const zoomInput = document.getElementById('zoomInput');
     if (zoomInput) {
         zoomInput.addEventListener('change', () => {
@@ -3441,13 +3890,18 @@
         });
     }
 
-    // Инициализация иконок на всей странице
-    injectIcons(document);
+    const genBtn = document.getElementById('generateFlowBtn');
+    if (genBtn) genBtn.addEventListener('click', openGenerateFlowForm);
 
-    // Позиция тулбара
-    applyToolbarPosition();
+    const authBtn = document.getElementById('authBtn');
+    if (authBtn) authBtn.addEventListener('click', openAuthForm);
 
-    // Кнопка настроек
+    const validateBtn = document.getElementById('validateBtn');
+    if (validateBtn) validateBtn.addEventListener('click', openValidationForm);
+
+    const relationsBtn = document.getElementById('relationsBtn');
+    if (relationsBtn) relationsBtn.addEventListener('click', openRelationsForm);
+
     const toolbarSettingsBtn = document.getElementById('toolbarSettingsBtn');
     if (toolbarSettingsBtn) {
         toolbarSettingsBtn.addEventListener('click', (ev) => {
@@ -3458,7 +3912,6 @@
         });
     }
 
-    // Клик вне меню закрывает его
     document.addEventListener('mousedown', (ev) => {
         const menu = document.getElementById('toolbarSettingsMenu');
         if (!menu) return;
@@ -3468,16 +3921,6 @@
         closeToolbarMenu();
     });
 
-    const layoutDirBtn = document.getElementById('layoutDirBtn');
-    function updateLayoutDirBtn() {
-        if (!layoutDirBtn) return;
-        const key = layoutRankDir === 'TB' ? 'arrows-v' : 'arrows-h';
-        layoutDirBtn.setAttribute('data-icon', key);
-        layoutDirBtn.title = layoutRankDir === 'TB'
-            ? 'Сверху вниз (клик — слева направо)'
-            : 'Слева направо (клик — сверху вниз)';
-        layoutDirBtn.innerHTML = ICONS[key];
-    }
     if (layoutDirBtn) {
         layoutDirBtn.addEventListener('click', () => {
             layoutRankDir = (layoutRankDir === 'TB') ? 'LR' : 'TB';
@@ -3486,15 +3929,7 @@
         });
     }
     updateLayoutDirBtn();
-    //---------
-    const labelsToggleBtn = document.getElementById('labelsToggleBtn');
-    function updateLabelsToggleBtn() {
-        if (!labelsToggleBtn) return;
-        labelsToggleBtn.style.opacity = showTransitionLabels ? '1' : '0.55';
-        labelsToggleBtn.title = showTransitionLabels
-            ? 'Скрыть подписи переходов'
-            : 'Показать подписи переходов';
-    }
+
     if (labelsToggleBtn) {
         labelsToggleBtn.addEventListener('click', () => {
             showTransitionLabels = !showTransitionLabels;
@@ -3507,7 +3942,6 @@
     updateLabelsToggleBtn();
 
     window.addEventListener('resize', adjustBodyPaddingForToolbar);
-    //---------------------
 
     document.addEventListener('keydown', (ev) => {
         if (viewMode !== 'graph') return;
