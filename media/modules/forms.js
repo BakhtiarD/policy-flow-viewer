@@ -692,10 +692,4 @@
     openEditForm,
     openTransitionForm
   };
-
-  // Регистрация в PF.app — формы вызываются из graph-render.js
-  // и из main.js (BIND и renderTable).
-  PF.app.openAddForm        = openAddForm;
-  PF.app.openEditForm       = openEditForm;
-  PF.app.openTransitionForm = openTransitionForm;
 })();

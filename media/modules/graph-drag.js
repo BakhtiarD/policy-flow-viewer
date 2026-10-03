@@ -478,7 +478,7 @@
 
     const existing = PF.state.graphData.transitions.find(t => t.name === code);
     if (existing) {
-      PF.app.openTransitionForm(existing.name);
+      PF.forms.openTransitionForm(existing.name);
       return;
     }
 
@@ -486,7 +486,7 @@
       t => t.from === fromName && t.to === toName
     );
     if (sameEndpoints) {
-      PF.app.openTransitionForm(sameEndpoints.name);
+      PF.forms.openTransitionForm(sameEndpoints.name);
       return;
     }
 
@@ -506,10 +506,10 @@
     PF.routing.rerouteAll();
     PF.render.renderGraph();
     PF.layout.applyViewBox();
-    PF.app.openTransitionForm(code);
+    PF.forms.openTransitionForm(code);
   }
 
-  PF.drag = {
+  PF.graphDrag = {
     clientToSvg,
     startDrag,
     startPan,
@@ -525,14 +525,4 @@
     startTransitionDraw,
     createDraftTransition
   };
-
-  // Совместимость: graph-render.js вызывает эти функции через PF.app.*
-  PF.app.startDrag              = startDrag;
-  PF.app.startHandleDrag        = startHandleDrag;
-  PF.app.startEndPointDrag      = startEndPointDrag;
-  PF.app.startSegmentDrag       = startSegmentDrag;
-  PF.app.startTransitionDraw    = startTransitionDraw;
-  PF.app.removeWaypoint         = removeWaypoint;
-  PF.app.attachGraphSvgHandlers = attachGraphSvgHandlers;
-  PF.app.attachGraphKeydown     = attachGraphKeydown;
 })();

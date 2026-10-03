@@ -20,6 +20,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsFormsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'forms.js'));
     const jsFormsOtherUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'forms-other.js'));
     const jsToolbarUri    = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'toolbar.js'));
+    const jsTableUri      = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'table.js'));
 
     const dataJson = JSON.stringify({
         rows, meta, stateDetails, graph, hasUi,
@@ -46,6 +47,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_FORMS\}\}/g, () => jsFormsUri.toString())
         .replace(/\{\{JS_FORMS_OTHER\}\}/g, () => jsFormsOtherUri.toString())
         .replace(/\{\{JS_TOOLBAR\}\}/g,     () => jsToolbarUri.toString())
+        .replace(/\{\{JS_TABLE\}\}/g,     () => jsTableUri.toString())
         .replace(/\{\{JS_URI\}\}/g, () => jsUri.toString())
         .replace(/\{\{DAGRE_URI\}\}/g, () => dagreUri.toString())
         .replace(/\{\{DATA_JSON\}\}/g, () => dataJson);

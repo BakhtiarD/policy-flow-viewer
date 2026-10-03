@@ -6,6 +6,57 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+
+## [0.2.0] — 2026-10-07
+
+### Изменено
+- **Рефакторинг вебвью**: монолитный `media/main.js` (~700 строк) разбит
+  на модули `media/modules/*` (IIFE, общий namespace `window.PF`).
+  Выделены: `state`, `utils`, `icons`, `relations`, `routing`,
+  `graph-layout`, `graph-drag`, `graph-render`, `forms`, `forms-other`,
+  `toolbar`, `table`. `main.js` теперь — тонкий bootstrap (~14 строк).
+- **`PF.app` очищен**: из него убраны все «свалочные» экспорты форм
+  и drag-and-drop. Осталось только `PF.app.applyViewMode` (app-level).
+- **`PF.drag` → `PF.graphDrag`**: модуль `graph-drag.js` теперь
+  экспортирует только `PF.graphDrag` (14 функций). Блок «Совместимость»
+  с `PF.app.startDrag` и т.п. удалён.
+- **`PF.table`** — новый модуль `media/modules/table.js`, содержит
+  `permKey`, `renderCellGroups`, `makePermSection`, `makePermSectionList`,
+  `renderPerms`, `renderTable`, `applyAllCollapsed`, `updateSortIndicator`,
+  `init`. Все обращения к таблице — через `PF.table.*`.
+- **`PF.state.setData(DATA)`** — единая точка инициализации данных
+  в вебвью. `main.js` больше не пишет напрямую в
+  `PF.state.DATA / meta / stateDetails / graphData`.
+  `graphData` остаётся deep-clone (мутации drag'а не задевают `DATA.graph`).
+- **Все вызовы форм** переведены на прямые `PF.forms.*` / `PF.formsOther.*`
+  (без промежуточного `PF.app.*`).
+
+### Технические детали
+- Порядок загрузки скриптов в `media/index.html`:
+    state → icons → utils → relations → routing → graph-layout
+    → graph-drag → forms → forms-other → graph-render
+    → toolbar → table → main
+- `{{JS_TABLE}}` добавлен в `src/html.js` (URI + `.replace`).
+- `acquireVsCodeApi()` вызывается ровно один раз — в `state.js`.
+
+### Добавлено
+- Модуль `media/modules/table.js`.
+- Метод `PF.state.setData(DATA)` в `media/modules/state.js`.
+
+### Удалено
+- Экспорты `PF.app.startDrag`, `PF.app.startHandleDrag`,
+`PF.app.startEndPointDrag`, `PF.app.startSegmentDrag`,
+`PF.app.startTransitionDraw`, `PF.app.removeWaypoint`,
+`PF.app.attachGraphSvgHandlers`, `PF.app.attachGraphKeydown`.
+- Экспорты форм через `PF.app.*` (дубли `PF.forms.*`).
+- Экспорт `PF.app.applyAllCollapsed` (переехал в `PF.table`).
+- Экспорт `PF.drag` (переименован в `PF.graphDrag`).
+
+### Совместимость
+- Публичный интерфейс расширения (команда `policyFlow.showTable`,
+формат файлов проекта) **не менялся**. Обновление безопасно.
+- Все изменения затрагивают только внутреннюю структуру вебвью.
+
 ## [0.1.1] - 2026-10-01
 
 

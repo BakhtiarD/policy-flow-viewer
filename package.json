@@ -2,7 +2,7 @@
   "name": "adinsure-document-flow-viewer",
   "displayName": "Adinsure Document Flow Viewer",
   "description": "Визуализация и редактирование жизненного цикла Document по configuration.json / documentFlow.json / translation.csv",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "BakhtiarD",
   "license": "MIT",
   "repository": {

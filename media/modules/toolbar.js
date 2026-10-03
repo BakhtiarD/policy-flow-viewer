@@ -239,14 +239,14 @@
     applyToolbarPosition();
 
     // Главный тулбар
-    document.getElementById('addBtn').addEventListener('click', PF.app.openAddForm);
+    document.getElementById('addBtn').addEventListener('click', PF.forms.openAddForm);
     document.getElementById('reloadBtn').addEventListener('click', () =>
       PF.vscode.postMessage({ type: 'reload' })
     );
     document.getElementById('collapseAllBtn').addEventListener('click',
-      () => PF.app.applyAllCollapsed(true));
+      () => PF.table.applyAllCollapsed(true));
     document.getElementById('expandAllBtn').addEventListener('click',
-      () => PF.app.applyAllCollapsed(false));
+      () => PF.table.applyAllCollapsed(false));
 
     const genBtn = document.getElementById('generateFlowBtn');
     if (genBtn) genBtn.addEventListener('click', PF.formsOther.openGenerateFlowForm);

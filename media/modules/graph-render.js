@@ -107,10 +107,10 @@
         if (total !== 1) return;
         if (selectedStates.size === 1) {
             const name = [...selectedStates][0];
-            PF.app.openEditForm(name);
+            PF.forms.openEditForm(name);
         } else {
             const name = [...selectedTransitions][0];
-            PF.app.openTransitionForm(name);
+            PF.forms.openTransitionForm(name);
         }
     }
 
@@ -226,16 +226,16 @@
 
                     // Alt + двойной клик — добавить промежуточную точку в месте клика
                     if (ev.altKey) {
-                        const svgPt = PF.drag.clientToSvg(ev);
+                        const svgPt = PF.graphDrag.clientToSvg(ev);
                         const segIdx = PF.routing.findSegmentIndex(t.waypoints, svgPt);
                         if (segIdx >= 0) {
-                            PF.drag.addWaypointAt(t.name, segIdx, svgPt);
+                            PF.graphDrag.addWaypointAt(t.name, segIdx, svgPt);
                         }
                         return;
                     }
 
                     // Обычный двойной клик — открыть модалку
-                    PF.app.openTransitionForm(t.name);
+                    PF.forms.openTransitionForm(t.name);
                 });
 
                 g.appendChild(hit);
@@ -307,7 +307,7 @@
                 const onLabelDbl = (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
-                    PF.app.openTransitionForm(t.name);
+                    PF.forms.openTransitionForm(t.name);
                 };
                 labelBg.addEventListener('mousedown', onLabelDown);
                 labelEl.addEventListener('mousedown', onLabelDown);
@@ -360,7 +360,7 @@
             rect.addEventListener('dblclick', (ev) => {
                 ev.preventDefault();
                 ev.stopPropagation();
-                PF.app.openEditForm(s.name);
+                PF.forms.openEditForm(s.name);
             });
 
             rect.addEventListener('mousedown', (ev) => {
@@ -391,13 +391,13 @@
                     );
                     if (newG) {
                         const newRect = newG.querySelector('rect');
-                        PF.app.startDrag(ev, s, newG);
+                        PF.graphDrag.startDrag(ev, s, newG);
                         if (newRect && newRect.focus) newRect.focus();
                     }
                     return;
                 }
 
-                PF.app.startDrag(ev, s, g);
+                PF.graphDrag.startDrag(ev, s, g);
             });
 
             rect.addEventListener('contextmenu', (ev) => {
@@ -405,7 +405,7 @@
                 ev.stopPropagation();
                 if (PF.state.draftTransition) return;
                 if (Date.now() < PF.state.lastContextMenuBlockUntil) return;
-                PF.app.startTransitionDraw(s.name);
+                PF.graphDrag.startTransitionDraw(s.name);
             });
 
             gS.appendChild(g);
@@ -433,7 +433,7 @@
                 hitZone.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
-                    PF.app.startEndPointDrag(ev, t.name, end);
+                    PF.graphDrag.startEndPointDrag(ev, t.name, end);
                 });
                 gHandles.appendChild(hitZone);
 
@@ -447,7 +447,7 @@
                 handle.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
-                    PF.app.startEndPointDrag(ev, t.name, end);
+                    PF.graphDrag.startEndPointDrag(ev, t.name, end);
                 });
                 gHandles.appendChild(handle);
             }
@@ -466,10 +466,10 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     if (ev.button === 2) {
-                        PF.app.removeWaypoint(t.name, hi);
+                        PF.graphDrag.removeWaypoint(t.name, hi);
                         return;
                     }
-                    PF.app.startHandleDrag(ev, t.name, hi);
+                    PF.graphDrag.startHandleDrag(ev, t.name, hi);
                 });
                 hitZone.addEventListener('contextmenu', (ev) => {
                     ev.preventDefault();
@@ -487,10 +487,10 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     if (ev.button === 2) {
-                        PF.app.removeWaypoint(t.name, hi);
+                        PF.graphDrag.removeWaypoint(t.name, hi);
                         return;
                     }
-                    PF.app.startHandleDrag(ev, t.name, hi);
+                    PF.graphDrag.startHandleDrag(ev, t.name, hi);
                 });
                 handle.addEventListener('contextmenu', (ev) => {
                     ev.preventDefault();
@@ -525,7 +525,7 @@
                 hit.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
-                    PF.app.startSegmentDrag(ev, t.name, si);
+                    PF.graphDrag.startSegmentDrag(ev, t.name, si);
                 });
                 gHandles.appendChild(hit);
 
@@ -544,8 +544,8 @@
             root.appendChild(PF.state.draftTransition.line);
         }
 
-        PF.app.attachGraphSvgHandlers();
-        PF.app.attachGraphKeydown();
+        PF.graphDrag.attachGraphSvgHandlers();
+        PF.graphDrag.attachGraphKeydown();
         updateSelectionClasses();
     }
 
