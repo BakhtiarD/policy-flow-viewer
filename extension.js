@@ -15,7 +15,8 @@ const {
   handleSaveAuth,
   handleDeleteActorFromState,
   handleCopyActor,
-  handleAddTransition
+  handleAddTransition,
+  handleOpenFlowRule
 } = require('./src/handlers');
 
 let currentPanel = null;
@@ -78,6 +79,7 @@ function activate(context) {
             else if (msg.type === 'deleteActorFromState') await handleDeleteActorFromState(currentCtx, currentPanel, msg.payload);
             else if (msg.type === 'copyActor')      await handleCopyActor(currentCtx, currentPanel, msg.payload);
             else if (msg.type === 'addTransition')  await handleAddTransition(currentCtx, currentPanel, msg.payload);
+            else if (msg.type === 'openFlowRule')   await handleOpenFlowRule(currentCtx, msg.transitionName);
           } catch (e) {
             vscode.window.showErrorMessage('Ошибка: ' + e.message);
             console.error(e);

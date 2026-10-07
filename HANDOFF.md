@@ -271,3 +271,61 @@
 Единая точка инициализации данных в вебвью. `main.js` больше не пишет
 напрямую в `PF.state.DATA / meta / stateDetails / graphData`. Логика
 deep-clone графа перенесена в `setData`.
+
+## 12. Маршруты
+
+Решения по дизайну (согласовано)
+Поиск route по переходу — сканируем route/entity/*/configuration.json, матчим по condition.documentStates. Если найдено несколько — показываем список с выбором. В списке видно, к каким состояниям привязан каждый route (чтобы выбрать правильный).
+
+Тип синка «standard» — конкретно documentTransition (транзакция/переход документа). Других стандартных типов пока не рассматриваем. Селект типа: ref / documentTransition / inline (document) / database.
+
+Куда добавлять новый синк — пользователь выбирает: sinks, completionSinks или initialSinks.
+
+mapping.js / apply.js при создании — создаём пустышки по базовому шаблону (см. выше), без логики:
+
+mapping.js: module.exports = function mapping(sinkInput, sinkExchange) { return sinkInput; };
+
+apply.js: пустышка-заглушка с комментарием.
+
+Input/output-схемы — только warning в UI (не блокируем сохранение). Показываем «не покрыто в mapping» и «не возвращается в mapping» рядом со схемами.
+
+Rename/delete перехода — route-файлы не трогаем автоматически. Показываем информационное сообщение «остаются маршруты-сироты», чтобы пользователь осознанно почистил вручную. (Отличие от flowRules из §11, где авто-rename/delete.)
+
+Что ещё нужно решить перед кодом
+UI открытия route-списка. Отдельная команда в тулбаре («Маршруты продукта» — все routes из route/entity/*) или из контекста перехода («Открыть routes для этого перехода»)? Скорее оба.
+
+Формат панели route. Модалка в стиле остальных, отдельная webview-панель, или отдельная вкладка в существующей панели? Если модалка — что показываем на верхнем уровне: таблицы Sinks / Completion Sinks / Initial Sinks + Condition?
+
+Создание apply.js. Всегда вместе с mapping.js или по чекбоксу в форме? (По умолчанию — по чекбоксу, чтобы не плодить пустышки.)
+
+Формат ввода для database — таблицы задаются текстом (по строке на таблицу) или как список с полями? MVP: текстом, потом улучшим.
+
+Валидация имён синков. ^[A-Za-z][A-Za-z0-9_]*$? Совпадает ли с реальностью (в примерах HalykBusSetContractRescinding — ок).
+
+transitionName в шаблоне documentTransition — откуда берётся? Из контекста перехода (если зашли из перехода) или запрашивается в форме?
+
+Файлы, которые понадобятся в работе
+src/storage.js — findProductLevel для поиска route/ и document/; loadDocumentNames уже есть.
+
+src/handlers.js — новые хендлеры: handleOpenRoute, handleAddSink, handleOpenSinkFile, handleCreateSinkFiles.
+
+src/routes.js (новый) — по аналогии с src/flow-rules.js: чтение/запись route-конфигов, поиск по condition.documentStates, поиск sinkGroup в dependencies, чтение inputSchema.json / outputSchema.json, шаблоны.
+
+media/modules/routes.js (новый) — UI route: список, форма добавления синка, просмотр схем.
+
+media/index.html — новые <template> для модалки route.
+
+src/html.js + media/index.html — подключение нового модуля (см. конвенцию в §6).
+
+extension.js — новые типы сообщений: openRoutesList, openRouteConfig, addSink, openSinkFile, createSinkFiles.
+
+Следующие шаги
+Работа не на сегодня. При следующем заходе:
+
+Согласовать UI-форму (модалка vs панель, layout).
+
+Собрать реальные примеры структуры route/entity/* и sinkGroup/* (хотя бы 2–3 разных).
+
+Реализовать src/routes.js (бэкенд) → handlers.js → extension.js → media/modules/routes.js + шаблон в index.html.
+
+Обновить CHANGELOG до 0.4.0.

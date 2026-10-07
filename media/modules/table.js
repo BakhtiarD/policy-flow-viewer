@@ -314,7 +314,8 @@
                 const ok = await showConfirm(
                     'Удалить состояние "' + s + '" со всеми отсылками?\n\n' +
                     'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
-                    ' documentFlow.ui.json',
+                    ' documentFlow.ui.json.\n' +
+                    'Файлы flowRules/*.js всех переходов этого состояния будут удалены.',
                     'Удаление состояния'
                 );
                 if (!ok) return;

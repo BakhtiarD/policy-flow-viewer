@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
+const fs = require('fs');
 const { indexOf } = require('./utils');
 const {
     SVG_STATE_W, SVG_STATE_H,
@@ -8,6 +9,9 @@ const {
 const {
     loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig
 } = require('./storage');
+const {
+    flowRulePath, writeFlowRule, deleteFlowRule, renameFlowRule, flowRuleTemplate
+} = require('./flow-rules');
 
 /* ---------- toggle isTerminal ---------- */
 async function handleToggleTerminal(ctx, panel, stateName, value) {
@@ -27,6 +31,11 @@ async function handleDeleteState(ctx, panel, stateName) {
     const removedTransitions = (flow.transitions || [])
         .filter(t => t.from === stateName || t.to === stateName)
         .map(t => t.name);
+
+    for (const n of removedTransitions) {
+        try { deleteFlowRule(ctx, n); }
+        catch (e) { console.warn('flowRules delete failed:', n, e.message); }
+    }
 
     flow.states = (flow.states || []).filter(s => s.name !== stateName);
     flow.transitions = (flow.transitions || []).filter(t => t.from !== stateName && t.to !== stateName);
@@ -240,6 +249,10 @@ async function handleEditState(ctx, panel, payload) {
 
     /* 4. Удаление снятых переходов */
     if (removedNames.length) {
+         for (const n of removedNames) {
+            try { deleteFlowRule(ctx, n); }
+            catch (e) { console.warn('flowRules delete failed:', n, e.message); }
+        }
         flow.transitions = (flow.transitions || []).filter(t => !removedNames.includes(t.name));
         for (const s of (config.states || [])) {
             for (const a of (s.actors || [])) {
@@ -268,6 +281,8 @@ async function handleEditState(ctx, panel, payload) {
     /* 5. Переименование переходов */
     const idx = indexOf(csv.header);
     for (const [oldN, newN] of Object.entries(renameMap)) {
+        try { renameFlowRule(ctx, oldN, newN); }
+        catch (e) { console.warn('flowRules rename failed:', oldN, '→', newN, e.message); }
         const ft = (flow.transitions || []).find(x => x.name === oldN);
         if (ft) ft.name = newN;
         for (const s of (config.states || [])) {
@@ -408,6 +423,15 @@ async function handleEditTransition(ctx, panel, payload) {
         }
         for (const it of (ctx.ui || [])) {
             if (it.id === `transition_${originalName}`) it.id = `transition_${name}`;
+        }
+    }
+
+    if (renamed) {
+        try { renameFlowRule(ctx, originalName, name); }
+        catch (e) {
+            vscode.window.showWarningMessage(
+                'flowRules не переименован: ' + e.message
+            );
         }
     }
 
@@ -592,6 +616,11 @@ async function handleDeleteTransitions(ctx, panel, names) {
         return !list.includes(n);
     });
 
+    for (const n of list) {
+        try { deleteFlowRule(ctx, n); }
+        catch (e) { console.warn('flowRules delete failed:', n, e.message); }
+    }
+
     writeAll(ctx);
     writeUi(ctx);
     loadData(ctx);
@@ -735,6 +764,11 @@ async function handleGenerateFlow(ctx, panel, payload) {
         flow.initialState = flow.states[0].name;
     }
 
+    for (const n of removedTransitions) {
+        try { deleteFlowRule(ctx, n); }
+        catch (e) { console.warn('flowRules delete failed:', n, e.message); }
+    }
+
     writeAll(ctx);
     writeUi(ctx);
     loadData(ctx);
@@ -875,6 +909,28 @@ async function handleCopyActor(ctx, panel, payload) {
     vscode.window.showInformationMessage(msg);
 }
 
+async function handleOpenFlowRule(ctx, transitionName) {
+    if (!transitionName || !/^[A-Za-z][A-Za-z0-9_]*$/.test(transitionName)) {
+        throw new Error('Некорректный код перехода: ' + (transitionName || ''));
+    }
+
+    const p = flowRulePath(ctx, transitionName);
+
+    if (!fs.existsSync(p)) {
+        const answer = await vscode.window.showInformationMessage(
+            'Файл flowRules/' + transitionName + '.js не найден. Создать?',
+            { modal: true },
+            'Создать',
+            'Отмена'
+        );
+        if (answer !== 'Создать') return;
+        writeFlowRule(ctx, transitionName, flowRuleTemplate(transitionName));
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
+    await vscode.window.showTextDocument(doc, { preview: false });
+}
+
 module.exports = {
     handleToggleTerminal,
     handleDeleteState,
@@ -887,5 +943,6 @@ module.exports = {
     handleSaveAuth,
     handleDeleteActorFromState,
     handleCopyActor,
-    handleAddTransition
+    handleAddTransition,
+    handleOpenFlowRule
 };

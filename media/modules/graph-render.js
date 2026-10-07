@@ -128,7 +128,8 @@
 
         const ok = await showConfirm(
             'Удалить выделенное?\n\n' + lines.join('\n') + '\n\n' +
-            'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json',
+            'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json.\n' +
+            'Файлы flowRules/<код>.js удаляемых переходов будут удалены.',
             'Удаление выделенного'
         );
         if (!ok) return;

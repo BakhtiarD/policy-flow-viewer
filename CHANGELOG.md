@@ -6,6 +6,38 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.3.0] — 2026-10-07
+
+### Добавлено
+- **Интеграция с `flowRules/`** — папка рядом с `documentFlow.json`,
+  в которой лежат js-файлы с именами переходов
+  (`flowRules/Draft_UnderReview.js` и т.п.).
+- В модалке редактирования перехода — кнопка **«📄 flowRules»**:
+  открывает соответствующий `.js` в редакторе VS Code; если файла нет —
+  предлагает создать из шаблона:
+
+      'use strict';
+
+      module.exports = function rule(input) {
+          // TODO: implement rule for transition <Name>
+          return true;
+      };
+
+- Новый backend-модуль `src/flow-rules.js` (пути, чтение/запись,
+  rename, delete, шаблон).
+- Новый хендлер `handleOpenFlowRule` + сообщение вебвью `openFlowRule`.
+
+### Изменено
+- **Переименование перехода** (`handleEditTransition`, `handleEditState`)
+  автоматически переименовывает одноимённый файл в `flowRules/`.
+- **Удаление перехода** (`handleDeleteTransitions`) удаляет
+  одноимённый файл в `flowRules/`.
+- **Удаление состояния** (`handleDeleteState`) и **снятие переходов
+  при редактировании состояния** (`handleEditState`) удаляют
+  соответствующие файлы в `flowRules/`.
+- **`generateFlow`** удаляет `flowRules`-файлы для снятых переходов.
+- Тексты подтверждения в модалках удаления состояния/переходов
+  предупреждают об удалении `flowRules`-файлов.
 
 ## [0.2.0] — 2026-10-07
 

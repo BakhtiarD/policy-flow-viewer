@@ -537,6 +537,36 @@
     backdrop.querySelector('.f-tr-ru').value   = t.ru || '';
     backdrop.querySelector('.f-tr-from').value = t.from;
 
+    // Кнопка «flowRules» — только для существующих переходов.
+    if (!isNew) {
+        const nameInput = backdrop.querySelector('.f-tr-name');
+
+        const frWrap = document.createElement('div');
+        frWrap.style.display = 'flex';
+        frWrap.style.gap = '6px';
+        frWrap.style.alignItems = 'center';
+
+        nameInput.parentNode.insertBefore(frWrap, nameInput);
+        frWrap.appendChild(nameInput);
+
+        const frBtn = document.createElement('button');
+        frBtn.type = 'button';
+        frBtn.className = 'secondary small';
+        frBtn.title = 'Открыть/создать flowRules/<код>.js';
+        frBtn.textContent = '📄 flowRules';
+        frBtn.style.whiteSpace = 'nowrap';
+        frBtn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const n = nameInput.value.trim();
+            if (!n || !/^[A-Za-z][A-Za-z0-9_]*$/.test(n)) {
+                showAlert('Сначала введите корректный код перехода.');
+                return;
+            }
+            PF.vscode.postMessage({ type: 'openFlowRule', transitionName: n });
+        });
+        frWrap.appendChild(frBtn);
+    }
+
     const toSel = backdrop.querySelector('.f-tr-to');
     buildStateOptions(toSel, meta.states, t.to);
 
