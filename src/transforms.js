@@ -70,7 +70,10 @@ function buildMeta(flow, config, csv, trans) {
     }
     for (const s of (config.states || [])) {
         for (const a of (s.actors || [])) {
-            for (const op of (a.operations || [])) if (op.name) operations.add(op.name);
+            for (const op of (a.operations || [])) {
+                const n = normalizeOperationName(op);
+                if (n) operations.add(n);
+            }
         }
     }
     if (!operations.size) operations.add('Save');
@@ -158,16 +161,25 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
     const knownDocs = ctx.documentNames || [];
     const titles = documentTitles || {};
 
-    const relations = (ctx.relations || []).map(r => {
-        const isMine = (r.sourceDocument === docName);
+    const relations = [];
+
+    for (const r of (ctx.relations || [])) {
+        const isOutgoing = (r.sourceDocument === docName);
+        const isIncoming = (r.targetDocument === docName);
+
+        // Оставляем только те, где участвует наш документ.
+        // Остальное — чужие связи, нам не интересны.
+        if (!isOutgoing && !isIncoming) continue;
+
         const issues = [];
 
-        if (isMine) {
+        // Проверяем только исходящие — они «наши», мы за них отвечаем.
+        if (isOutgoing) {
             if (r.sourceDocument && !knownDocs.includes(r.sourceDocument)) {
-                issues.push('sourceDocument «' + r.sourceDocument + '» не найден в product/document/');
+                issues.push('sourceDocument «' + r.sourceDocument + '» не найден ни в одном @config-*/document/');
             }
             if (r.targetDocument && !knownDocs.includes(r.targetDocument)) {
-                issues.push('targetDocument «' + r.targetDocument + '» не найден в product/document/');
+                issues.push('targetDocument «' + r.targetDocument + '» не найден ни в одном @config-*/document/');
             }
             for (const st of (r.sourceDocumentStates || [])) {
                 if (!docStates.includes(st.name)) {
@@ -181,9 +193,17 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
             }
         }
 
-        return {
+        if (r.duplicateAcrossPackages && r.duplicateAcrossPackages.length > 1) {
+            issues.push('Дублируется в пакетах: ' + r.duplicateAcrossPackages.join(', '));
+        }
+
+        relations.push({
             name: r.name,
             path: r.path,
+            pkgName: r.pkgName || r.originPackage || null,
+            isCurrentPackage: !!r.isCurrentPackage,
+            duplicateAcrossPackages: r.duplicateAcrossPackages || null,
+            overrides: r.overrides || null,
             sourceDocument: r.sourceDocument,
             sourceDocumentVersion: r.sourceDocumentVersion,
             sourceDocumentStates: r.sourceDocumentStates,
@@ -193,14 +213,24 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
             targetDocumentTitle: titles[r.targetDocument] || r.targetDocument,
             targetState: r.targetState,
             keywords: r.keywords,
-            isMine,
+            isOutgoing,
+            isIncoming,
+            isMine: isOutgoing, // оставлено для совместимости со старым UI
             issues
-        };
+        });
+    }
+
+    // Сортировка: текущий пакет → исходящие → по имени.
+    relations.sort((a, b) => {
+        if (a.isCurrentPackage !== b.isCurrentPackage) return a.isCurrentPackage ? -1 : 1;
+        if (a.isOutgoing !== b.isOutgoing) return a.isOutgoing ? -1 : 1;
+        return a.name.localeCompare(b.name);
     });
 
     return {
         docName,
         path: ctx.productLevel ? path.join(ctx.productLevel, 'documentRelation') : null,
+        projectRoot: ctx.projectRoot || null,
         relations
     };
 }
@@ -208,6 +238,31 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
 /* ============================================================
  * TABLE
  * ============================================================ */
+function normalizeOperationName(o) {
+    if (!o) return null;
+    if (typeof o === 'string') return o;
+    return o.name || null;
+}
+
+function normalizeTransitionName(t) {
+    if (!t) return null;
+    if (typeof t === 'string') return t;
+    return t.name || null;
+}
+
+function normalizeFlowOperations(ops) {
+    if (!Array.isArray(ops)) return undefined;
+    return ops.map(o => {
+        if (typeof o === 'string') {
+            return { name: o, exclusiveToAssignedUser: false };
+        }
+        return {
+            name: o.name,
+            exclusiveToAssignedUser: !!o.exclusiveToAssignedUser
+        };
+    });
+}
+
 function buildTable(flow, config, trans) {
     const states = (flow.states || []).map(s => s.name);
     const transitions = flow.transitions || [];
@@ -245,10 +300,15 @@ function buildTable(flow, config, trans) {
                 perms.push({
                     actor: a.actor,
                     allowComments: !!a.allowComments,
-                    operations: (a.operations || []).map(o => o.name),
-                    transitions: (a.transitions || []).map(t => ({
-                        name: t, ru: trans.transTrans[t] || t
-                    })),
+                    operations: (a.operations || [])
+                        .map(normalizeOperationName)
+                        .filter(Boolean),
+                    transitions: (a.transitions || [])
+                        .map(t => {
+                            const n = normalizeTransitionName(t);
+                            return n ? { name: n, ru: trans.transTrans[n] || n } : null;
+                        })
+                        .filter(Boolean),
                     attachments: (a.attachmentsRestrictions || []).map(ar => ({
                         type: ar.attachmentType, permissions: ar.permissions || []
                     }))
@@ -282,11 +342,17 @@ function buildStateDetails(flow, config, trans) {
             return {
                 actor: a.actor,
                 allowComments: !!a.allowComments,
-                operations: (a.operations || []).map(o => ({
-                    name: o.name,
-                    exclusiveToAssignedUser: !!o.exclusiveToAssignedUser
-                })),
-                transitions: a.transitions || [],
+                operations: (a.operations || [])
+                    .map(o => {
+                        const n = normalizeOperationName(o);
+                        if (!n) return null;
+                        const ex = (typeof o === 'object' && o) ? !!o.exclusiveToAssignedUser : false;
+                        return { name: n, exclusiveToAssignedUser: ex };
+                    })
+                    .filter(Boolean),
+                transitions: (a.transitions || [])
+                    .map(normalizeTransitionName)
+                    .filter(Boolean),
                 attachments
             };
         });
@@ -299,7 +365,7 @@ function buildStateDetails(flow, config, trans) {
 /* ============================================================
  * GRAPH
  * ============================================================ */
-function buildGraph(flow, ui, trans) {
+function buildGraph(flow, ui, trans, ctx) {
     const uiStates = {};
     const uiWaypoints = {};
 
@@ -347,6 +413,14 @@ function buildGraph(flow, ui, trans) {
             to: t.to,
             ru: trans.transTrans[t.name] || t.name,
             actionToRunBefore: t.actionToRunBefore || '',
+            actionToRunBeforeExists: (() => {
+                if (!t.actionToRunBefore || !ctx) return true;
+                const path = require('path');
+                const fs = require('fs');
+                const docName = path.basename(path.dirname(ctx.flowPath));
+                const p = path.join(ctx.productLevel, 'document', docName, 'UI', 'ClientAction', t.actionToRunBefore + '.js');
+                return fs.existsSync(p);
+            })(),
             serverSideEvents: !!(t.broadcastEvent && t.broadcastEvent.serverSideEvents),
             allowOnValidationErrors: t.allowOnValidationErrors || null,
             manual: !!manualWp,
@@ -401,5 +475,6 @@ module.exports = {
     SVG_STATE_W, SVG_STATE_H,
     buildTranslations, detectFlowName, buildMeta,
     buildTable, buildStateDetails, buildGraph,
-    buildActorConfig, registerActorsInFlow, buildAuthMeta, buildRelationsMeta
+    buildActorConfig, registerActorsInFlow, buildAuthMeta, buildRelationsMeta,
+    normalizeOperationName, normalizeTransitionName, normalizeFlowOperations
 };

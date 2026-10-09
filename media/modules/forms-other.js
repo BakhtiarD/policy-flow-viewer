@@ -4,6 +4,11 @@
     window.PF = window.PF || {};
 
     const { cloneTemplate, showAlert, showConfirm } = PF.utils;
+    /* Акторы, для которых переход считается «системным».
+    Если у перехода права есть ТОЛЬКО у этих акторов (или прав нет вовсе),
+    требуется broadcastEvent.serverSideEvents = true в documentFlow.json.
+    Чтобы расширить список — допиши сюда имя актора. */
+    const SERVER_SIDE_ONLY_ACTORS = ['System', 'ServiceExecutor'];
 
     /* ============================================================
      * ВАЛИДАТОР
@@ -28,6 +33,7 @@
             missingStateTranslations: [],
             missingTransitionTranslations: [],
             noActors: [],
+            missingServerSideEvents: [],
             relations: []
         };
 
@@ -75,6 +81,34 @@
             if (!r.perms || !r.perms.length) issues.noActors.push({ name: r.stateName });
         }
 
+        // 5. Системные переходы.
+        // Собираем акторов, у которых есть права на переход (из configuration.json,
+        // через DATA.rows[].perms[].transitions). Если множество акторов пустое
+        // или целиком лежит в SERVER_SIDE_ONLY_ACTORS — у перехода должно быть
+        // broadcastEvent.serverSideEvents = true в documentFlow.json.
+        const serverOnlySet = new Set(SERVER_SIDE_ONLY_ACTORS);
+        const transitionActors = {};
+        for (const row of (DATA.rows || [])) {
+            for (const p of (row.perms || [])) {
+                for (const tr of (p.transitions || [])) {
+                    const n = (typeof tr === 'string') ? tr : (tr && tr.name);
+                    if (!n) continue;
+                    if (!transitionActors[n]) transitionActors[n] = new Set();
+                    transitionActors[n].add(p.actor);
+                }
+            }
+        }
+        for (const t of graphTransitions) {
+            if (t.serverSideEvents) continue;
+            const actors = transitionActors[t.name] || new Set();
+            const onlyServerSide = [...actors].every(a => serverOnlySet.has(a));
+            if (!onlyServerSide) continue;
+            issues.missingServerSideEvents.push({
+                name: t.name,
+                actors: [...actors]
+            });
+        }
+
         const rel = DATA.relations || {};
         for (const r of (rel.relations || [])) {
             if (!r.isMine) continue;
@@ -115,6 +149,7 @@
                 issues.missingStateTranslations.length +
                 issues.missingTransitionTranslations.length +
                 issues.noActors.length +
+                issues.missingServerSideEvents.length +
                 issues.relations.length;
 
             summary.textContent = total === 0
@@ -169,7 +204,19 @@
                 it => '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>',
                 'Во всех состояниях есть хотя бы один актор');
 
-            section('5. Проблемы в documentRelation', issues.relations,
+            section('5. Системные переходы (только System / ServiceExecutor)', issues.missingServerSideEvents,
+                it => {
+                    const actorsList = it.actors.length
+                        ? it.actors.map(a => '<code>' + escHtml(a) + '</code>').join(', ')
+                        : '<i>нет акторов с правами</i>';
+                    return '<a class="validate-link" data-transition="' + escHtml(it.name) + '">' +
+                        escHtml(it.name) + '</a>' +
+                        ' — акторы: ' + actorsList +
+                        ' — требуется <code>broadcastEvent.serverSideEvents = true</code>';
+                },
+                'Все системные переходы имеют serverSideEvents');
+
+            section('6. Проблемы в documentRelation', issues.relations,
                 it => '<code>' + escHtml(it.name) + '</code> — ' + escHtml(it.note),
                 'Проблем нет');
 
@@ -218,13 +265,16 @@
         backdrop.querySelector('.relations-doc-hint').textContent =
             'Текущий документ: ' + (rel.docName || '—');
         const pathEl = backdrop.querySelector('.relations-path-hint');
-        pathEl.textContent = rel.path || '(папка documentRelation не найдена)';
+        pathEl.textContent = rel.projectRoot
+            ? (rel.path || '') + '  •  корень: ' + rel.projectRoot
+            : (rel.path || '(папка documentRelation не найдена)');
         pathEl.title = rel.path || '';
 
         const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
         const body = backdrop.querySelector('.relations-body');
+        body.innerHTML = '';
 
         if (!list.length) {
             body.innerHTML = '<div class="hint">Связи не найдены.</div>';
@@ -234,15 +284,32 @@
 
         const metaActors = (PF.state.meta && PF.state.meta.actors) || [];
 
-        for (const r of list) {
+        const outgoing = list.filter(r => r.isOutgoing);
+        const incoming = list.filter(r => r.isIncoming && !r.isOutgoing);
+
+        function renderCard(r) {
             const card = document.createElement('div');
             card.className = 'relation-card';
-            if (r.isMine) card.classList.add('mine');
+            if (r.isOutgoing) card.classList.add('mine');
+            if (r.isIncoming && !r.isOutgoing) card.classList.add('incoming');
             if (r.issues && r.issues.length) card.classList.add('has-issues');
 
+            const isDuplicate = r.duplicateAcrossPackages && r.duplicateAcrossPackages.length > 1;
+
             const badges = [];
-            if (r.isMine) badges.push('<span class="badge mine">этот документ</span>');
-            if (r.issues && r.issues.length) {
+            if (r.isOutgoing) badges.push('<span class="badge mine">исходящая</span>');
+            if (r.isIncoming && !r.isOutgoing) badges.push('<span class="badge incoming">входящая</span>');
+            if (r.isCurrentPackage) badges.push('<span class="badge pkg">текущий пакет</span>');
+            else if (r.pkgName) badges.push('<span class="badge pkg">' + esc(r.pkgName) + '</span>');
+
+            if (r.overrides && r.overrides.length) {
+                badges.push('<span class="badge override" title="Переопределяет: ' +
+                    esc(r.overrides.join(', ')) + '">override: ' +
+                    esc(r.overrides.join(', ')) + '</span>');
+            }
+
+            if (isDuplicate) badges.push('<span class="badge issues">дубль</span>');
+            else if (r.issues && r.issues.length) {
                 badges.push('<span class="badge issues">проблем: ' + r.issues.length + '</span>');
             }
 
@@ -268,13 +335,13 @@
             html += '<table class="relation-states-table"><thead><tr>' +
                 '<th style="width:180px">Состояние</th><th>Акторы</th></tr></thead><tbody>';
             for (const st of (r.sourceDocumentStates || [])) {
-                const stateOk = !r.isMine || (PF.state.graphData && PF.state.graphData.states || [])
+                const stateOk = !r.isOutgoing || (PF.state.graphData && PF.state.graphData.states || [])
                     .some(s => s.name === st.name);
                 const stateCell = stateOk
                     ? '<code>' + esc(st.name) + '</code>'
                     : '<code style="color:#c33">' + esc(st.name) + ' ⚠</code>';
                 const actorsCell = (st.actors || []).map(a => {
-                    const actorOk = !r.isMine || metaActors.includes(a);
+                    const actorOk = !r.isOutgoing || metaActors.includes(a);
                     return actorOk
                         ? '<code>' + esc(a) + '</code>'
                         : '<code style="color:#c33">' + esc(a) + ' ⚠</code>';
@@ -289,8 +356,20 @@
             }
 
             card.innerHTML = html;
-            body.appendChild(card);
+            return card;
         }
+
+        function addSection(text, items) {
+            if (!items.length) return;
+            const h = document.createElement('h3');
+            h.className = 'relations-section-title';
+            h.textContent = text + ' (' + items.length + ')';
+            body.appendChild(h);
+            for (const r of items) body.appendChild(renderCard(r));
+        }
+
+        addSection('Исходящие (наш документ → другие)', outgoing);
+        addSection('Входящие (другие → наш документ)', incoming);
 
         backdrop.querySelector('[data-act="close"]').addEventListener('click', () => backdrop.remove());
     }

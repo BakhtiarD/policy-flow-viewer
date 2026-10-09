@@ -4,7 +4,8 @@ const fs = require('fs');
 const { indexOf } = require('./utils');
 const {
     SVG_STATE_W, SVG_STATE_H,
-    buildActorConfig, registerActorsInFlow, detectFlowName
+    buildActorConfig, registerActorsInFlow, detectFlowName,
+    normalizeFlowOperations
 } = require('./transforms');
 const {
     loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig
@@ -12,6 +13,9 @@ const {
 const {
     flowRulePath, writeFlowRule, deleteFlowRule, renameFlowRule, flowRuleTemplate
 } = require('./flow-rules');
+const {
+    clientActionPath, writeClientAction, clientActionTemplate, findClientActionInProject, renameClientAction
+} = require('./client-actions');
 
 /* ---------- toggle isTerminal ---------- */
 async function handleToggleTerminal(ctx, panel, stateName, value) {
@@ -337,6 +341,13 @@ async function handleEditState(ctx, panel, payload) {
         config.states.push(cs);
     }
     cs.actors = permissions.map(p => buildActorConfig(p));
+
+    {
+        const fs = (flow.states || []).find(x => x.name === name);
+        if (fs && Array.isArray(fs.operations)) {
+            fs.operations = normalizeFlowOperations(fs.operations);
+        }
+    }
 
     registerActorsInFlow(flow, permissions);
 
@@ -931,6 +942,104 @@ async function handleOpenFlowRule(ctx, transitionName) {
     await vscode.window.showTextDocument(doc, { preview: false });
 }
 
+async function handleOpenClientAction(ctx, transitionName, actionName) {
+    if (!actionName || !String(actionName).trim()) {
+        throw new Error('Не задано значение actionToRunBefore.');
+    }
+    if (!/^[A-Za-z0-9_$\-]+$/.test(actionName)) {
+        throw new Error('Некорректное имя action: ' + actionName);
+    }
+
+    // 1. Локальный файл в текущем документе
+    let p = clientActionPath(ctx, actionName);
+
+    // 2. Fallback — поиск по всему проекту
+    if (!fs.existsSync(p)) {
+        const found = findClientActionInProject(ctx, actionName);
+        if (found) p = found;
+    }
+
+    // 3. Не нашли — предложить создать локально
+    if (!fs.existsSync(p)) {
+        const answer = await vscode.window.showInformationMessage(
+            'Файл ClientAction/' + actionName + '.js не найден. Создать в текущем документе?',
+            { modal: true },
+            'Создать',
+            'Отмена'
+        );
+        if (answer !== 'Создать') return;
+        writeClientAction(ctx, actionName, clientActionTemplate(actionName));
+        p = clientActionPath(ctx, actionName);
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
+    await vscode.window.showTextDocument(doc, { preview: false });
+}
+
+async function handleDeleteClientAction(ctx, actionName) {
+    if (!actionName || !/^[A-Za-z0-9_$\-]+$/.test(actionName)) {
+        throw new Error('Некорректное имя action: ' + (actionName || ''));
+    }
+
+    const p = clientActionPath(ctx, actionName);
+    if (!fs.existsSync(p)) {
+        vscode.window.showInformationMessage('Файл ClientAction/' + actionName + '.js не найден.');
+        return;
+    }
+
+    const answer = await vscode.window.showWarningMessage(
+        'Удалить файл ClientAction/' + actionName + '.js?',
+        { modal: true },
+        'Удалить'
+    );
+    if (answer !== 'Удалить') return;
+
+    fs.unlinkSync(p);
+    vscode.window.showInformationMessage('Удалён ClientAction/' + actionName + '.js');
+}
+
+async function handleCreateClientAction(ctx, actionName) {
+    if (!actionName || !/^[A-Za-z0-9_$\-]+$/.test(actionName)) {
+        throw new Error('Некорректное имя action: ' + (actionName || ''));
+    }
+
+    const p = clientActionPath(ctx, actionName);
+    if (fs.existsSync(p)) {
+        // Файл уже есть — просто открываем, чтобы пользователь видел, что привязано.
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
+        await vscode.window.showTextDocument(doc, { preview: false });
+        return;
+    }
+
+    writeClientAction(ctx, actionName, clientActionTemplate(actionName));
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
+    await vscode.window.showTextDocument(doc, { preview: false });
+    vscode.window.showInformationMessage('Создан ClientAction/' + actionName + '.js');
+}
+
+async function handleRenameClientAction(ctx, oldName, newName) {
+    renameClientAction(ctx, oldName, newName);
+
+    // Пытаемся переименовать имя функции внутри файла. Меняем только точное
+    // вхождение `function <oldName>(` — если файл не следует шаблону и имя
+    // функции отличается — оставляем как есть.
+    const p = clientActionPath(ctx, newName);
+    try {
+        let content = fs.readFileSync(p, 'utf8');
+        const re = new RegExp('function\\s+' + oldName.replace(/[$]/g, '\\$') + '\\s*\\(');
+        if (re.test(content)) {
+            content = content.replace(re, 'function ' + newName + '(');
+            fs.writeFileSync(p, content, 'utf8');
+        }
+    } catch (e) {
+        console.warn('ClientAction rename: function name not updated:', e.message);
+    }
+
+    vscode.window.showInformationMessage(
+        'ClientAction/' + oldName + '.js → ' + newName + '.js'
+    );
+}
+
 module.exports = {
     handleToggleTerminal,
     handleDeleteState,
@@ -944,5 +1053,9 @@ module.exports = {
     handleDeleteActorFromState,
     handleCopyActor,
     handleAddTransition,
-    handleOpenFlowRule
+    handleOpenFlowRule,
+    handleOpenClientAction,
+    handleDeleteClientAction,
+    handleCreateClientAction,
+    handleRenameClientAction
 };

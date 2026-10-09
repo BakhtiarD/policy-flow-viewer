@@ -844,6 +844,31 @@ body.vscode-high-contrast .g-transition.related .g-transition-label-text {
   color: #fff;
 }
 
+.relation-card.incoming {
+    border-left: 3px solid var(--vscode-charts-blue, #4a9eff);
+}
+
+.badge.incoming {
+    background: rgba(74, 158, 255, 0.15);
+    color: var(--vscode-charts-blue, #4a9eff);
+}
+
+.badge.pkg {
+    background: rgba(128, 128, 128, 0.15);
+    color: var(--vscode-descriptionForeground, #999);
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+}
+
+.relations-section-title {
+    margin: 16px 0 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--vscode-panel-border, #333);
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
 .relation-meta {
   font-family: Consolas, Menlo, monospace;
   font-size: 11px;
@@ -1032,4 +1057,23 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
 }
 .g-transition-handle:hover {
   cursor: grab;
+}
+
+.badge.override {
+    background: rgba(200, 160, 60, 0.15);
+    color: #c8a03c;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+}
+
+.f-tr-action-text {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 12px;
+    padding: 2px 6px;
+    color: var(--vscode-foreground, #ccc);
+}
+
+.dlg-input {
+    width: 100%;
+    box-sizing: border-box;
 }

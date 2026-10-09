@@ -193,16 +193,20 @@
             body.appendChild(makePermSection('comments', commentsSpan));
 
             const opsFmt = x => {
-                const nm = typeof x === 'string' ? x : x.name;
-                const ex = (x && x.exclusiveToAssignedUser) ? ' 🔒' : '';
+                if (x == null) return '';
+                const nm = typeof x === 'string' ? x : (x.name || '');
+                const ex = (x && typeof x === 'object' && x.exclusiveToAssignedUser) ? ' 🔒' : '';
                 return nm + ex;
             };
             body.appendChild(makePermSectionList('operations', p.operations || [], opsFmt));
 
-            const transItems = (p.transitions || []).map(t => ({
-                kind: 'transition',
-                label: t.name + ' (' + t.ru + ')'
-            }));
+            const transItems = (p.transitions || [])
+                .filter(t => t && (typeof t === 'string' || t.name))
+                .map(t => {
+                    const n = typeof t === 'string' ? t : t.name;
+                    const ru = (typeof t === 'object' && t.ru) ? t.ru : n;
+                    return { kind: 'transition', label: n + ' (' + ru + ')' };
+                });
 
             const rels = getRelationsFor(stateName, p.actor);
             const linkItems = [];
@@ -228,8 +232,9 @@
                 body.appendChild(makePermSectionList('links', linkItems, x => x.label));
             }
 
-            body.appendChild(makePermSectionList('attachments', p.attachments || [],
-                a => a.type + ': [' + a.permissions.join(', ') + ']'));
+            const atts = (p.attachments || []).filter(a => a && a.type);
+            body.appendChild(makePermSectionList('attachments', atts,
+                a => a.type + ': [' + ((a.permissions || []).join(', ')) + ']'));
 
             perm.appendChild(body);
             frag.appendChild(perm);

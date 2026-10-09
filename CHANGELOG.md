@@ -6,6 +6,79 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+
+## [0.3.1] — 2026-10-09
+
+### Добавлено
+- Валидатор: новая секция «Системные переходы (только System / ServiceExecutor)».
+  Переход, доступный только акторам `System` / `ServiceExecutor` (или вообще никому),
+  должен иметь `broadcastEvent.serverSideEvents = true`. Список акторов —
+  константа `SERVER_SIDE_ONLY_ACTORS` в `media/modules/forms-other.js`
+  (легко расширяется).
+- Поиск связей (`documentRelation`) теперь идёт по всему проекту — и в
+  `configuration/@config-*/*`, и в `node_modules/@config-*/*`, а не только
+  внутри текущего пакета. Это позволяет видеть межпакетные связи.
+- В модалке «Связи» связи разделены на **исходящие** (наш документ → другие)
+  и **входящие** (другие → наш документ). У каждой карточки показан пакет-источник.
+- Дубли одного и того же `documentRelation/<Name>` в разных пакетах помечаются
+  бейджем «дубль» и попадают в список проблем.
+- Кнопка **«📄 ClientAction»** рядом с полем `actionToRunBefore` в модалке
+  редактирования перехода. Открывает файл
+  `<packageRoot>/document/<DocName>/UI/ClientAction/<action>.js` в редакторе;
+  если файла нет — предлагает создать из шаблона.
+- Новый модуль `src/client-actions.js` — пути, шаблон, запись, поиск по всему
+  проекту (`<pkg>/document/<AnyDoc>/UI/ClientAction/<name>.js`) как fallback.
+- Новый хендлер `handleOpenClientAction` + сообщение вебвью `openClientAction`.
+- В форме перехода поле `actionToRunBefore` очищается, если файл
+  `ClientAction/<action>.js` не найден — чтобы визуально не путать
+  со ссылкой на существующую функцию. Значение в `documentFlow.json`
+  не меняется.
+- Кнопка `🗑` рядом с полем `actionToRunBefore` — удаляет
+  `ClientAction/<action>.js` (с подтверждением). Значение
+  `actionToRunBefore` не трогает.
+- Поле `actionToRunBefore` в форме перехода теперь показывается как
+  readonly-текст. Никакого редактирования в самом поле — все действия через
+  кнопки рядом:
+  - `＋ Создать` — задать имя (диалог) и создать файл (или привязать
+    существующий);
+  - `📄` — открыть файл в редакторе;
+  - `✎` — переименовать файл на диске (диалог ввода нового имени,
+    переименование выполняется сразу);
+  - `🗑` — удалить файл (с подтверждением).
+  Значение `actionToRunBefore` в `documentFlow.json` записывается при
+  сохранении формы перехода — ровно то, что показано в поле.
+- Новые хендлеры: `handleCreateClientAction`, `handleRenameClientAction`.
+  В `src/client-actions.js` добавлена `renameClientAction`.
+- В `PF.utils` добавлен `showPrompt` — простой диалог ввода строки.
+
+### Исправлено
+- Таблица не отображалась полностью (только первое состояние или пустая)
+  для документов, где `operations` у актора в `configuration.json` записаны
+  как массив строк (`["Save"]`) — затрагивало fnol и MIC. Причина —
+  `buildTable` / `buildStateDetails` не нормализовали форму `operations`,
+  из-за чего фронт падал на `undefined.name`. Добавлены хелперы
+  `normalizeOperationName` / `normalizeTransitionName` в `src/transforms.js`
+  и guard'ы в `media/modules/table.js`.
+- `documentFlow.json` → `states[].operations` теперь нормализуется в массив
+  объектов `{ name, exclusiveToAssignedUser }` при сохранении состояния
+  через форму (было — массив строк). Консистентно с `configuration.json`.
+- Дедупликация пакетов: `configuration/@config-halyk/<pkg>` и
+  `node_modules/@config-halyk/<pkg>` больше не считаются двумя разными
+  пакетами — это один пакет, берётся первая найденная копия.
+- Одноимённый `documentRelation` в `configuration/@config-*` и в
+  `node_modules/@config-*` больше не считается дублем. Это override:
+  приоритет у версии из `configuration/`, базовая помечается как перекрытая
+  (бейдж «override: @config-standard/…»).
+- Реальный дубль — только когда одноимённые `documentRelation` лежат
+  в двух `configuration`-пакетах (или в двух `node_modules`-пакетах).
+
+### Технические детали
+- Имя файла — ровно значение `actionToRunBefore` из `documentFlow.json`
+  (`onBeforeESBDDataCheck`, `whateverName`, что угодно) + `.js`.
+- Если локальный файл в текущем документе не найден, выполняется fallback-поиск
+  по всем `@config-*` пакетам проекта. Если найден в чужом пакете — открывается
+  он. Если не найден нигде — предлагается создать локально
+
 ## [0.3.0] — 2026-10-07
 
 ### Добавлено
