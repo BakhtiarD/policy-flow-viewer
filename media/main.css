@@ -158,12 +158,11 @@ th.sortable:hover { text-decoration: underline; }
 .sort-ind { opacity: .6; font-weight: normal; margin-left: 4px; }
 
 /* Колонки: действия · состояние · конечное · входящие · исходящие · права */
-col.c0 { width: 6%; }
-col.c1 { width: 18%; }
-col.c2 { width: 6%; }
-col.c3 { width: 17%; }
-col.c4 { width: 17%; }
-col.c5 { width: 36%; }
+col.c0 { width: 25%; }
+col.c1 { width: 5%; }
+col.c2 { width: 25%; }
+col.c3 { width: 25%; }
+col.c4 { width: 20%; }
 
 td.state {
   font-weight: 700;
@@ -1133,4 +1132,73 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     margin-left: auto;
     display: flex;
     gap: 4px;
+}
+
+.state-name.clickable {
+    cursor: pointer;
+}
+
+.state-name.clickable:hover {
+    text-decoration: underline;
+}
+
+.state-del {
+    margin-left: 8px;
+    padding: 0 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    vertical-align: middle;
+}
+
+.f-transitions-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px 6px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+}
+
+.f-transition-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.f-transition-row:hover {
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.f-transition-row input[type="checkbox"] {
+    margin: 0;
+}
+
+.f-transition-row.orphan {
+    cursor: default;
+    opacity: 0.65;
+    font-style: italic;
+}
+
+.f-transition-orphan-title {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--vscode-panel-border, #333);
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+.modal .actions {
+    position: sticky;
+    bottom: -20px;
+    margin-top: 12px;
+    padding: 10px 0 6px;
+    background: var(--vscode-editor-background, #1e1e1e);
+    border-top: 1px solid var(--vscode-panel-border, #333);
+    z-index: 2;
 }

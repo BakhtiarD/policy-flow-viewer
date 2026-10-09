@@ -258,24 +258,6 @@
         for (const r of rows) {
             const tr = document.createElement('tr');
 
-            const tdActions = document.createElement('td');
-            const wrap = document.createElement('div');
-            wrap.className = 'row-actions';
-            const btnEdit = document.createElement('button');
-            btnEdit.className = 'secondary small';
-            btnEdit.dataset.edit = r.stateName;
-            btnEdit.title = 'Редактировать';
-            btnEdit.textContent = '✎';
-            const btnDel = document.createElement('button');
-            btnDel.className = 'danger small';
-            btnDel.dataset.del = r.stateName;
-            btnDel.title = 'Удалить';
-            btnDel.textContent = '×';
-            wrap.appendChild(btnEdit);
-            wrap.appendChild(btnDel);
-            tdActions.appendChild(wrap);
-            tr.appendChild(tdActions);
-
             const tdState = document.createElement('td');
             tdState.className = 'state';
             if (stateHasRelation(r.stateName)) {
@@ -285,7 +267,23 @@
                 icon.title = 'Из этого состояния доступно создание связанного документа';
                 tdState.appendChild(icon);
             }
-            tdState.appendChild(document.createTextNode(r.stateLabel));
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'state-name clickable';
+            nameEl.dataset.edit = r.stateName;
+            nameEl.title = 'Редактировать состояние';
+            nameEl.textContent = r.stateLabel;
+            tdState.appendChild(nameEl);
+
+            const btnDel = document.createElement('button');
+            btnDel.className = 'danger small state-del';
+            btnDel.dataset.del = r.stateName;
+            btnDel.title = 'Удалить состояние';
+            btnDel.textContent = '×';
+            tdState.appendChild(btnDel);
+
+            tr.appendChild(tdState);
+            tdState.className = 'state';
             tr.appendChild(tdState);
 
             const tdTerm = document.createElement('td');
@@ -313,7 +311,7 @@
             tbody.appendChild(tr);
         }
 
-        tbody.querySelectorAll('button[data-del]').forEach(b => {
+        tbody.querySelectorAll('[data-del]').forEach(b => {
             b.addEventListener('click', async () => {
                 const s = b.getAttribute('data-del');
                 const ok = await showConfirm(
@@ -327,7 +325,7 @@
                 PF.vscode.postMessage({ type: 'deleteState', state: s });
             });
         });
-        tbody.querySelectorAll('button[data-edit]').forEach(b => {
+        tbody.querySelectorAll('[data-edit]').forEach(b => {
             b.addEventListener('click', () =>
                 PF.forms.openEditForm(b.getAttribute('data-edit')));
         });

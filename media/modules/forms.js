@@ -42,10 +42,13 @@
         }
     }
 
-    function buildPermissionCard(p) {
+    function buildPermissionCard(p, getOutgoingNames) {
         const card = cloneTemplate('tpl-permission-card');
         const ops = p.operations || [];
-        const trs = p.transitions || [];
+        const rawTrs = Array.isArray(p.transitions) ? p.transitions : [];
+        const trNames = new Set(
+            rawTrs.map(x => (typeof x === 'string' ? x : (x && x.name))).filter(Boolean)
+        );
         const atts = p.attachments || {};
         const currentActor = p.actor || '';
         const meta = PF.state.meta;
@@ -104,7 +107,68 @@
             opsCont.appendChild(lbl);
         }
 
-        card.querySelector('.f-transitions').value = trs.join(', ');
+        // --- Переходы: таблица чекбоксов ---
+        const transCont = card.querySelector('.f-transitions-table');
+
+        function renderTransitions(outgoing) {
+            transCont.innerHTML = '';
+            const outList = Array.isArray(outgoing) ? outgoing : [];
+            const outNames = new Set(outList.map(x => x.name));
+
+            if (!outList.length) {
+                const hint = document.createElement('div');
+                hint.className = 'hint';
+                hint.textContent = 'Нет исходящих переходов';
+                transCont.appendChild(hint);
+            } else {
+                for (const t of outList) {
+                    const row = document.createElement('label');
+                    row.className = 'f-transition-row';
+
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = t.name;
+                    cb.checked = trNames.has(t.name);
+                    cb.addEventListener('change', () => {
+                        if (cb.checked) trNames.add(t.name);
+                        else trNames.delete(t.name);
+                    });
+
+                    const span = document.createElement('span');
+                    span.textContent = t.name + (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+
+                    row.appendChild(cb);
+                    row.appendChild(span);
+                    transCont.appendChild(row);
+                }
+            }
+
+            // Переходы, которые были у актора, но больше не входят в исходящие.
+            const orphans = [...trNames].filter(n => !outNames.has(n));
+            if (orphans.length) {
+                const sep = document.createElement('div');
+                sep.className = 'f-transition-orphan-title';
+                sep.textContent = 'Больше не исходящие (при сохранении будут удалены):';
+                transCont.appendChild(sep);
+                for (const n of orphans) {
+                    const row = document.createElement('div');
+                    row.className = 'f-transition-row orphan';
+                    row.setAttribute('data-name', n);
+                    const span = document.createElement('span');
+                    span.textContent = n;
+                    row.appendChild(span);
+                    transCont.appendChild(row);
+                }
+            }
+        }
+
+        card.__refreshTransitions = (outgoing) => renderTransitions(outgoing);
+
+        if (typeof getOutgoingNames === 'function') {
+            renderTransitions(getOutgoingNames());
+        } else {
+            renderTransitions([...trNames].map(n => ({ name: n, ru: '' })));
+        }
 
         const attCont = card.querySelector('.f-attachments');
         for (const at of meta.attachments) {
@@ -187,8 +251,14 @@
                 });
             }
 
-            const trs = c.querySelector('.f-transitions').value
-                .split(',').map(s => s.trim()).filter(Boolean);
+            const trs = [];
+            c.querySelectorAll('.f-transitions-table input[type="checkbox"]:checked').forEach(cb => {
+                trs.push(cb.value);
+            });
+            c.querySelectorAll('.f-transitions-table .f-transition-row.orphan').forEach(row => {
+                const n = row.getAttribute('data-name');
+                if (n) trs.push(n);
+            });
 
             const attachments = {};
             c.querySelectorAll('[data-att]').forEach(cb => {
@@ -309,6 +379,34 @@
         const transList = backdrop.querySelector('.f-trans-list');
         const permsList = backdrop.querySelector('.f-perms-list');
         const updateCounts = wireTabsAndCounts(backdrop, transList, permsList);
+        function getOutgoingNames() {
+            const seen = new Set();
+            const result = [];
+            transList.querySelectorAll('.item-card').forEach(c => {
+                const nameInp = c.querySelector('.f-name');
+                const ruInp = c.querySelector('.f-ru');
+                const n = nameInp ? nameInp.value.trim() : '';
+                if (!n || seen.has(n)) return;
+                seen.add(n);
+                result.push({ name: n, ru: ruInp ? ruInp.value.trim() : '' });
+            });
+            return result;
+        }
+
+        function refreshAllPermTransitions() {
+            const outgoing = getOutgoingNames();
+            permsList.querySelectorAll('.item-card').forEach(card => {
+                if (card.__refreshTransitions) card.__refreshTransitions(outgoing);
+            });
+        }
+
+        transList.addEventListener('input', refreshAllPermTransitions);
+        transList.addEventListener('change', refreshAllPermTransitions);
+        transList.addEventListener('click', (ev) => {
+            if (ev.target.closest('[data-remove]')) {
+                setTimeout(refreshAllPermTransitions, 0);
+            }
+        });
 
         const nameInput = backdrop.querySelector('.f-new-name');
         const getFromState = () => nameInput.value.trim();
@@ -321,6 +419,7 @@
                 const to = c.querySelector('.f-to').value;
                 codeInput.value = from && to ? from + '_' + to : '';
             });
+            refreshAllPermTransitions();
         });
 
         backdrop.querySelector('[data-act="add-trans"]').addEventListener('click', () => {
@@ -331,13 +430,14 @@
                 originalName: null, name: code, to, ru: ''
             }, getFromState));
             updateCounts();
+            refreshAllPermTransitions();
         });
 
         backdrop.querySelector('[data-act="add-perm"]').addEventListener('click', () => {
             permsList.appendChild(buildPermissionCard({
                 actor: PF.state.meta.actors[0] || '', allowComments: true,
                 operations: [], transitions: [], attachments: {}
-            }));
+            }, getOutgoingNames));
             updateCounts();
         });
 
@@ -416,13 +516,42 @@
         const permsList = backdrop.querySelector('.f-perms-list');
         const updateCounts = wireTabsAndCounts(backdrop, transList, permsList);
 
+        function getOutgoingNames() {
+            const seen = new Set();
+            const result = [];
+            transList.querySelectorAll('.item-card').forEach(c => {
+                const nameInp = c.querySelector('.f-name');
+                const ruInp = c.querySelector('.f-ru');
+                const n = nameInp ? nameInp.value.trim() : '';
+                if (!n || seen.has(n)) return;
+                seen.add(n);
+                result.push({ name: n, ru: ruInp ? ruInp.value.trim() : '' });
+            });
+            return result;
+        }
+
+        function refreshAllPermTransitions() {
+            const outgoing = getOutgoingNames();
+            permsList.querySelectorAll('.item-card').forEach(card => {
+                if (card.__refreshTransitions) card.__refreshTransitions(outgoing);
+            });
+        }
+
+        transList.addEventListener('input', refreshAllPermTransitions);
+        transList.addEventListener('change', refreshAllPermTransitions);
+        transList.addEventListener('click', (ev) => {
+            if (ev.target.closest('[data-remove]')) {
+                setTimeout(refreshAllPermTransitions, 0);
+            }
+        });
+
         for (const t of det.outgoing) {
             transList.appendChild(buildOutgoingTransitionCard({
                 originalName: t.name, name: t.name, to: t.to, ru: t.ru
             }, getFromState));
         }
         for (const p of det.permissions) {
-            permsList.appendChild(buildPermissionCard(p));
+            permsList.appendChild(buildPermissionCard(p, getOutgoingNames));
         }
         updateCounts();
 
@@ -434,6 +563,7 @@
                 const to = c.querySelector('.f-to').value;
                 codeInput.value = from && to ? from + '_' + to : '';
             });
+            refreshAllPermTransitions();
         });
 
         backdrop.querySelector('[data-act="add-trans"]').addEventListener('click', () => {
@@ -444,13 +574,14 @@
                 originalName: null, name: code, to, ru: ''
             }, getFromState));
             updateCounts();
+            refreshAllPermTransitions();
         });
 
         backdrop.querySelector('[data-act="add-perm"]').addEventListener('click', () => {
             permsList.appendChild(buildPermissionCard({
-                actor: meta.actors[0] || '', allowComments: true,
+                actor: PF.state.meta.actors[0] || '', allowComments: true,
                 operations: [], transitions: [], attachments: {}
-            }));
+            }, getOutgoingNames));
             updateCounts();
         });
 
