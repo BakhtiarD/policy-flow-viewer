@@ -7,6 +7,34 @@
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
 
+## [0.4.0] — 2026-10-09
+
+### Добавлено
+- Раздел **«Вложения»** (кнопка в тулбаре). Работает с мастер-энтити
+  `configuration/@config-*/infrastructure/masterEntity/AttachmentType/`:
+  - список всех типов вложений с RU-переводами;
+  - добавление типа в справочник (пишет в `data.csv` + `translation/translation.csv`),
+    с отменой в течение сессии;
+  - удаление типа из справочника.
+- Управление вложениями документа (`configuration.json → attachments[]`):
+  - добавить вложение с режимом прав:
+    * не проставлять;
+    * «всем на чтение» — тем акторам, у кого уже есть любое вложение с `Read`;
+    * «по шаблону» — у каждого актора копируются права его первого вложения;
+  - удалить вложение — из `attachments[]` и из `attachmentsRestrictions`
+    всех акторов.
+- Модуль `src/attachments.js` — чтение/запись `AttachmentType`, парсинг
+  `translation.csv` с любым порядком колонок.
+- Хендлеры: `handleAddAttachmentType`, `handleRemoveAttachmentType`,
+  `handleAddAttachmentToDoc`, `handleRemoveAttachmentFromDoc`.
+- В `PF.utils` добавлен `showPrompt` — простой диалог ввода строки (уже был).
+
+### Изменено
+- `buildMeta` больше не добавляет дефолтные типы вложений
+  (`Application`, `UnderwritingDecision`, `Contract`, `OtherDocument`).
+  Список вложений документа — только то, что реально в
+  `configuration.json → attachments[]`.
+
 ## [0.3.1] — 2026-10-09
 
 ### Добавлено

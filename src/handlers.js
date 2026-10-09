@@ -16,6 +16,9 @@ const {
 const {
     clientActionPath, writeClientAction, clientActionTemplate, findClientActionInProject, renameClientAction
 } = require('./client-actions');
+const {
+    addAttachmentType, removeAttachmentType, loadAttachmentType
+} = require('./attachments');
 
 /* ---------- toggle isTerminal ---------- */
 async function handleToggleTerminal(ctx, panel, stateName, value) {
@@ -1040,6 +1043,125 @@ async function handleRenameClientAction(ctx, oldName, newName) {
     );
 }
 
+/* ---------- AttachmentType: справочник ---------- */
+
+async function reloadAttachmentCatalog(ctx) {
+    const att = loadAttachmentType(ctx.projectRoot);
+    ctx.attachmentTypeDir = att.dir;
+    ctx.attachmentTypeCodes = att.codes;
+    ctx.attachmentTypeTranslations = att.translations;
+}
+
+async function handleAddAttachmentType(ctx, panel, payload) {
+    const { code, ru } = payload || {};
+    if (!code || !/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
+        throw new Error('Некорректный код вложения.');
+    }
+    if (!ctx.attachmentTypeDir) {
+        throw new Error('Справочник AttachmentType не найден (configuration/@config-*/infrastructure/masterEntity/AttachmentType).');
+    }
+    addAttachmentType(ctx.attachmentTypeDir, code, ru || code);
+    await reloadAttachmentCatalog(ctx);
+    // pushRender НЕ делаем — окно модалки должно остаться открытым.
+    // Полный reload произойдёт при закрытии.
+}
+
+async function handleRemoveAttachmentType(ctx, panel, code) {
+    if (!code) throw new Error('Не передан код вложения.');
+    if (!ctx.attachmentTypeDir) {
+        throw new Error('Справочник AttachmentType не найден.');
+    }
+    removeAttachmentType(ctx.attachmentTypeDir, code);
+    await reloadAttachmentCatalog(ctx);
+    // pushRender НЕ делаем — окно модалки должно остаться открытым.
+}
+
+/* ---------- AttachmentType: вложения документа ---------- */
+
+function buildDefaultAttachmentRestrictions(actors, code, mode) {
+    // mode: 'none' | 'read-all' | 'by-template'
+    // Возвращает массив {actor, permissions}, которые надо добавить.
+    const result = [];
+    for (const s of actors) {
+        if (!Array.isArray(s.actors)) continue;
+        for (const a of s.actors) {
+            const rest = Array.isArray(a.attachmentsRestrictions) ? a.attachmentsRestrictions : [];
+
+            if (mode === 'read-all') {
+                const hasReadSomewhere = rest.some(r =>
+                    Array.isArray(r.permissions) && r.permissions.includes('Read')
+                );
+                if (hasReadSomewhere) {
+                    result.push({ actor: a, permissions: ['Read'] });
+                }
+            } else if (mode === 'by-template') {
+                if (!rest.length) continue;
+                const first = rest[0];
+                const perms = Array.isArray(first.permissions) ? first.permissions.slice() : [];
+                result.push({ actor: a, permissions: perms });
+            }
+            // 'none' — ничего не делаем
+        }
+    }
+    return result;
+}
+
+async function handleAddAttachmentToDoc(ctx, panel, payload) {
+    const { code, mode } = payload || {};
+    if (!code) throw new Error('Не передан код вложения.');
+    const m = mode || 'none';
+    if (!['none', 'read-all', 'by-template'].includes(m)) {
+        throw new Error('Неизвестный режим прав: ' + m);
+    }
+
+    const config = ctx.config;
+    config.attachments = config.attachments || [];
+
+    if (config.attachments.some(a => a.attachmentType === code)) {
+        throw new Error('Вложение «' + code + '» уже есть в документе.');
+    }
+    config.attachments.push({ attachmentType: code, flow: 'Incoming' });
+
+    if (m !== 'none') {
+        const actorRules = buildDefaultAttachmentRestrictions(config.states || [], code, m);
+        for (const rule of actorRules) {
+            const a = rule.actor;
+            if (!Array.isArray(a.attachmentsRestrictions)) a.attachmentsRestrictions = [];
+            if (a.attachmentsRestrictions.some(r => r.attachmentType === code)) continue;
+            a.attachmentsRestrictions.push({
+                attachmentType: code,
+                permissions: rule.permissions
+            });
+        }
+    }
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage('Вложение «' + code + '» добавлено в документ.');
+}
+
+async function handleRemoveAttachmentFromDoc(ctx, panel, code) {
+    if (!code) throw new Error('Не передан код вложения.');
+    const config = ctx.config;
+    config.attachments = (config.attachments || []).filter(a => a.attachmentType !== code);
+
+    for (const s of (config.states || [])) {
+        for (const a of (s.actors || [])) {
+            if (Array.isArray(a.attachmentsRestrictions)) {
+                a.attachmentsRestrictions = a.attachmentsRestrictions.filter(
+                    r => r.attachmentType !== code
+                );
+            }
+        }
+    }
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage('Вложение «' + code + '» удалено из документа.');
+}
+
 module.exports = {
     handleToggleTerminal,
     handleDeleteState,
@@ -1057,5 +1179,9 @@ module.exports = {
     handleOpenClientAction,
     handleDeleteClientAction,
     handleCreateClientAction,
-    handleRenameClientAction
+    handleRenameClientAction,
+    handleAddAttachmentType,
+    handleRemoveAttachmentType,
+    handleAddAttachmentToDoc,
+    handleRemoveAttachmentFromDoc
 };

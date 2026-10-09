@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vscode = require('vscode');
 
-function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta) {
+function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta, attMeta) {
     const tplPath = path.join(extensionUri.fsPath, 'media', 'index.html');
     const tpl = fs.readFileSync(tplPath, 'utf8');
 
@@ -19,13 +19,14 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsGraphDragUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'graph-drag.js'));
     const jsFormsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'forms.js'));
     const jsFormsOtherUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'forms-other.js'));
-    const jsToolbarUri    = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'toolbar.js'));
-    const jsTableUri      = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'table.js'));
+    const jsToolbarUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'toolbar.js'));
+    const jsTableUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'table.js'));
 
     const dataJson = JSON.stringify({
         rows, meta, stateDetails, graph, hasUi,
         auth: authMeta || { found: false, docName: '', path: null, rows: [], allRoles: [] },
-        relations: relMeta || { docName: '', path: null, relations: [] }
+        relations: relMeta || { docName: '', path: null, relations: [] },
+        attachmentTypePath: (attMeta && attMeta.path) || null
     })
         .replace(/</g, '\\u003c')
         .replace(/>/g, '\\u003e')
@@ -46,8 +47,8 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_GRAPH_DRAG\}\}/g, () => jsGraphDragUri.toString())
         .replace(/\{\{JS_FORMS\}\}/g, () => jsFormsUri.toString())
         .replace(/\{\{JS_FORMS_OTHER\}\}/g, () => jsFormsOtherUri.toString())
-        .replace(/\{\{JS_TOOLBAR\}\}/g,     () => jsToolbarUri.toString())
-        .replace(/\{\{JS_TABLE\}\}/g,     () => jsTableUri.toString())
+        .replace(/\{\{JS_TOOLBAR\}\}/g, () => jsToolbarUri.toString())
+        .replace(/\{\{JS_TABLE\}\}/g, () => jsTableUri.toString())
         .replace(/\{\{JS_URI\}\}/g, () => jsUri.toString())
         .replace(/\{\{DAGRE_URI\}\}/g, () => dagreUri.toString())
         .replace(/\{\{DATA_JSON\}\}/g, () => dataJson);

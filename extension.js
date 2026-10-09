@@ -20,7 +20,11 @@ const {
     handleOpenClientAction,
     handleDeleteClientAction,
     handleCreateClientAction,
-    handleRenameClientAction
+    handleRenameClientAction,
+    handleAddAttachmentType,
+    handleRemoveAttachmentType,
+    handleAddAttachmentToDoc,
+    handleRemoveAttachmentFromDoc
 } = require('./src/handlers');
 
 let currentPanel = null;
@@ -88,6 +92,10 @@ function activate(context) {
                         else if (msg.type === 'deleteClientAction') await handleDeleteClientAction(currentCtx, msg.actionName);
                         else if (msg.type === 'createClientAction') await handleCreateClientAction(currentCtx, msg.actionName);
                         else if (msg.type === 'renameClientAction') await handleRenameClientAction(currentCtx, msg.oldName, msg.newName);
+                        else if (msg.type === 'addAttachmentType')         await handleAddAttachmentType(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'removeAttachmentType')      await handleRemoveAttachmentType(currentCtx, currentPanel, msg.code);
+                        else if (msg.type === 'addAttachmentToDoc')        await handleAddAttachmentToDoc(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'removeAttachmentFromDoc')   await handleRemoveAttachmentFromDoc(currentCtx, currentPanel, msg.code);
                     } catch (e) {
                         vscode.window.showErrorMessage('Ошибка: ' + e.message);
                         console.error(e);

@@ -58,7 +58,7 @@ function detectFlowName(csv) {
     return 'UnknownFlow';
 }
 
-function buildMeta(flow, config, csv, trans) {
+function buildMeta(flow, config, csv, trans, ctx) {
     const idx = indexOf(csv.header);
 
     const operations = new Set();
@@ -79,8 +79,6 @@ function buildMeta(flow, config, csv, trans) {
     if (!operations.size) operations.add('Save');
 
     const attachmentTypes = new Set((config.attachments || []).map(a => a.attachmentType));
-    ['Application', 'UnderwritingDecision', 'Contract', 'OtherDocument']
-        .forEach(t => attachmentTypes.add(t));
 
     const actorsSet = new Set();
     if (Array.isArray(flow.actors)) for (const a of flow.actors) if (a) actorsSet.add(a);
@@ -100,6 +98,10 @@ function buildMeta(flow, config, csv, trans) {
         operations: [...operations],
         attachments: [...attachmentTypes],
         states: (flow.states || []).map(s => s.name),
+        attachmentTypeCatalog: {
+            codes: Array.isArray(ctx && ctx.attachmentTypeCodes) ? ctx.attachmentTypeCodes : [],
+            translations: (ctx && ctx.attachmentTypeTranslations) || {}
+        },
         translations: trans
     };
 }

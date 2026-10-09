@@ -990,6 +990,316 @@
         });
     }
 
+    /* ============================================================
+     * ВЛОЖЕНИЯ (AttachmentType)
+     * ============================================================ */
+    function openAttachmentsForm() {
+        const DATA = PF.state.DATA || {};
+        const meta = PF.state.meta || {};
+        const catalog = meta.attachmentTypeCatalog || { codes: [], translations: {} };
+        const codes = (catalog.codes || []).slice();
+        const trans = catalog.translations || {};
+
+        const docAttachments = (meta.attachments || []).slice();
+
+        const container = document.getElementById('modalContainer');
+        const backdrop = cloneTemplate('tpl-attachments-modal');
+        container.appendChild(backdrop);
+
+        const pathEl = backdrop.querySelector('.attachments-path-hint');
+        const catalogPath = DATA.attachmentTypePath || '(не найден configuration/@config-*/infrastructure/masterEntity/AttachmentType)';
+        pathEl.textContent = catalogPath;
+        pathEl.title = catalogPath;
+
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        const catalogList = backdrop.querySelector('.att-catalog-list');
+        const docList = backdrop.querySelector('.att-doc-list');
+        const pendingHint = backdrop.querySelector('.att-pending-hint');
+
+        // Сессионные добавления — можно отменить до закрытия окна.
+        const pending = [];
+
+        function refreshPendingHint() {
+            if (!pending.length) {
+                pendingHint.style.display = 'none';
+                pendingHint.textContent = '';
+                return;
+            }
+            pendingHint.style.display = '';
+            pendingHint.innerHTML = 'Добавлено в этой сессии: ' + pending.map(esc).join(', ');
+        }
+
+        function renderCatalog() {
+            catalogList.innerHTML = '';
+            if (!codes.length && !pending.length) {
+                catalogList.innerHTML = '<div class="hint">Справочник пуст.</div>';
+                return;
+            }
+            for (const code of codes) {
+                const row = document.createElement('div');
+                row.className = 'att-row';
+                const isPending = pending.includes(code);
+                const isInDoc = docAttachments.includes(code);
+
+                let html = '<span class="att-code">' + esc(code) + '</span>';
+                const ru = trans[code];
+                if (ru) html += ' <span class="att-ru">(' + esc(ru) + ')</span>';
+                if (isInDoc) html += ' <span class="badge pkg">в документе</span>';
+                if (isPending) html += ' <span class="badge issues">новое</span>';
+
+                const actions = document.createElement('span');
+                actions.className = 'att-actions';
+
+                if (!isPending) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'danger small';
+                    delBtn.textContent = '×';
+                    delBtn.title = 'Удалить из справочника';
+                    delBtn.addEventListener('click', async () => {
+                        const ok = await showConfirm(
+                            'Удалить тип вложения «' + code + '» из справочника?\n\n' +
+                            'Будут изменены data.csv и translation/translation.csv. ' +
+                            'Ссылки в текущем документе не трогаются.',
+                            'Удаление типа вложения'
+                        );
+                        if (!ok) return;
+                        PF.vscode.postMessage({ type: 'removeAttachmentType', code });
+                        backdrop.remove();
+                    });
+                    actions.appendChild(delBtn);
+                } else {
+                    const undoBtn = document.createElement('button');
+                    undoBtn.className = 'secondary small';
+                    undoBtn.textContent = '↩';
+                    undoBtn.title = 'Отменить добавление (в этой сессии)';
+                    undoBtn.addEventListener('click', () => {
+                        // Реальная отмена — удаляем и из файла.
+                        PF.vscode.postMessage({ type: 'removeAttachmentType', code });
+                        const i = pending.indexOf(code);
+                        if (i >= 0) pending.splice(i, 1);
+                        const ci = codes.indexOf(code);
+                        if (ci >= 0) codes.splice(ci, 1);
+                        delete trans[code];
+                        refreshPendingHint();
+                        renderCatalog();
+                    });
+                    actions.appendChild(undoBtn);
+                }
+
+                row.innerHTML = html;
+                row.appendChild(actions);
+                catalogList.appendChild(row);
+            }
+        }
+
+        function renderDoc() {
+            docList.innerHTML = '';
+            if (!docAttachments.length) {
+                docList.innerHTML = '<div class="hint">В документе нет вложений.</div>';
+                return;
+            }
+            for (const code of docAttachments) {
+                const row = document.createElement('div');
+                row.className = 'att-row';
+                const ru = trans[code];
+                let html = '<span class="att-code">' + esc(code) + '</span>';
+                if (ru) html += ' <span class="att-ru">(' + esc(ru) + ')</span>';
+                if (!codes.includes(code)) {
+                    html += ' <span class="badge issues" title="Кода нет в справочнике">нет в справочнике</span>';
+                }
+                row.innerHTML = html;
+
+                const actions = document.createElement('span');
+                actions.className = 'att-actions';
+                const delBtn = document.createElement('button');
+                delBtn.className = 'danger small';
+                delBtn.textContent = '×';
+                delBtn.title = 'Удалить вложение из документа';
+                delBtn.addEventListener('click', async () => {
+                    const ok = await showConfirm(
+                        'Удалить вложение «' + code + '» из документа?\n\n' +
+                        'Будет изменён configuration.json:\n' +
+                        '  • убрано из attachments[]\n' +
+                        '  • убрано из attachmentsRestrictions всех акторов.',
+                        'Удаление вложения из документа'
+                    );
+                    if (!ok) return;
+                    PF.vscode.postMessage({ type: 'removeAttachmentFromDoc', code });
+                    backdrop.remove();
+                });
+                actions.appendChild(delBtn);
+                row.appendChild(actions);
+                docList.appendChild(row);
+            }
+        }
+
+        renderCatalog();
+        renderDoc();
+        refreshPendingHint();
+
+        // Добавление нового типа в справочник
+        backdrop.querySelector('[data-act="add-type"]').addEventListener('click', async () => {
+            const code = await PF.utils.showPrompt('Код нового типа вложения (латиница)', '');
+            if (!code) return;
+            if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
+                showAlert('Некорректный код: ' + code);
+                return;
+            }
+            if (codes.includes(code)) {
+                showAlert('Код «' + code + '» уже есть в справочнике.');
+                return;
+            }
+            const ru = await PF.utils.showPrompt('RU-перевод для «' + code + '»', code);
+            if (ru == null) return;
+
+            // Локально добавляем — UI обновится сразу, окно не закрывается.
+            codes.push(code);
+            pending.push(code);
+            trans[code] = ru || code;
+            refreshPendingHint();
+            renderCatalog();
+
+            PF.vscode.postMessage({
+                type: 'addAttachmentType',
+                payload: { code, ru: ru || code }
+            });
+        });
+
+        // Добавление вложения в документ
+        backdrop.querySelector('[data-act="add-doc"]').addEventListener('click', async () => {
+            const available = codes.filter(c => !docAttachments.includes(c));
+            if (!available.length) {
+                showAlert('Все доступные из справочника вложения уже добавлены в документ.');
+                return;
+            }
+
+            // Селект типа
+            const chosen = await pickAttachmentCode(available, trans);
+            if (!chosen) return;
+
+            // Режим прав
+            const mode = await pickAttachmentMode(chosen);
+            if (mode == null) return;
+
+            PF.vscode.postMessage({
+                type: 'addAttachmentToDoc',
+                payload: { code: chosen, mode }
+            });
+            backdrop.remove();
+        });
+
+        backdrop.querySelector('[data-act="close"]').addEventListener('click', () => {
+            // Все сессионные add/remove уже применены к файлам.
+            // Просим backend перечитать всё и перерисовать UI.
+            PF.vscode.postMessage({ type: 'reload' });
+            backdrop.remove();
+        });
+    }
+
+    // Простой селект: возвращает выбранный код или null.
+    function pickAttachmentCode(available, trans) {
+        return new Promise((resolve) => {
+            const container = document.getElementById('modalContainer');
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop dialog-backdrop';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal dialog';
+
+            const h = document.createElement('h2');
+            h.className = 'dlg-title';
+            h.textContent = 'Выберите тип вложения';
+            modal.appendChild(h);
+
+            const row = document.createElement('div');
+            row.className = 'form-row';
+            const sel = document.createElement('select');
+            for (const code of available) {
+                const opt = document.createElement('option');
+                opt.value = code;
+                opt.textContent = trans[code] ? (code + ' (' + trans[code] + ')') : code;
+                sel.appendChild(opt);
+            }
+            row.appendChild(sel);
+            modal.appendChild(row);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'secondary';
+            cancelBtn.textContent = 'Отмена';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = 'OK';
+            actions.appendChild(cancelBtn);
+            actions.appendChild(okBtn);
+            modal.appendChild(actions);
+            backdrop.appendChild(modal);
+            container.appendChild(backdrop);
+
+            function close(result) {
+                backdrop.remove();
+                resolve(result);
+            }
+            cancelBtn.addEventListener('click', () => close(null));
+            okBtn.addEventListener('click', () => close(sel.value));
+        });
+    }
+
+    // Диалог режима прав. Возвращает 'none' | 'read-all' | 'by-template' | null.
+    function pickAttachmentMode(code) {
+        return new Promise((resolve) => {
+            const container = document.getElementById('modalContainer');
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop dialog-backdrop';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal dialog';
+
+            const h = document.createElement('h2');
+            h.className = 'dlg-title';
+            h.textContent = 'Права на «' + code + '»';
+            modal.appendChild(h);
+
+            const info = document.createElement('div');
+            info.className = 'hint';
+            info.textContent = 'Как проставить права на новое вложение акторам во всех состояниях?';
+            modal.appendChild(info);
+
+            const opts = document.createElement('div');
+            opts.className = 'form-row';
+            opts.innerHTML =
+                '<label><input type="radio" name="att-mode" value="none" checked> Не проставлять права</label><br>' +
+                '<label><input type="radio" name="att-mode" value="read-all"> Всем, у кого есть вложения на чтение — дать это на чтение</label><br>' +
+                '<label><input type="radio" name="att-mode" value="by-template"> По шаблону: у каждого актора взять первое вложение и скопировать его права</label>';
+            modal.appendChild(opts);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'secondary';
+            cancelBtn.textContent = 'Отмена';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = 'OK';
+            actions.appendChild(cancelBtn);
+            actions.appendChild(okBtn);
+            modal.appendChild(actions);
+            backdrop.appendChild(modal);
+            container.appendChild(backdrop);
+
+            function close(result) {
+                backdrop.remove();
+                resolve(result);
+            }
+            cancelBtn.addEventListener('click', () => close(null));
+            okBtn.addEventListener('click', () => {
+                const v = opts.querySelector('input[name="att-mode"]:checked');
+                close(v ? v.value : 'none');
+            });
+        });
+    }
+
     PF.formsOther = {
         validateFlow,
         centerOnState,
@@ -997,6 +1307,7 @@
         openRelationsForm,
         openAuthForm,
         openCopyActorForm,
-        openGenerateFlowForm
+        openGenerateFlowForm,
+        openAttachmentsForm
     };
 })();

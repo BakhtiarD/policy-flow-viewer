@@ -1077,3 +1077,60 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     width: 100%;
     box-sizing: border-box;
 }
+
+.attachments-modal .att-section {
+    margin: 14px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 6px;
+}
+
+.attachments-modal .att-section h3 {
+    margin: 0 0 6px;
+    font-size: 13px;
+}
+
+.att-catalog-toolbar,
+.att-doc-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.att-catalog-list,
+.att-doc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.att-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.att-row:hover {
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.att-code {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-weight: 600;
+}
+
+.att-ru {
+    opacity: 0.75;
+}
+
+.att-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+}

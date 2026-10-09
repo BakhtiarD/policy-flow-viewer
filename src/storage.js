@@ -524,6 +524,16 @@ function loadData(ctx) {
     const targetDocNames = new Set(
         (ctx.relations || []).map(r => r.targetDocument).filter(Boolean)
     );
+
+
+    // Справочник AttachmentType из configuration/@config-*/infrastructure/
+    {
+        const { loadAttachmentType } = require('./attachments');
+        const att = loadAttachmentType(ctx.projectRoot);
+        ctx.attachmentTypeDir = att.dir;
+        ctx.attachmentTypeCodes = att.codes;
+        ctx.attachmentTypeTranslations = att.translations;
+    }
     ctx.documentTitles = loadAllDocumentTitles(ctx.projectRoot, targetDocNames);
 }
 
@@ -559,17 +569,18 @@ function pushRender(ctx, panel) {
     const { flow, config, csv, ui, extensionUri, flowPath, authPath, auth } = ctx;
 
     const trans = buildTranslations(csv);
-    const meta = buildMeta(flow, config, csv, trans);
+    const meta = buildMeta(flow, config, csv, trans, ctx);
     const rows = buildTable(flow, config, trans);
     const details = buildStateDetails(flow, config, trans);
     const graph = buildGraph(flow, ui, trans, ctx);
     const hasUi = Array.isArray(ui) && ui.length > 0;
     const authMeta = buildAuthMeta(flowPath, auth, authPath);
     const relMeta = buildRelationsMeta(ctx, flow, ctx.documentTitles || {});
+    const attMeta = { path: ctx.attachmentTypeDir || null };
 
     panel.webview.html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
-        authMeta, relMeta
+        authMeta, relMeta, attMeta
     );
 }
 

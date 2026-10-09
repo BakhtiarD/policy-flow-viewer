@@ -22,6 +22,7 @@
         <button id="authBtn" data-icon="key" title="Авторизация"></button>
         <button id="validateBtn" data-icon="checklist" title="Проверка"></button>
         <button id="relationsBtn" data-icon="link" title="Связи"></button>
+        <button id="attachmentsBtn" data-icon="paperclip" title="Вложения (AttachmentType)"></button>
         <span class="toolbar-spacer"></span>
         <span class="hint" id="metaInfo"></span>
         <button id="toolbarSettingsBtn" data-icon="gear" title="Расположение тулбара" class="secondary"></button>
@@ -493,6 +494,38 @@
                 <div class="hint relations-doc-hint"></div>
                 <div class="hint relations-path-hint" title=""></div>
                 <div class="relations-body"></div>
+                <div class="actions">
+                    <button data-act="close">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-attachments-modal">
+        <div class="modal-backdrop">
+            <div class="modal attachments-modal">
+                <h2>Вложения — AttachmentType</h2>
+                <div class="hint attachments-path-hint" title=""></div>
+
+                <section class="att-section">
+                    <h3>Справочник (masterEntity/AttachmentType)</h3>
+                    <div class="hint">Все доступные типы вложений в проекте. Используются в configuration.json → attachments[].</div>
+                    <div class="att-catalog-toolbar">
+                        <button class="secondary small" data-act="add-type">＋ Добавить тип в справочник</button>
+                        <span class="hint att-pending-hint" style="display:none"></span>
+                    </div>
+                    <div class="att-catalog-list"></div>
+                </section>
+
+                <section class="att-section">
+                    <h3>Вложения документа</h3>
+                    <div class="hint">Перечислены в configuration.json → attachments[]. По ним строятся формы прав для акторов.</div>
+                    <div class="att-doc-toolbar">
+                        <button class="secondary small" data-act="add-doc">＋ Добавить в документ</button>
+                    </div>
+                    <div class="att-doc-list"></div>
+                </section>
+
                 <div class="actions">
                     <button data-act="close">Закрыть</button>
                 </div>
