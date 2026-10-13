@@ -263,6 +263,14 @@
         const attachmentsBtn = document.getElementById('attachmentsBtn');
         if (attachmentsBtn) attachmentsBtn.addEventListener('click', PF.formsOther.openAttachmentsForm);
 
+        const legendBtn = document.getElementById('legendBtn');
+        if (legendBtn) {
+            legendBtn.addEventListener('click', () => {
+                if (PF.legend.isVisible()) PF.legend.hide();
+                else PF.legend.show();
+            });
+        }
+
         // Переключение таблица/граф
         document.getElementById('viewToggle').addEventListener('click', () => {
             PF.state.viewMode = PF.state.viewMode === 'graph' ? 'table' : 'graph';

@@ -14,6 +14,10 @@
         layoutRankDir: (saved.layoutRankDir === 'LR') ? 'LR' : 'TB',
         showTransitionLabels: (saved.showTransitionLabels !== false),
         toolbarPosition: saved.toolbarPosition || 'top',
+        legendVisible: saved.legendVisible !== true,
+        legendPos: (saved.legendPos && typeof saved.legendPos === 'object')
+            ? { right: saved.legendPos.right, bottom: saved.legendPos.bottom }
+            : null,
 
         // Заполняется в main.js после парсинга policyFlowData
         DATA: null,
@@ -47,7 +51,9 @@
             viewMode: PF.state.viewMode,
             layoutRankDir: PF.state.layoutRankDir,
             showTransitionLabels: PF.state.showTransitionLabels,
-            toolbarPosition: PF.state.toolbarPosition
+            toolbarPosition: PF.state.toolbarPosition,
+            legendVisible: PF.state.legendVisible,
+            legendPos: PF.state.legendPos
         });
     };
 })();

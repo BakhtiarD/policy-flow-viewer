@@ -8,6 +8,7 @@
     PF.state.setData(DATA);
 
     PF.toolbar.init();
+    PF.legend.init();
     PF.table.init();
     PF.routing.rerouteAll();
     PF.app.applyViewMode();

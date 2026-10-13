@@ -65,6 +65,7 @@
                 class="secondary"></button>
             <button id="labelsToggleBtn" data-icon="tag" title="Показать/скрыть подписи переходов"
                 class="secondary"></button>
+            <button id="legendBtn" data-icon="book" title="Легенда действий (подсказки)" class="secondary"></button>
             <label class="zoom-label">
                 <input type="number" id="zoomInput" min="10" max="400" step="10" value="100"> %
             </label>
@@ -74,6 +75,14 @@
         <div class="graph-container">
             <svg id="graphSvg" tabindex="0" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
+        <div id="graphLegend" class="graph-legend" style="display:none">
+            <div class="legend-header" data-drag-handle>
+                <span class="legend-title">Легенда действий</span>
+                <button class="legend-close secondary small" title="Скрыть">×</button>
+            </div>
+            <div class="legend-body"></div>
+        </div>
+
     </div>
 
     <div id="modalContainer"></div>
@@ -546,6 +555,7 @@
     <script src="{{JS_FORMS_OTHER}}"></script>
     <script src="{{JS_GRAPH_RENDER}}"></script>
     <script src="{{JS_TOOLBAR}}"></script>
+    <script src="{{JS_LEGEND}}"></script>
     <script src="{{JS_TABLE}}"></script>
     <script src="{{JS_URI}}"></script>
 </body>
