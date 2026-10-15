@@ -6,6 +6,42 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.4.4] — 2026-10-15
+
+### Исправлено
+- **Сохранение неучтённых свойств.** Раньше при редактировании состояния
+  или перехода все поля, которыми не управляет форма, молча терялись —
+  например `uiSchema`, `availableActivityTypes`, `ui` у акторов. Теперь
+  они сохраняются как есть:
+  - у акторов — все свойства, кроме управляемых формой
+    (`actor`, `allowComments`, `operations`, `transitions`,
+    `attachmentsRestrictions`), переносятся в новый объект без изменений;
+  - у переходов — все свойства, кроме управляемых
+    (`name`, `from`, `to`, `actionToRunBefore`, `broadcastEvent`,
+    `allowOnValidationErrors`).
+- **`transitionEffects` из `configuration.json`** (`transitions` — это
+  объект, не массив) теперь корректно переносится при переименовании
+  перехода и удаляется при удалении перехода или состояния.
+
+### Изменено
+- Убрана лишняя пустая строка в конце JSON-файлов при сохранении.
+  Раньше `documentFlow.json`, `configuration.json`, `documentFlow.ui.json`
+  записывались с `+ '\n'`, что давало лишнюю строку в diff'ах, если
+  исходные файлы были без завершающего перевода строки. Теперь
+  запись идёт без него.
+
+### Технические детали
+- В `src/transforms.js` добавлены `extractActorExtra(a)` и
+  `extractTransitionExtra(t)`, а также константы управляемых ключей
+  `ACTOR_MANAGED_KEYS` / `TRANSITION_MANAGED_KEYS`.
+- `buildActorConfig(p, original)` принимает оригинальный объект актора
+  и мержит его extras поверх собранного — но только те ключи, которых
+  нет среди управляемых.
+- `buildStateDetails` кладёт `__extra` в каждый объект `permissions[]`.
+- `buildGraph` кладёт `__extra` в каждый переход и дополнительно
+  отдаёт `transitionEffects` (собранные из `configuration.json`).
+- В `src/storage.js → loadData` добавлен сбор `ctx.transitionEffects`.
+
 ## [0.4.3] — 2026-10-13
 
 ### Добавлено

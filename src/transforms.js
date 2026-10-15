@@ -355,7 +355,8 @@ function buildStateDetails(flow, config, trans) {
                 transitions: (a.transitions || [])
                     .map(normalizeTransitionName)
                     .filter(Boolean),
-                attachments
+                attachments,
+                __extra: extractActorExtra(a)
             };
         });
 
@@ -426,17 +427,51 @@ function buildGraph(flow, ui, trans, ctx) {
             serverSideEvents: !!(t.broadcastEvent && t.broadcastEvent.serverSideEvents),
             allowOnValidationErrors: t.allowOnValidationErrors || null,
             manual: !!manualWp,
-            manualWaypoints: manualWp
+            manualWaypoints: manualWp,
+            __extra: extractTransitionExtra(t)
         };
     });
 
-    return { states, transitions, initialState: flow.initialState || null };
+    return {
+        states,
+        transitions,
+        initialState: flow.initialState || null,
+        transitionEffects: (ctx && ctx.transitionEffects) || {}
+    };
 }
 
 /* ============================================================
  * ACTOR CONFIG
  * ============================================================ */
-function buildActorConfig(p) {
+const ACTOR_MANAGED_KEYS = new Set([
+    'actor', 'allowComments', 'operations', 'transitions', 'attachmentsRestrictions'
+]);
+
+const TRANSITION_MANAGED_KEYS = new Set([
+    'name', 'from', 'to', 'actionToRunBefore', 'broadcastEvent', 'allowOnValidationErrors'
+]);
+
+function extractActorExtra(a) {
+    if (!a) return {};
+    const extra = {};
+    for (const k of Object.keys(a)) {
+        if (ACTOR_MANAGED_KEYS.has(k)) continue;
+        extra[k] = a[k];
+    }
+    return extra;
+}
+
+function extractTransitionExtra(t) {
+    if (!t) return {};
+    const extra = {};
+    for (const k of Object.keys(t)) {
+        if (TRANSITION_MANAGED_KEYS.has(k)) continue;
+        extra[k] = t[k];
+    }
+    return extra;
+}
+
+function buildActorConfig(p, original) {
     const actor = { actor: p.actor };
     if (p.allowComments) actor.allowComments = true;
 
@@ -459,6 +494,14 @@ function buildActorConfig(p) {
     }));
     if (attachmentsRestrictions.length) actor.attachmentsRestrictions = attachmentsRestrictions;
 
+    // Перенос неучтённых (readonly) свойств из оригинала.
+    if (original) {
+        const extra = extractActorExtra(original);
+        for (const k of Object.keys(extra)) {
+            if (!(k in actor)) actor[k] = extra[k];
+        }
+    }
+
     return actor;
 }
 
@@ -478,5 +521,6 @@ module.exports = {
     buildTranslations, detectFlowName, buildMeta,
     buildTable, buildStateDetails, buildGraph,
     buildActorConfig, registerActorsInFlow, buildAuthMeta, buildRelationsMeta,
-    normalizeOperationName, normalizeTransitionName, normalizeFlowOperations
+    normalizeOperationName, normalizeTransitionName, normalizeFlowOperations,
+    extractActorExtra, extractTransitionExtra
 };

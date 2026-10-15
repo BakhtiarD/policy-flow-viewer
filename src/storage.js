@@ -510,6 +510,18 @@ function loadData(ctx) {
         ctx.auth = null;
     }
 
+    // transitionEffects из configuration.json → transitions (объект, не массив):
+    //   { <transitionName>: { transitionEffects: {...} } }
+    ctx.transitionEffects = {};
+    const cfgTrans = (ctx.config && ctx.config.transitions) || {};
+    if (cfgTrans && typeof cfgTrans === 'object' && !Array.isArray(cfgTrans)) {
+        for (const [name, def] of Object.entries(cfgTrans)) {
+            if (def && def.transitionEffects) {
+                ctx.transitionEffects[name] = def.transitionEffects;
+            }
+        }
+    }
+
     // product-level: documentRelation + список документов
     ctx.productLevel = findProductLevel(flowPath);
     ctx.projectRoot = findProjectRoot(flowPath);
@@ -542,17 +554,17 @@ function writeAll(ctx) {
     ensureDir(flowPath);
     ensureDir(configPath);
     ensureDir(transPath);
-    fs.writeFileSync(flowPath, JSON.stringify(flow, null, 4) + '\n', 'utf8');
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 4) + '\n', 'utf8');
+    fs.writeFileSync(flowPath, JSON.stringify(flow, null, 4), 'utf8');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8');
     fs.writeFileSync(transPath, serializeCsv(csv), 'utf8');
 }
 
 function writeFlow(ctx) {
-    fs.writeFileSync(ctx.flowPath, JSON.stringify(ctx.flow, null, 4) + '\n', 'utf8');
+    fs.writeFileSync(ctx.flowPath, JSON.stringify(ctx.flow, null, 4), 'utf8');
 }
 
 function writeUi(ctx) {
-    fs.writeFileSync(ctx.uiPath, JSON.stringify(ctx.ui || [], null, 4) + '\n', 'utf8');
+    fs.writeFileSync(ctx.uiPath, JSON.stringify(ctx.ui || [], null, 4), 'utf8');
 }
 
 function writeAuth(ctx) {
@@ -561,7 +573,7 @@ function writeAuth(ctx) {
 }
 
 function writeConfig(ctx) {
-    fs.writeFileSync(ctx.configPath, JSON.stringify(ctx.config, null, 4) + '\n', 'utf8');
+    fs.writeFileSync(ctx.configPath, JSON.stringify(ctx.config, null, 4), 'utf8');
 }
 
 function pushRender(ctx, panel) {

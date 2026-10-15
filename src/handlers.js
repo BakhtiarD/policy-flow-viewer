@@ -44,6 +44,11 @@ async function handleDeleteState(ctx, panel, stateName) {
         catch (e) { console.warn('flowRules delete failed:', n, e.message); }
     }
 
+    if (config.transitions && typeof config.transitions === 'object' &&
+        !Array.isArray(config.transitions)) {
+        for (const n of removedTransitions) delete config.transitions[n];
+    }
+
     flow.states = (flow.states || []).filter(s => s.name !== stateName);
     flow.transitions = (flow.transitions || []).filter(t => t.from !== stateName && t.to !== stateName);
 
@@ -256,7 +261,13 @@ async function handleEditState(ctx, panel, payload) {
 
     /* 4. Удаление снятых переходов */
     if (removedNames.length) {
-         for (const n of removedNames) {
+        if (config.transitions && typeof config.transitions === 'object' &&
+            !Array.isArray(config.transitions)) {
+            for (const n of removedNames) {
+                delete config.transitions[n];
+            }
+        }
+        for (const n of removedNames) {
             try { deleteFlowRule(ctx, n); }
             catch (e) { console.warn('flowRules delete failed:', n, e.message); }
         }
@@ -290,6 +301,13 @@ async function handleEditState(ctx, panel, payload) {
     for (const [oldN, newN] of Object.entries(renameMap)) {
         try { renameFlowRule(ctx, oldN, newN); }
         catch (e) { console.warn('flowRules rename failed:', oldN, '→', newN, e.message); }
+        // configuration.json → transitions — это объект, не массив.
+        // Переименовываем ключ, чтобы transitionEffects не потерялись.
+        if (config.transitions && typeof config.transitions === 'object' &&
+            !Array.isArray(config.transitions) && config.transitions[oldN]) {
+            config.transitions[newN] = config.transitions[oldN];
+            delete config.transitions[oldN];
+        }
         const ft = (flow.transitions || []).find(x => x.name === oldN);
         if (ft) ft.name = newN;
         for (const s of (config.states || [])) {
@@ -343,7 +361,11 @@ async function handleEditState(ctx, panel, payload) {
         config.states = config.states || [];
         config.states.push(cs);
     }
-    cs.actors = permissions.map(p => buildActorConfig(p));
+    const oldActorsByName = {};
+    for (const a of (cs.actors || [])) {
+        if (a && a.actor) oldActorsByName[a.actor] = a;
+    }
+    cs.actors = permissions.map(p => buildActorConfig(p, oldActorsByName[p.actor]));
 
     {
         const fs = (flow.states || []).find(x => x.name === name);
@@ -419,6 +441,11 @@ async function handleEditTransition(ctx, panel, payload) {
 
     /* 3. Переименование — обновляем ссылки везде */
     if (renamed) {
+        if (config.transitions && typeof config.transitions === 'object' &&
+            !Array.isArray(config.transitions) && config.transitions[originalName]) {
+            config.transitions[name] = config.transitions[originalName];
+            delete config.transitions[originalName];
+        }
         for (const s of (config.states || [])) {
             for (const a of (s.actors || [])) {
                 if (Array.isArray(a.transitions)) {
@@ -610,6 +637,11 @@ async function handleDeleteTransitions(ctx, panel, names) {
         for (const a of (s.actors || [])) {
             if (Array.isArray(a.transitions)) {
                 a.transitions = a.transitions.filter(t => !list.includes(t));
+                // configuration.json → transitions (объект, не массив)
+                if (config.transitions && typeof config.transitions === 'object' &&
+                    !Array.isArray(config.transitions)) {
+                    for (const n of list) delete config.transitions[n];
+                }
             }
         }
     }
