@@ -163,13 +163,15 @@ function buildAuthMeta(flowPath, authCsv, authPath, groupRoles) {
     const allRolesSet = new Set(rolesSet);
     for (const role of (groupRoles || [])) allRolesSet.add(role);
 
+    const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' });
+
     return {
         found: true,
         docName,
         path: authPath || null,
         rows,
-        allRoles: [...allRolesSet].sort(),
-        groupRoles: [...(groupRoles || [])].sort(),
+        allRoles: [...allRolesSet].sort(byName),
+        groupRoles: [...(groupRoles || [])].sort(byName),
         actorRoles
     };
 }

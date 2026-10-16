@@ -608,10 +608,12 @@ function pushRender(ctx, panel) {
     const relMeta = buildRelationsMeta(ctx, flow, ctx.documentTitles || {});
     const attMeta = { path: ctx.attachmentTypeDir || null };
 
-    panel.webview.html = renderHtml(
+    const html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
         authMeta, relMeta, attMeta
     );
+    // Маркер, чтобы HTML всегда отличался — иначе VS Code не пересоздаёт iframe.
+    panel.webview.html = html.replace('</body>', '<!--r' + Date.now() + '--></body>');
 }
 
 function invalidateProjectCache(ctx) {

@@ -28,7 +28,7 @@ function parseCsv(text) {
     return { header, rows, trailingNewline };
 }
 
-// Собирает роли из configuration/@config-*/application-user-group/authorization/groupAuthorization.csv.
+// Собирает роли из configuration/@config-*/application-user-group/groupAuthorization.csv.
 // node_modules НЕ трогаем.
 function collectGroupRoles(projectRoot) {
     const roles = new Set();
@@ -53,7 +53,7 @@ function collectGroupRoles(projectRoot) {
             if (!p.isDirectory()) continue;
             const csvPath = path.join(
                 nsPath, p.name,
-                'application-user-group', 'authorization', 'groupAuthorization.csv'
+                'authorization', 'groupAuthorization.csv'
             );
             if (!fs.existsSync(csvPath)) continue;
 

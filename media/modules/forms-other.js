@@ -34,6 +34,7 @@
             missingTransitionTranslations: [],
             noActors: [],
             missingServerSideEvents: [],
+            actorsWithoutRoles: [],
             relations: []
         };
 
@@ -109,6 +110,26 @@
             });
         }
 
+        // 7. Акторы без роли в authorization.csv (для этого документа)
+        {
+            const auth = DATA.auth || {};
+            const actorRoles = auth.actorRoles || {};
+            const authFound = !!auth.found;
+
+            const actorsSet = new Set();
+            for (const a of (meta.actors || [])) if (a) actorsSet.add(a);
+            for (const r of (DATA.rows || [])) {
+                for (const p of (r.perms || [])) if (p.actor) actorsSet.add(p.actor);
+            }
+
+            for (const a of actorsSet) {
+                const roles = actorRoles[a];
+                if (!authFound || !Array.isArray(roles) || !roles.length) {
+                    issues.actorsWithoutRoles.push({ name: a });
+                }
+            }
+        }
+
         const rel = DATA.relations || {};
         for (const r of (rel.relations || [])) {
             if (!r.isMine) continue;
@@ -150,6 +171,7 @@
                 issues.missingTransitionTranslations.length +
                 issues.noActors.length +
                 issues.missingServerSideEvents.length +
+                issues.actorsWithoutRoles.length +
                 issues.relations.length;
 
             summary.textContent = total === 0
@@ -220,10 +242,22 @@
                 it => '<code>' + escHtml(it.name) + '</code> — ' + escHtml(it.note),
                 'Проблем нет');
 
+            section('7. Акторы без роли в authorization.csv', issues.actorsWithoutRoles,
+                it => '<a class="validate-link" data-actor="' + escHtml(it.name) + '">' +
+                    escHtml(it.name) + '</a>',
+                'У всех акторов есть роль в authorization.csv');
+
             body.querySelectorAll('.validate-link').forEach(a => {
                 a.addEventListener('click', () => {
                     const stName = a.getAttribute('data-state');
                     const trName = a.getAttribute('data-transition');
+                    const actorName = a.getAttribute('data-actor');
+                    if (actorName) {
+                        if (PF.actors && PF.actors.openActorAuthForm) {
+                            PF.actors.openActorAuthForm(actorName);
+                        }
+                        return;
+                    }
                     if (stName) {
                         if (PF.state.viewMode !== 'graph') {
                             PF.state.viewMode = 'graph';

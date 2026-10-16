@@ -1587,32 +1587,21 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     flex-direction: column;
 }
 
-.actor-auth-roles {
+.actor-auth-role-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    max-height: 50vh;
-    overflow-y: auto;
-    padding: 6px 8px;
-    border: 1px solid var(--vscode-panel-border, #333);
-    border-radius: 4px;
+    gap: 4px;
+    padding: 6px 0;
     margin: 8px 0;
 }
 
-.actor-auth-role {
+.actor-auth-role-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 4px;
-    border-radius: 3px;
-    font-size: 12px;
-    cursor: pointer;
 }
 
-.actor-auth-role:hover {
-    background: rgba(128, 128, 128, 0.1);
-}
-
-.actor-auth-role input[type="checkbox"] {
-    margin: 0;
+.actor-auth-role-select {
+    flex: 1;
+    min-width: 200px;
 }

@@ -174,19 +174,23 @@
             const transWrap = document.createElement('div');
             transWrap.className = 'actors-chip-list';
 
+            const transTrans = (PF.state.meta && PF.state.meta.translations &&
+                PF.state.meta.translations.transTrans) || {};
+
             const transSet = transitionsByActor[actor] || new Set();
             const transList = [...transSet].sort();
 
             for (const tName of transList) {
+                const tRu = transTrans[tName];
                 const chip = document.createElement('span');
                 chip.className = 'actors-chip';
                 chip.dataset.act = 'open-transition';
                 chip.dataset.transition = tName;
-                chip.title = 'Открыть переход';
+                chip.title = 'Открыть переход' + (tRu && tRu !== tName ? ' — ' + tRu : '');
 
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'actors-chip-label';
-                labelSpan.textContent = tName;
+                labelSpan.textContent = tName + (tRu && tRu !== tName ? ' (' + tRu + ')' : '');
                 chip.appendChild(labelSpan);
 
                 const chipDel = document.createElement('span');
@@ -497,9 +501,8 @@
             return;
         }
 
-        const allRoles = auth.allRoles || [];
-        const actorRoles = (auth.actorRoles && auth.actorRoles[actor]) || [];
-        const selected = new Set(actorRoles);
+        const allRoles = (auth.allRoles || []).slice();
+        const actorRoles = ((auth.actorRoles && auth.actorRoles[actor]) || []).slice();
 
         const container = document.getElementById('modalContainer');
         const backdrop = document.createElement('div');
@@ -523,33 +526,82 @@
         pathEl.title = auth.path || '';
         modal.appendChild(pathEl);
 
-        if (!allRoles.length) {
-            const empty = document.createElement('div');
-            empty.className = 'hint';
-            empty.textContent = 'Список ролей пуст — нет ни authorization.csv, ни groupAuthorization.csv.';
-            modal.appendChild(empty);
-        } else {
-            const wrap = document.createElement('div');
-            wrap.className = 'actor-auth-roles';
-            for (const role of allRoles) {
-                const lbl = document.createElement('label');
-                lbl.className = 'actor-auth-role';
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.value = role;
-                cb.checked = selected.has(role);
-                cb.addEventListener('change', () => {
-                    if (cb.checked) selected.add(role);
-                    else selected.delete(role);
+        // Контейнер списка выбранных ролей
+        const listWrap = document.createElement('div');
+        listWrap.className = 'actor-auth-role-list';
+        modal.appendChild(listWrap);
+
+        // Локальное состояние — массив выбранных ролей
+        let localRoles = actorRoles.slice();
+
+        function renderList() {
+            listWrap.innerHTML = '';
+
+            // Если ролей нет — показываем один пустой селект
+            if (!localRoles.length) localRoles = [''];
+
+            for (let i = 0; i < localRoles.length; i++) {
+                const row = document.createElement('div');
+                row.className = 'actor-auth-role-row';
+
+                const sel = document.createElement('select');
+                sel.className = 'actor-auth-role-select';
+
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = '— не выбрано —';
+                sel.appendChild(emptyOpt);
+
+                // Уже выбранные в других строках — не даём выбрать повторно
+                const usedElsewhere = new Set(
+                    localRoles.filter((r, idx) => idx !== i && r)
+                );
+
+                for (const role of allRoles) {
+                    if (usedElsewhere.has(role)) continue;
+                    const opt = document.createElement('option');
+                    opt.value = role;
+                    opt.textContent = role;
+                    if (role === localRoles[i]) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                sel.value = localRoles[i] || '';
+
+                sel.addEventListener('change', () => {
+                    localRoles[i] = sel.value;
+                    renderList();
                 });
-                lbl.appendChild(cb);
-                const span = document.createElement('span');
-                span.textContent = role;
-                lbl.appendChild(span);
-                wrap.appendChild(lbl);
+
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'danger small';
+                del.textContent = '×';
+                del.title = 'Убрать роль';
+                del.addEventListener('click', () => {
+                    localRoles.splice(i, 1);
+                    renderList();
+                });
+
+                row.appendChild(sel);
+                row.appendChild(del);
+                listWrap.appendChild(row);
             }
-            modal.appendChild(wrap);
+
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'secondary small';
+            addBtn.textContent = '＋ Добавить роль';
+            addBtn.style.marginTop = '6px';
+            addBtn.disabled = allRoles.length === 0 ||
+                localRoles.filter(Boolean).length >= allRoles.length;
+            addBtn.addEventListener('click', () => {
+                localRoles.push('');
+                renderList();
+            });
+            listWrap.appendChild(addBtn);
         }
+
+        renderList();
 
         const actions = document.createElement('div');
         actions.className = 'actions';
@@ -567,7 +619,7 @@
 
         cancelBtn.addEventListener('click', () => backdrop.remove());
         saveBtn.addEventListener('click', async () => {
-            const roles = [...selected].sort();
+            const roles = [...new Set(localRoles.filter(Boolean))].sort();
 
             const added = roles.filter(r => !actorRoles.includes(r));
             const removed = actorRoles.filter(r => !roles.includes(r));
@@ -580,6 +632,7 @@
             const lines = ['Актор: ' + actor, '', 'Будет изменён authorization.csv:', ''];
             if (added.length) lines.push('  + ' + added.join(', '));
             if (removed.length) lines.push('  − ' + removed.join(', '));
+            if (!added.length && !removed.length) lines.push('  (без изменений)');
 
             const ok = await PF.utils.showConfirm(lines.join('\n'), 'Сохранение авторизации');
             if (!ok) return;

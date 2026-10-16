@@ -7,6 +7,10 @@
     const BASE_STATE_H = 50;
     const EDGE_PAD = 10;
 
+    /* ============================================================
+     * ГЕОМЕТРИЯ
+     * ============================================================ */
+
     function rectsIntersect(a, b) {
         return !(a.x + a.w < b.x || b.x + b.w < a.x ||
             a.y + a.h < b.y || b.y + b.h < a.y);
@@ -47,7 +51,6 @@
         const dBottom = Math.abs(pt.y - (rect.y + rect.h));
         const dLeft = Math.abs(pt.x - rect.x);
         const dRight = Math.abs(pt.x - (rect.x + rect.w));
-
         const min = Math.min(dTop, dBottom, dLeft, dRight);
         if (min === dTop) return 'N';
         if (min === dBottom) return 'S';
@@ -115,7 +118,6 @@
             if (d1 < 0.5 || d2 < 0.5) continue;
 
             const rr = Math.min(R, d1 / 2, d2 / 2);
-
             const start = {
                 x: cur.x - (cur.x - prev.x) * (rr / d1),
                 y: cur.y - (cur.y - prev.y) * (rr / d1)
@@ -124,7 +126,6 @@
                 x: cur.x + (next.x - cur.x) * (rr / d2),
                 y: cur.y + (next.y - cur.y) * (rr / d2)
             };
-
             d += ' L ' + start.x + ' ' + start.y;
             d += ' Q ' + cur.x + ' ' + cur.y + ' ' + end.x + ' ' + end.y;
         }
@@ -134,20 +135,24 @@
         return d;
     }
 
+    /* ============================================================
+     * МАРШРУТИЗАЦИЯ
+     * ============================================================ */
+
     function computeStubs(p1, p2, startEdge, endEdge) {
         const stub = 18;
         const p1out = { x: p1.x, y: p1.y };
         const p2out = { x: p2.x, y: p2.y };
 
-        if (startEdge === 'E' && p2.x > p1.x + stub) p1out.x = p1.x + stub;
-        else if (startEdge === 'W' && p2.x < p1.x - stub) p1out.x = p1.x - stub;
-        else if (startEdge === 'S' && p2.y > p1.y + stub) p1out.y = p1.y + stub;
-        else if (startEdge === 'N' && p2.y < p1.y - stub) p1out.y = p1.y - stub;
+        if (startEdge === 'E') p1out.x = p1.x + stub;
+        else if (startEdge === 'W') p1out.x = p1.x - stub;
+        else if (startEdge === 'S') p1out.y = p1.y + stub;
+        else if (startEdge === 'N') p1out.y = p1.y - stub;
 
-        if (endEdge === 'E' && p1.x > p2.x + stub) p2out.x = p2.x + stub;
-        else if (endEdge === 'W' && p1.x < p2.x - stub) p2out.x = p2.x - stub;
-        else if (endEdge === 'S' && p1.y > p2.y + stub) p2out.y = p2.y + stub;
-        else if (endEdge === 'N' && p1.y < p2.y - stub) p2out.y = p2.y - stub;
+        if (endEdge === 'E') p2out.x = p2.x + stub;
+        else if (endEdge === 'W') p2out.x = p2.x - stub;
+        else if (endEdge === 'S') p2out.y = p2.y + stub;
+        else if (endEdge === 'N') p2out.y = p2.y - stub;
 
         return { p1out, p2out };
     }
@@ -190,11 +195,9 @@
     function findFirstBlocker(points, obstacles, aRect, bRect) {
         for (let i = 1; i < points.length; i++) {
             const a = points[i - 1], b = points[i];
-
             for (const o of obstacles) {
                 if (segmentHitsRect(a, b, o)) return o;
             }
-
             if (i > 1 && aRect && segmentHitsRect(a, b, aRect)) return aRect;
             if (i < points.length - 1 && bRect && segmentHitsRect(a, b, bRect)) return bRect;
         }
@@ -329,6 +332,10 @@
         return simplifyOrtho([p1, p1out, ...middle, p2out, p2]);
     }
 
+    /* ============================================================
+     * МЕТКИ И РАБОТА С СЕГМЕНТАМИ
+     * ============================================================ */
+
     function labelFromWaypoints(waypoints) {
         if (!waypoints || waypoints.length < 2) return null;
         let best = 0, bestIdx = 0;
@@ -340,11 +347,7 @@
         const a = waypoints[bestIdx], b = waypoints[bestIdx + 1];
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         const isHorizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
-        return {
-            x: mx,
-            y: my,
-            orientation: isHorizontal ? 'h' : 'v'
-        };
+        return { x: mx, y: my, orientation: isHorizontal ? 'h' : 'v' };
     }
 
     function segPerp(a, b) {
@@ -360,10 +363,7 @@
         for (let i = 0; i < waypoints.length - 1; i++) {
             const a = waypoints[i], b = waypoints[i + 1];
             const d = distToSegment(pt, a, b);
-            if (d < bestDist) {
-                bestDist = d;
-                best = i;
-            }
+            if (d < bestDist) { bestDist = d; best = i; }
         }
         return best;
     }
@@ -378,111 +378,255 @@
         return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
     }
 
-    function rerouteAll() {
-        const graphData = PF.state.graphData;
-        if (!graphData) return;
+    /* ============================================================
+     * ГЛАВНЫЙ ПЕРЕСЧЁТ
+     * ============================================================ */
 
-        const states = graphData.states;
-        const transitions = graphData.transitions;
-        const stateByName = {};
-        states.forEach(s => stateByName[s.name] = s);
 
-        const edges = transitions.map(t => {
-            const a = stateByName[t.from], b = stateByName[t.to];
-            if (!a || !b) return null;
+    // Выбор граней для перехода из пары A↔B: делаем путь L-образным
+    // (один перегиб) — выходим по доминирующей оси, входим по ортогональной.
+    function chooseEdgePair(aRect, bRect) {
+        const acx = aRect.x + aRect.w / 2;
+        const acy = aRect.y + aRect.h / 2;
+        const bcx = bRect.x + bRect.w / 2;
+        const bcy = bRect.y + bRect.h / 2;
+        const dx = bcx - acx;
+        const dy = bcy - acy;
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
             return {
-                startEdge: chooseEdge(a, b),
-                endEdge: chooseEdge(b, a)
+                start: dx >= 0 ? 'E' : 'W',
+                end: dy >= 0 ? 'N' : 'S'
             };
+        }
+        return {
+            start: dy >= 0 ? 'S' : 'N',
+            end: dx >= 0 ? 'W' : 'E'
+        };
+    }
+
+    function rerouteAll() {
+        const gd = PF.state.graphData;
+        if (!gd) return;
+        const states = gd.states;
+        const transitions = gd.transitions;
+        const byName = {};
+        states.forEach(s => byName[s.name] = s);
+        const allRects = states.map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h }));
+
+        // 1. Базовые грани для каждого перехода
+        // Определяем, кто в паре A↔B.
+        const inPair = new Set();
+        {
+            const byPair = new Map();
+            for (let i = 0; i < transitions.length; i++) {
+                const t = transitions[i];
+                if (t.manual) continue;
+                const key = [t.from, t.to].sort().join('|');
+                if (!byPair.has(key)) byPair.set(key, []);
+                byPair.get(key).push(i);
+            }
+            for (const [, idxs] of byPair) {
+                if (idxs.length !== 2) continue;
+                inPair.add(idxs[0]);
+                inPair.add(idxs[1]);
+            }
+        }
+
+        const edges = transitions.map((t, i) => {
+            const a = byName[t.from], b = byName[t.to];
+            if (!a || !b) return null;
+            if (inPair.has(i)) {
+                return chooseEdgePair(a, b);
+            }
+            return { start: chooseEdge(a, b), end: chooseEdge(b, a) };
         });
 
+        // 2. Группируем точки по (состояние + грань).
+        //    В каждой группе распределяем смещения вдоль грани.
+        //    Так две встречные линии (A→B и B→A) получают разные точки
+        //    даже если используют одну и ту же грань.
         const groups = new Map();
-        edges.forEach((e, i) => {
-            if (!e) return;
+        for (let i = 0; i < transitions.length; i++) {
             const t = transitions[i];
-            const a = stateByName[t.from];
-            const b = stateByName[t.to];
-            const kS = t.from + '|' + e.startEdge;
-            const kE = t.to + '|' + e.endEdge;
+            const e = edges[i];
+            if (!e || t.manual) continue;
+            const a = byName[t.from], b = byName[t.to];
+
+            const kS = t.from + '|' + e.start;
             if (!groups.has(kS)) groups.set(kS, []);
-            if (!groups.has(kE)) groups.set(kE, []);
             groups.get(kS).push({
                 idx: i, side: 'start',
-                sortKeyY: b.y + b.h / 2,
-                sortKeyX: b.x + b.w / 2
+                towardY: b.y + b.h / 2,
+                towardX: b.x + b.w / 2
             });
+
+            const kE = t.to + '|' + e.end;
+            if (!groups.has(kE)) groups.set(kE, []);
             groups.get(kE).push({
                 idx: i, side: 'end',
-                sortKeyY: a.y + a.h / 2,
-                sortKeyX: a.x + a.w / 2
+                towardY: a.y + a.h / 2,
+                towardX: a.x + a.w / 2
             });
-        });
+        }
 
-        const startOffsets = new Array(transitions.length).fill(0);
-        const endOffsets = new Array(transitions.length).fill(0);
+        const startOff = new Array(transitions.length).fill(0);
+        const endOff = new Array(transitions.length).fill(0);
+
         for (const [key, list] of groups) {
-            const n = list.length;
+            if (list.length < 2) continue;
             const sep = key.indexOf('|');
             const stateName = key.slice(0, sep);
             const axis = key.slice(sep + 1);
-            const st = stateByName[stateName];
-            const edgeLen = (axis === 'E' || axis === 'W') ? st.h : st.w;
-            const range = Math.max(0, edgeLen - 2 * EDGE_PAD);
+            const st = byName[stateName];
+            if (!st) continue;
+            const isVert = (axis === 'E' || axis === 'W');
+            const len = isVert ? st.h : st.w;
+            const range = Math.max(0, len - 2 * EDGE_PAD);
 
-            const isVerticalEdge = (axis === 'E' || axis === 'W');
             list.sort((p, q) => {
-                if (isVerticalEdge) {
-                    if (p.sortKeyY !== q.sortKeyY) return p.sortKeyY - q.sortKeyY;
+                if (isVert) {
+                    if (p.towardY !== q.towardY) return p.towardY - q.towardY;
                 } else {
-                    if (p.sortKeyX !== q.sortKeyX) return p.sortKeyX - q.sortKeyX;
+                    if (p.towardX !== q.towardX) return p.towardX - q.towardX;
                 }
                 return p.idx - q.idx;
             });
 
+            const n = list.length;
             for (let j = 0; j < n; j++) {
                 const off = (n === 1) ? 0 : (-range / 2 + j * (range / (n - 1)));
-                if (list[j].side === 'start') startOffsets[list[j].idx] = off;
-                else endOffsets[list[j].idx] = off;
+                if (list[j].side === 'start') startOff[list[j].idx] = off;
+                else endOff[list[j].idx] = off;
             }
         }
 
-        const allRects = states.map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h }));
-        transitions.forEach((t, i) => {
+        // 3. Строим маршруты
+        for (let i = 0; i < transitions.length; i++) {
+            const t = transitions[i];
+
             if (t.manual && Array.isArray(t.manualWaypoints) && t.manualWaypoints.length >= 2) {
                 const wps = t.manualWaypoints.map(p => ({ x: p.x, y: p.y }));
-
-                // Крайние точки привязываем к границе текущих состояний,
-                // чтобы при их перемещении переход «тянулся» за ними.
-                // Средние точки остаются как сохранены.
-                const a = stateByName[t.from];
-                const b = stateByName[t.to];
-
+                const a = byName[t.from], b = byName[t.to];
                 if (a) {
-                    const aRect = { x: a.x, y: a.y, w: a.w, h: a.h };
-                    const edge = findNearestEdge(aRect, wps[0]);
-                    wps[0] = snapToEdge(aRect, edge, wps[0]);
+                    const r = { x: a.x, y: a.y, w: a.w, h: a.h };
+                    const e = findNearestEdge(r, wps[0]);
+                    wps[0] = snapToEdge(r, e, wps[0]);
                 }
                 if (b) {
-                    const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-                    const last = wps.length - 1;
-                    const edge = findNearestEdge(bRect, wps[last]);
-                    wps[last] = snapToEdge(bRect, edge, wps[last]);
+                    const r = { x: b.x, y: b.y, w: b.w, h: b.h };
+                    const e = findNearestEdge(r, wps[wps.length - 1]);
+                    wps[wps.length - 1] = snapToEdge(r, e, wps[wps.length - 1]);
                 }
-
                 t.waypoints = wps;
-                t.label = labelFromWaypoints(t.waypoints);
-                return;
+                t.label = labelFromWaypoints(wps);
+                continue;
             }
-            const a = stateByName[t.from], b = stateByName[t.to];
+
             const e = edges[i];
-            if (!a || !b || !e) { t.waypoints = []; t.label = null; return; }
-            const aRect = { x: a.x, y: a.y, w: a.w, h: a.h };
-            const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-            const p1 = pointOnEdge(aRect, e.startEdge, startOffsets[i]);
-            const p2 = pointOnEdge(bRect, e.endEdge, endOffsets[i]);
-            t.waypoints = routeBetween(p1, p2, e.startEdge, e.endEdge, aRect, bRect, allRects);
+            const a = byName[t.from], b = byName[t.to];
+            if (!e || !a || !b) { t.waypoints = []; t.label = null; continue; }
+
+            const aR = { x: a.x, y: a.y, w: a.w, h: a.h };
+            const bR = { x: b.x, y: b.y, w: b.w, h: b.h };
+            const p1 = pointOnEdge(aR, e.start, startOff[i]);
+            const p2 = pointOnEdge(bR, e.end, endOff[i]);
+
+            t.waypoints = routeBetween(p1, p2, e.start, e.end, aR, bR, allRects);
             t.label = labelFromWaypoints(t.waypoints);
-        });
+        }
+
+        console.log('[wp after routeBetween]',
+            transitions.map((t, i) => {
+                if (!inPair.has(i)) return null;
+                const w = t.waypoints || [];
+                return t.name + '=' +
+                    w.map(p => '(' + Math.round(p.x) + ',' + Math.round(p.y) + ')').join('->');
+            }).filter(Boolean).join('   '));
+
+        // Пары A↔B: если линии легли на одну ось (общий X или Y),
+        // сдвигаем средние сегменты в разные стороны, чтобы не сливались.
+        {
+            const pairs = new Map();
+            for (let i = 0; i < transitions.length; i++) {
+                const t = transitions[i];
+                if (t.manual) continue;
+                if (!edges[i]) continue;
+                const key = [t.from, t.to].sort().join('|');
+                if (!pairs.has(key)) pairs.set(key, []);
+                pairs.get(key).push(i);
+            }
+
+            const SHIFT = 25;
+
+            for (const [, idxs] of pairs) {
+                if (idxs.length !== 2) continue;
+                const [i1, i2] = idxs;
+                const w1 = transitions[i1].waypoints;
+                const w2 = transitions[i2].waypoints;
+                if (!w1 || !w2 || w1.length < 3 || w2.length < 3) continue;
+
+                // Ищем общий средний сегмент: горизонтальный на одном Y
+                // или вертикальный на одном X.
+                let commonAxis = null;
+                for (let k = 1; k < w1.length - 1; k++) {
+                    const h1 = Math.abs(w1[k].y - w1[k - 1].y) < 1 &&
+                        Math.abs(w1[k + 1].y - w1[k].y) < 1;
+                    const v1 = Math.abs(w1[k].x - w1[k - 1].x) < 1 &&
+                        Math.abs(w1[k + 1].x - w1[k].x) < 1;
+                    if (!h1 && !v1) continue;
+                    for (let m = 1; m < w2.length - 1; m++) {
+                        const h2 = Math.abs(w2[m].y - w2[m - 1].y) < 1 &&
+                            Math.abs(w2[m + 1].y - w2[m].y) < 1;
+                        const v2 = Math.abs(w2[m].x - w2[m - 1].x) < 1 &&
+                            Math.abs(w2[m + 1].x - w2[m].x) < 1;
+                        if (h1 && h2 && Math.abs(w1[k].y - w2[m].y) < 1) {
+                            commonAxis = 'H'; break;
+                        }
+                        if (v1 && v2 && Math.abs(w1[k].x - w2[m].x) < 1) {
+                            commonAxis = 'V'; break;
+                        }
+                    }
+                    if (commonAxis) break;
+                }
+                if (!commonAxis) continue;
+
+                // Сдвигаем средние сегменты в противоположные стороны.
+                for (const [i, sign] of [[i1, -1], [i2, 1]]) {
+                    const t = transitions[i];
+                    const wps = t.waypoints;
+                    if (commonAxis === 'H') {
+                        // Горизонтальный общий сегмент → сдвигаем по Y.
+                        for (let k = 1; k < wps.length - 1; k++) {
+                            wps[k] = { x: wps[k].x, y: wps[k].y + SHIFT * sign };
+                        }
+                    } else {
+                        // Вертикальный общий сегмент → сдвигаем по X.
+                        for (let k = 1; k < wps.length - 1; k++) {
+                            wps[k] = { x: wps[k].x + SHIFT * sign, y: wps[k].y };
+                        }
+                    }
+                }
+            }
+        }
+
+
+        console.log('[reroute]',
+            transitions.map((t, i) => {
+                const e = edges[i];
+                const pairKey = [t.from, t.to].sort().join('|');
+                const isPair = (() => {
+                    let n = 0;
+                    for (let k = 0; k < transitions.length; k++) {
+                        if ([transitions[k].from, transitions[k].to].sort().join('|') === pairKey) n++;
+                    }
+                    return n === 2;
+                })();
+                return t.name + '=' +
+                    (e ? e.start + '/' + e.end : '?') +
+                    (isPair ? '(p)' : '') +
+                    (t.manual ? '(m)' : '');
+            }).join('  '));
 
         spreadParallelSegments();
         for (const t of transitions) {
@@ -490,11 +634,348 @@
         }
     }
 
-    function spreadParallelSegments() {
-        const graphData = PF.state.graphData;
-        if (!graphData) return;
+    /* ============================================================
+     * ВЫРАВНИВАНИЕ
+     * ============================================================ */
 
-        const transitions = graphData.transitions;
+    function alignTransitions() {
+        const gd = PF.state.graphData;
+        if (!gd) return;
+        const TOL_DEG = 20;
+        const transitions = gd.transitions || [];
+        const states = gd.states || [];
+
+        function pointInside(nx, ny) {
+            for (const s of states) {
+                if (nx > s.x + 1 && nx < s.x + s.w - 1 &&
+                    ny > s.y + 1 && ny < s.y + s.h - 1) return true;
+            }
+            return false;
+        }
+
+        for (const t of transitions) {
+            if (!Array.isArray(t.waypoints) || t.waypoints.length < 2) continue;
+            const wps = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+
+            for (let i = 0; i < wps.length - 1; i++) {
+                const a = wps[i], b = wps[i + 1];
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const adx = Math.abs(dx), ady = Math.abs(dy);
+                const len = Math.hypot(dx, dy);
+                if (len < 0.01) continue;
+
+                const angleFromH = Math.atan2(ady, adx) * 180 / Math.PI;
+                const angleFromV = 90 - angleFromH;
+
+                if (angleFromH < TOL_DEG) {
+                    const ny = a.y;
+                    if (!pointInside(b.x, ny)) b.y = ny;
+                } else if (angleFromV < TOL_DEG) {
+                    const nx = a.x;
+                    if (!pointInside(nx, b.y)) b.x = nx;
+                }
+            }
+
+            const out = [wps[0]];
+            for (let i = 1; i < wps.length - 1; i++) {
+                const prev = out[out.length - 1];
+                const cur = wps[i];
+                const next = wps[i + 1];
+                const colH = Math.abs(prev.y - cur.y) < 1 && Math.abs(cur.y - next.y) < 1;
+                const colV = Math.abs(prev.x - cur.x) < 1 && Math.abs(cur.x - next.x) < 1;
+                if (colH || colV) continue;
+                out.push(cur);
+            }
+            out.push(wps[wps.length - 1]);
+
+            // Убираем «почти-коллинеарные» узлы: если средний узел
+            // лежит в пределах TOL_CLEAN от отрезка соседей — он
+            // визуально не нужен, спрямляем.
+            const TOL_CLEAN = 7;
+            let changed = true;
+            while (changed) {
+                changed = false;
+                const cleaned = [out[0]];
+                for (let i = 1; i < out.length - 1; i++) {
+                    const prev = cleaned[cleaned.length - 1];
+                    const cur = out[i];
+                    const next = out[i + 1];
+                    const d = distToSegment(cur, prev, next);
+                    if (d < TOL_CLEAN) { changed = true; continue; }
+                    cleaned.push(cur);
+                }
+                cleaned.push(out[out.length - 1]);
+                out.length = 0;
+                for (const p of cleaned) out.push(p);
+            }
+
+            t.waypoints = out;
+            t.manual = true;
+            t.manualWaypoints = out.map(p => ({ x: p.x, y: p.y }));
+            t.label = labelFromWaypoints(out);
+        }
+
+        PF.render.renderGraph();
+        PF.layout.applyViewBox();
+    }
+
+    /* ============================================================
+     * ОПТИМИЗАЦИЯ ПЕРЕХОДОВ (минимум пересечений)
+     * ============================================================ */
+
+    function optimizeTransitions() {
+        const gd = PF.state.graphData;
+        if (!gd) return;
+        const transitions = gd.transitions || [];
+        const states = gd.states || [];
+        const byName = {};
+        states.forEach(s => byName[s.name] = s);
+        const allRects = states.map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h }));
+
+        const inPair = new Set();
+        {
+            const byPair = new Map();
+            for (let i = 0; i < transitions.length; i++) {
+                const t = transitions[i];
+                if (t.manual) continue;
+                const key = [t.from, t.to].sort().join('|');
+                if (!byPair.has(key)) byPair.set(key, []);
+                byPair.get(key).push(i);
+            }
+            for (const [, idxs] of byPair) {
+                if (idxs.length !== 2) continue;
+                inPair.add(idxs[0]);
+                inPair.add(idxs[1]);
+            }
+        }
+
+        function segCross(a1, a2, b1, b2) {
+            const aH = Math.abs(a1.y - a2.y) < 0.5;
+            const bH = Math.abs(b1.y - b2.y) < 0.5;
+            if (aH === bH) return false;
+            let H, V;
+            if (aH) {
+                H = { x1: Math.min(a1.x, a2.x), x2: Math.max(a1.x, a2.x), y: a1.y };
+                V = { y1: Math.min(b1.y, b2.y), y2: Math.max(b1.y, b2.y), x: b1.x };
+            } else {
+                H = { x1: Math.min(b1.x, b2.x), x2: Math.max(b1.x, b2.x), y: b1.y };
+                V = { y1: Math.min(a1.y, a2.y), y2: Math.max(a1.y, a2.y), x: a1.x };
+            }
+            if (V.x <= H.x1 || V.x >= H.x2) return false;
+            if (H.y <= V.y1 || H.y >= V.y2) return false;
+            return true;
+        }
+
+        function pathLen(wps) {
+            let L = 0;
+            for (let i = 1; i < wps.length; i++) {
+                L += Math.abs(wps[i].x - wps[i - 1].x) + Math.abs(wps[i].y - wps[i - 1].y);
+            }
+            return L;
+        }
+
+        function countCrossings(wps, other) {
+            if (!other || other.length < 2) return 0;
+            let c = 0;
+            for (let i = 0; i < wps.length - 1; i++) {
+                for (let j = 0; j < other.length - 1; j++) {
+                    if (segCross(wps[i], wps[i + 1], other[j], other[j + 1])) c++;
+                }
+            }
+            return c;
+        }
+
+        // Коллинеарное перекрытие: оба сегмента горизонтальны (или
+        // вертикальны) и их диапазоны пересекаются больше чем на 1px.
+        // segCross такой случай не ловит, а визуально это самое плохое —
+        // линии слипаются в одну.
+        function segOverlap(a1, a2, b1, b2) {
+            const aH = Math.abs(a1.y - a2.y) < 0.5;
+            const bH = Math.abs(b1.y - b2.y) < 0.5;
+            const aV = Math.abs(a1.x - a2.x) < 0.5;
+            const bV = Math.abs(b1.x - b2.x) < 0.5;
+
+            if (aH && bH && Math.abs(a1.y - b1.y) < 1.5) {
+                const ax1 = Math.min(a1.x, a2.x), ax2 = Math.max(a1.x, a2.x);
+                const bx1 = Math.min(b1.x, b2.x), bx2 = Math.max(b1.x, b2.x);
+                return (Math.min(ax2, bx2) - Math.max(ax1, bx1)) > 1;
+            }
+            if (aV && bV && Math.abs(a1.x - b1.x) < 1.5) {
+                const ay1 = Math.min(a1.y, a2.y), ay2 = Math.max(a1.y, a2.y);
+                const by1 = Math.min(b1.y, b2.y), by2 = Math.max(b1.y, b2.y);
+                return (Math.min(ay2, by2) - Math.max(ay1, by1)) > 1;
+            }
+            return false;
+        }
+
+        function countOverlaps(wps, other) {
+            if (!other || other.length < 2) return 0;
+            let c = 0;
+            for (let i = 0; i < wps.length - 1; i++) {
+                for (let j = 0; j < other.length - 1; j++) {
+                    if (segOverlap(wps[i], wps[i + 1], other[j], other[j + 1])) c++;
+                }
+            }
+            return c;
+        }
+
+        const EDGES = ['E', 'W', 'N', 'S'];
+
+        for (let iter = 0; iter < 3; iter++) {
+            for (let i = 0; i < transitions.length; i++) {
+                const t = transitions[i];
+                if (t.manual) continue;
+                if (inPair.has(i)) continue;
+                const a = byName[t.from], b = byName[t.to];
+                if (!a || !b) continue;
+                const aR = { x: a.x, y: a.y, w: a.w, h: a.h };
+                const bR = { x: b.x, y: b.y, w: b.w, h: b.h };
+
+                // Смещения вдоль грани: если центр занят, ищем свободное
+                // место рядом на той же грани, а не уходим на другую.
+                const OFFS = [-15, 0, 15];
+                const maxVa = aR.h / 2 - EDGE_PAD;
+                const maxHa = aR.w / 2 - EDGE_PAD;
+                const maxVb = bR.h / 2 - EDGE_PAD;
+                const maxHb = bR.w / 2 - EDGE_PAD;
+
+                let best = null, bestScore = Infinity;
+                for (const se of EDGES) {
+                    for (const ee of EDGES) {
+                        for (const off1 of OFFS) {
+                            for (const off2 of OFFS) {
+                                let o1 = off1;
+                                if (se === 'E' || se === 'W') o1 = Math.max(-maxVa, Math.min(maxVa, o1));
+                                else o1 = Math.max(-maxHa, Math.min(maxHa, o1));
+
+                                let o2 = off2;
+                                if (ee === 'E' || ee === 'W') o2 = Math.max(-maxVb, Math.min(maxVb, o2));
+                                else o2 = Math.max(-maxHb, Math.min(maxHb, o2));
+
+                                const p1 = pointOnEdge(aR, se, o1);
+                                const p2 = pointOnEdge(bR, ee, o2);
+                                let wps;
+                                try { wps = routeBetween(p1, p2, se, ee, aR, bR, allRects); }
+                                catch (e) { continue; }
+                                if (!wps || wps.length < 2) continue;
+
+                                let crossings = 0;
+                                for (let j = 0; j < transitions.length; j++) {
+                                    if (j === i) continue;
+                                    const other = transitions[j].waypoints;
+                                    if (!other) continue;
+                                    crossings += countCrossings(wps, other);
+                                    crossings += countOverlaps(wps, other);
+                                }
+                                const score = pathLen(wps) + crossings * 2000
+                                    + (Math.abs(o1) + Math.abs(o2)) * 0.5;
+                                if (score < bestScore) { bestScore = score; best = wps; }
+                            }
+                        }
+                    }
+                }
+
+                if (best) {
+                    t.waypoints = best;
+                    t.label = labelFromWaypoints(best);
+                }
+            }
+
+            // --- парный проход: грани для каждой стороны независимы ---
+            const pairMap = new Map();
+            for (const i of inPair) {
+                const t = transitions[i];
+                const key = [t.from, t.to].sort().join('|');
+                if (!pairMap.has(key)) pairMap.set(key, []);
+                pairMap.get(key).push(i);
+            }
+
+            for (const [, idxs] of pairMap) {
+                if (idxs.length !== 2) continue;
+                const [i1, i2] = idxs;
+                const t1 = transitions[i1], t2 = transitions[i2];
+                const a1 = byName[t1.from], b1 = byName[t1.to];
+                const a2 = byName[t2.from], b2 = byName[t2.to];
+                if (!a1 || !b1 || !a2 || !b2) continue;
+                const a1R = { x: a1.x, y: a1.y, w: a1.w, h: a1.h };
+                const b1R = { x: b1.x, y: b1.y, w: b1.w, h: b1.h };
+                const a2R = { x: a2.x, y: a2.y, w: a2.w, h: a2.h };
+                const b2R = { x: b2.x, y: b2.y, w: b2.w, h: b2.h };
+
+                // Несколько значений смещения вдоль грани. Оптимизатор
+                // выберет то, где пара не пересекается с третьими линиями.
+                const OFFS = [-15, -9, -3, 3, 9, 15];
+                let bestPair = null, bestPairScore = Infinity;
+
+                for (const se1 of EDGES) for (const ee1 of EDGES)
+                    for (const se2 of EDGES) for (const ee2 of EDGES)
+                        for (const off1 of OFFS) for (const off2 of OFFS) {
+                            const p1a = pointOnEdge(a1R, se1, off1);
+                            const p1b = pointOnEdge(b1R, ee1, -off1);
+                            const p2a = pointOnEdge(a2R, se2, off2);
+                            const p2b = pointOnEdge(b2R, ee2, -off2);
+
+                            let w1, w2;
+                            try {
+                                w1 = routeBetween(p1a, p1b, se1, ee1, a1R, b1R, allRects);
+                                w2 = routeBetween(p2a, p2b, se2, ee2, a2R, b2R, allRects);
+                            } catch (e) { continue; }
+                            if (!w1 || !w2 || w1.length < 2 || w2.length < 2) continue;
+
+                            if (countOverlaps(w1, w2) > 0) continue;
+
+                            let crossings = 0;
+                            for (let j = 0; j < transitions.length; j++) {
+                                if (j === i1 || j === i2) continue;
+                                const other = transitions[j].waypoints;
+                                if (!other) continue;
+                                crossings += countCrossings(w1, other);
+                                crossings += countCrossings(w2, other);
+                                crossings += countOverlaps(w1, other);
+                                crossings += countOverlaps(w2, other);
+                            }
+                            const selfCross = countCrossings(w1, w2);
+                            const score = pathLen(w1) + pathLen(w2)
+                                + crossings * 2000
+                                + selfCross * 100000
+                                + (Math.abs(off1) + Math.abs(off2)) * 0.5;
+                            if (score < bestPairScore) {
+                                bestPairScore = score;
+                                bestPair = { w1, w2 };
+                            }
+                        }
+
+                if (bestPair) {
+                    t1.waypoints = bestPair.w1;
+                    t1.label = labelFromWaypoints(bestPair.w1);
+                    t2.waypoints = bestPair.w2;
+                    t2.label = labelFromWaypoints(bestPair.w2);
+                }
+            }
+        }
+
+        spreadParallelSegments();
+
+        console.log('[wp after optimize]',
+            transitions.map((t, i) => {
+                if (!inPair.has(i)) return null;
+                const w = t.waypoints || [];
+                return t.name + '=' +
+                    w.map(p => '(' + Math.round(p.x) + ',' + Math.round(p.y) + ')').join('->');
+            }).filter(Boolean).join('   '));
+        PF.render.renderGraph();
+        PF.layout.applyViewBox();
+    }
+
+    /* ============================================================
+     * РАЗВЕДЕНИЕ ПАРАЛЛЕЛЬНЫХ СЕГМЕНТОВ
+     * ============================================================ */
+
+    function spreadParallelSegments() {
+        const gd = PF.state.graphData;
+        if (!gd) return;
+
+        const transitions = gd.transitions;
         const LANE_STEP = 6;
 
         const segs = [];
@@ -561,6 +1042,10 @@
         }
     }
 
+    /* ============================================================
+     * ЭКСПОРТ
+     * ============================================================ */
+
     PF.routing = {
         BASE_STATE_W, BASE_STATE_H, EDGE_PAD,
         rectsIntersect,
@@ -583,6 +1068,8 @@
         findSegmentIndex,
         distToSegment,
         rerouteAll,
-        spreadParallelSegments
+        spreadParallelSegments,
+        alignTransitions,
+        optimizeTransitions
     };
 })();

@@ -356,6 +356,45 @@
         const autoLayoutBtn = document.getElementById('autoLayoutBtn');
         if (autoLayoutBtn) autoLayoutBtn.addEventListener('click', () => { autoLayout(); });
 
+        // Авто-раскладка переходов
+        const optimizeTransitionsBtn = document.getElementById('optimizeTransitionsBtn');
+        if (optimizeTransitionsBtn) {
+            optimizeTransitionsBtn.addEventListener('click', async () => {
+                const ok = await showConfirm(
+                    'Сбросить ручные маршруты и пересчитать все переходы заново?',
+                    'Авто-раскладка переходов'
+                );
+                if (!ok) return;
+
+                // Полный сброс в памяти.
+                for (const t of (PF.state.graphData.transitions || [])) {
+                    t.manual = false;
+                    t.manualWaypoints = null;
+                }
+
+                PF.routing.rerouteAll();
+                PF.routing.optimizeTransitions();
+                PF.layout.fitGraph();
+
+                // Сохраняем результат на диск, чтобы ui.json не воскресил старое.
+                PF.vscode.postMessage({
+                    type: 'saveGraph',
+                    payload: {
+                        states: PF.state.graphData.states,
+                        transitions: PF.state.graphData.transitions
+                    }
+                });
+            });
+        }
+
+        // Выравнивание переходов
+        const alignTransitionsBtn = document.getElementById('alignTransitionsBtn');
+        if (alignTransitionsBtn) {
+            alignTransitionsBtn.addEventListener('click', () => {
+                PF.routing.alignTransitions();
+            });
+        }
+
         // Направление раскладки
         const layoutDirBtn = document.getElementById('layoutDirBtn');
         if (layoutDirBtn) {
@@ -408,6 +447,57 @@
         });
     }
 
+    function pickOptimizeMode() {
+        return new Promise((resolve) => {
+            const container = document.getElementById('modalContainer');
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop dialog-backdrop';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal dialog';
+
+            const h = document.createElement('h2');
+            h.className = 'dlg-title';
+            h.textContent = 'Авто-раскладка переходов';
+            modal.appendChild(h);
+
+            const info = document.createElement('div');
+            info.className = 'hint';
+            info.innerHTML =
+                'Что делать с ручными маршрутами?<br><br>' +
+                '<b>Только автоматические</b> — пересчитать переходы без ручной разметки.<br>' +
+                '<b>Сбросить все</b> — ручные маршруты будут потеряны, всё пересчитано.';
+            modal.appendChild(info);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'secondary';
+            cancelBtn.textContent = 'Отмена';
+
+            const keepBtn = document.createElement('button');
+            keepBtn.className = 'secondary';
+            keepBtn.textContent = 'Только автоматические';
+
+            const resetBtn = document.createElement('button');
+            resetBtn.textContent = 'Сбросить все';
+
+            actions.appendChild(cancelBtn);
+            actions.appendChild(keepBtn);
+            actions.appendChild(resetBtn);
+            modal.appendChild(actions);
+
+            backdrop.appendChild(modal);
+            container.appendChild(backdrop);
+
+            function close(v) { backdrop.remove(); resolve(v); }
+            cancelBtn.addEventListener('click', () => close(null));
+            keepBtn.addEventListener('click', () => close('auto-only'));
+            resetBtn.addEventListener('click', () => close('reset-all'));
+        });
+    }
+
     PF.toolbar = {
         injectIcons,
         updateViewToggleIcon,
@@ -419,7 +509,8 @@
         updateLabelsToggleBtn,
         autoLayout,
         applyViewMode,
-        init
+        init,
+        pickOptimizeMode
     };
 
     // Регистрируем в PF.app — нужно валидатору (forms-other.js)
