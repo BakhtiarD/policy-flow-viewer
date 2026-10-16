@@ -21,6 +21,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsFormsOtherUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'forms-other.js'));
     const jsToolbarUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'toolbar.js'));
     const jsTableUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'table.js'));
+    const jsMatrixUri     = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'matrix.js'));
     const jsLegendUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'legend.js'));
 
     const dataJson = JSON.stringify({
@@ -51,6 +52,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_TOOLBAR\}\}/g, () => jsToolbarUri.toString())
         .replace(/\{\{JS_LEGEND\}\}/g,      () => jsLegendUri.toString())
         .replace(/\{\{JS_TABLE\}\}/g, () => jsTableUri.toString())
+        .replace(/\{\{JS_MATRIX\}\}/g,    () => jsMatrixUri.toString())
         .replace(/\{\{JS_URI\}\}/g, () => jsUri.toString())
         .replace(/\{\{DAGRE_URI\}\}/g, () => dagreUri.toString())
         .replace(/\{\{DATA_JSON\}\}/g, () => dataJson);

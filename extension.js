@@ -78,7 +78,12 @@ function activate(context) {
                         else if (msg.type === 'addState') await handleAddState(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'editState') await handleEditState(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'toggleTerminal') await handleToggleTerminal(currentCtx, currentPanel, msg.state, msg.value);
-                        else if (msg.type === 'reload') { loadData(currentCtx); pushRender(currentCtx, currentPanel); }
+                        else if (msg.type === 'reload') {
+                            const { invalidateProjectCache } = require('./src/storage');
+                            invalidateProjectCache(currentCtx);
+                            loadData(currentCtx);
+                            pushRender(currentCtx, currentPanel);
+                        }
                         else if (msg.type === 'saveGraph') await handleSaveGraph(currentCtx, msg.payload);
                         else if (msg.type === 'deleteTransitions') await handleDeleteTransitions(currentCtx, currentPanel, msg.names);
                         else if (msg.type === 'editTransition') await handleEditTransition(currentCtx, currentPanel, msg.payload);
@@ -92,10 +97,10 @@ function activate(context) {
                         else if (msg.type === 'deleteClientAction') await handleDeleteClientAction(currentCtx, msg.actionName);
                         else if (msg.type === 'createClientAction') await handleCreateClientAction(currentCtx, msg.actionName);
                         else if (msg.type === 'renameClientAction') await handleRenameClientAction(currentCtx, msg.oldName, msg.newName);
-                        else if (msg.type === 'addAttachmentType')         await handleAddAttachmentType(currentCtx, currentPanel, msg.payload);
-                        else if (msg.type === 'removeAttachmentType')      await handleRemoveAttachmentType(currentCtx, currentPanel, msg.code);
-                        else if (msg.type === 'addAttachmentToDoc')        await handleAddAttachmentToDoc(currentCtx, currentPanel, msg.payload);
-                        else if (msg.type === 'removeAttachmentFromDoc')   await handleRemoveAttachmentFromDoc(currentCtx, currentPanel, msg.code);
+                        else if (msg.type === 'addAttachmentType') await handleAddAttachmentType(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'removeAttachmentType') await handleRemoveAttachmentType(currentCtx, currentPanel, msg.code);
+                        else if (msg.type === 'addAttachmentToDoc') await handleAddAttachmentToDoc(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'removeAttachmentFromDoc') await handleRemoveAttachmentFromDoc(currentCtx, currentPanel, msg.code);
                     } catch (e) {
                         vscode.window.showErrorMessage('Ошибка: ' + e.message);
                         console.error(e);

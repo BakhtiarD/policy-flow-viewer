@@ -524,29 +524,43 @@ function loadData(ctx) {
 
     // product-level: documentRelation + список документов
     ctx.productLevel = findProductLevel(flowPath);
-    ctx.projectRoot = findProjectRoot(flowPath);
-    ctx.pkgName = readPackageName(ctx.productLevel);
-    ctx.relations = loadAllRelations(ctx.projectRoot, ctx.productLevel, ctx.pkgName);
 
-    // Документы — из всех @config-* пакетов проекта (а не только из текущего).
-    ctx.documentNames = loadAllDocumentNames(ctx.projectRoot);
-
-    // Заголовки читаем только для тех документов, что встречаются как
-    // targetDocument в relations — это заметно ускоряет полный скан.
-    const targetDocNames = new Set(
-        (ctx.relations || []).map(r => r.targetDocument).filter(Boolean)
-    );
-
-
-    // Справочник AttachmentType из configuration/@config-*/infrastructure/
-    {
+    // Сканирование всего проекта (relations, documentNames, documentTitles,
+    // AttachmentType) — дорого. Кешируем в ctx и переиспользуем между
+    // loadData-вызовами. Сбрасывается через invalidateProjectCache(ctx)
+    // при явном reload или при изменениях, которые затрагивают эти данные.
+    if (!ctx.projectCache) {
+        const projectRoot = findProjectRoot(flowPath);
+        const pkgName = readPackageName(ctx.productLevel);
+        const relations = loadAllRelations(projectRoot, ctx.productLevel, pkgName);
+        const documentNames = loadAllDocumentNames(projectRoot);
+        const targetDocNames = new Set(
+            (relations || []).map(r => r.targetDocument).filter(Boolean)
+        );
+        const documentTitles = loadAllDocumentTitles(projectRoot, targetDocNames);
         const { loadAttachmentType } = require('./attachments');
-        const att = loadAttachmentType(ctx.projectRoot);
-        ctx.attachmentTypeDir = att.dir;
-        ctx.attachmentTypeCodes = att.codes;
-        ctx.attachmentTypeTranslations = att.translations;
+        const att = loadAttachmentType(projectRoot);
+
+        ctx.projectCache = {
+            projectRoot,
+            pkgName,
+            relations,
+            documentNames,
+            documentTitles,
+            attachmentTypeDir: att.dir,
+            attachmentTypeCodes: att.codes,
+            attachmentTypeTranslations: att.translations
+        };
     }
-    ctx.documentTitles = loadAllDocumentTitles(ctx.projectRoot, targetDocNames);
+
+    ctx.projectRoot = ctx.projectCache.projectRoot;
+    ctx.pkgName = ctx.projectCache.pkgName;
+    ctx.relations = ctx.projectCache.relations;
+    ctx.documentNames = ctx.projectCache.documentNames;
+    ctx.documentTitles = ctx.projectCache.documentTitles;
+    ctx.attachmentTypeDir = ctx.projectCache.attachmentTypeDir;
+    ctx.attachmentTypeCodes = ctx.projectCache.attachmentTypeCodes;
+    ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
 }
 
 function writeAll(ctx) {
@@ -596,10 +610,15 @@ function pushRender(ctx, panel) {
     );
 }
 
+function invalidateProjectCache(ctx) {
+    if (ctx) ctx.projectCache = null;
+}
+
 module.exports = {
     resolveRoot, findFileByName, findAuthorizationPath, findProductLevel,
     loadData, writeAll, writeFlow, writeUi, writeAuth, writeConfig, pushRender,
     findProjectRoot, listConfigPackages, readPackageName,
     loadRelationsFromDir, loadAllRelations,
-    loadAllDocumentNames, loadAllDocumentTitles
+    loadAllDocumentNames, loadAllDocumentTitles,
+    invalidateProjectCache
 };

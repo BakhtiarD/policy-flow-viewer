@@ -20,10 +20,18 @@
     function updateViewToggleIcon() {
         const btn = document.getElementById('viewToggle');
         if (!btn) return;
-        const key = PF.state.viewMode === 'graph' ? 'table' : 'graph';
-        btn.setAttribute('data-icon', key);
-        btn.title = PF.state.viewMode === 'graph' ? 'Показать таблицу' : 'Показать граф';
-        btn.innerHTML = ICONS[key];
+        const cur = PF.state.viewMode || 'table';
+        const next = cur === 'table' ? 'graph'
+            : cur === 'graph' ? 'matrix'
+                : 'table';
+        const titleByNext = {
+            table: 'Показать таблицу',
+            graph: 'Показать граф',
+            matrix: 'Показать матрицу переходов'
+        };
+        btn.setAttribute('data-icon', next);
+        btn.title = titleByNext[next];
+        btn.innerHTML = ICONS[next];
     }
 
     function adjustBodyPaddingForToolbar() {
@@ -208,9 +216,14 @@
     function applyViewMode() {
         const tv = document.getElementById('tableView');
         const gv = document.getElementById('graphView');
-        if (PF.state.viewMode === 'graph') {
-            tv.classList.add('hidden');
-            gv.classList.add('active');
+        const mv = document.getElementById('matrixView');
+        const mode = PF.state.viewMode || 'table';
+
+        tv.classList.toggle('hidden', mode !== 'table');
+        gv.classList.toggle('active', mode === 'graph');
+        if (mv) mv.classList.toggle('active', mode === 'matrix');
+
+        if (mode === 'graph') {
             document.getElementById('graphHint').textContent =
                 PF.state.DATA.hasUi
                     ? 'Позиции из documentFlow.ui.json'
@@ -224,10 +237,13 @@
             } catch (e) {
                 console.error('renderGraph error', e);
             }
-        } else {
-            tv.classList.remove('hidden');
-            gv.classList.remove('active');
         }
+
+        if (mode === 'matrix' && PF.matrix) {
+            PF.matrix.attachHandlers();
+            PF.matrix.render();
+        }
+
         updateViewToggleIcon();
     }
 
@@ -240,9 +256,9 @@
 
         // Главный тулбар
         document.getElementById('addBtn').addEventListener('click', PF.forms.openAddForm);
-        document.getElementById('reloadBtn').addEventListener('click', () =>
+        document.getElementById('reloadBtn').addEventListener('click', () => {
             PF.vscode.postMessage({ type: 'reload' })
-        );
+        });
         document.getElementById('collapseAllBtn').addEventListener('click',
             () => PF.table.applyAllCollapsed(true));
         document.getElementById('expandAllBtn').addEventListener('click',
@@ -271,9 +287,12 @@
             });
         }
 
-        // Переключение таблица/граф
+        // Переключение таблица → граф → матрица → таблица
         document.getElementById('viewToggle').addEventListener('click', () => {
-            PF.state.viewMode = PF.state.viewMode === 'graph' ? 'table' : 'graph';
+            const cur = PF.state.viewMode || 'table';
+            PF.state.viewMode = cur === 'table' ? 'graph'
+                              : cur === 'graph' ? 'matrix'
+                              : 'table';
             PF.persistState();
             applyViewMode();
         });

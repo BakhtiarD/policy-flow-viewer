@@ -664,6 +664,9 @@
         const backdrop = cloneTemplate('tpl-transition-modal');
         container.appendChild(backdrop);
 
+        const titleEl = backdrop.querySelector('h2');
+        if (titleEl) titleEl.textContent = isNew ? 'Создание перехода' : 'Редактирование перехода';
+
         backdrop.querySelector('.f-tr-name').value = t.name;
         backdrop.querySelector('.f-tr-ru').value = t.ru || '';
         backdrop.querySelector('.f-tr-from').value = t.from;

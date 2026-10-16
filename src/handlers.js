@@ -8,7 +8,7 @@ const {
     normalizeFlowOperations
 } = require('./transforms');
 const {
-    loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig
+    loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig, invalidateProjectCache
 } = require('./storage');
 const {
     flowRulePath, writeFlowRule, deleteFlowRule, renameFlowRule, flowRuleTemplate
@@ -1093,6 +1093,7 @@ async function handleAddAttachmentType(ctx, panel, payload) {
         throw new Error('Справочник AttachmentType не найден (configuration/@config-*/infrastructure/masterEntity/AttachmentType).');
     }
     addAttachmentType(ctx.attachmentTypeDir, code, ru || code);
+    invalidateProjectCache(ctx);
     await reloadAttachmentCatalog(ctx);
     // pushRender НЕ делаем — окно модалки должно остаться открытым.
     // Полный reload произойдёт при закрытии.
