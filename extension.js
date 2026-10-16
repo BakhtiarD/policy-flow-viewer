@@ -24,7 +24,17 @@ const {
     handleAddAttachmentType,
     handleRemoveAttachmentType,
     handleAddAttachmentToDoc,
-    handleRemoveAttachmentFromDoc
+    handleRemoveAttachmentFromDoc,
+    handleAddActor,
+    handleDeleteActor,
+    handleAddStateToActor,
+    handleDeleteStateFromActor,
+    handleAddTransitionToActor,
+    handleDeleteTransitionFromActor,
+    handleEditActorPerm,
+    handleDuplicateActor,
+    handleSaveActorAuth,
+    handleRenameActor
 } = require('./src/handlers');
 
 let currentPanel = null;
@@ -101,6 +111,16 @@ function activate(context) {
                         else if (msg.type === 'removeAttachmentType') await handleRemoveAttachmentType(currentCtx, currentPanel, msg.code);
                         else if (msg.type === 'addAttachmentToDoc') await handleAddAttachmentToDoc(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'removeAttachmentFromDoc') await handleRemoveAttachmentFromDoc(currentCtx, currentPanel, msg.code);
+                        else if (msg.type === 'addActor') await handleAddActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'deleteActor') await handleDeleteActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'addStateToActor') await handleAddStateToActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'deleteStateFromActor') await handleDeleteStateFromActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'addTransitionToActor') await handleAddTransitionToActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'deleteTransitionFromActor') await handleDeleteTransitionFromActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'editActorPerm') await handleEditActorPerm(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'duplicateActor') await handleDuplicateActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'saveActorAuth') await handleSaveActorAuth(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'renameActor') await handleRenameActor(currentCtx, currentPanel, msg.payload);
                     } catch (e) {
                         vscode.window.showErrorMessage('Ошибка: ' + e.message);
                         console.error(e);

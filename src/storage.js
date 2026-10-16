@@ -9,6 +9,7 @@ const {
     buildAuthMeta, buildRelationsMeta
 } = require('./transforms');
 const { renderHtml } = require('./html');
+const { collectGroupRoles } = require('./authorization');
 
 async function resolveRoot(uri) {
     if (uri && uri.fsPath) {
@@ -119,7 +120,7 @@ function listConfigPackages(projectRoot) {
     if (!projectRoot) return [];
     const roots = [
         { dir: path.join(projectRoot, 'configuration'), origin: 'configuration' },
-        { dir: path.join(projectRoot, 'node_modules'),  origin: 'node_modules'  }
+        { dir: path.join(projectRoot, 'node_modules'), origin: 'node_modules' }
     ];
     const out = [];
 
@@ -274,7 +275,7 @@ function loadAllRelations(projectRoot, currentPkgDir, currentPkgName) {
     const final = [];
     for (const [, list] of byName) {
         const configVersions = list.filter(r => r.pkgOrigin === 'configuration');
-        const nmVersions     = list.filter(r => r.pkgOrigin === 'node_modules');
+        const nmVersions = list.filter(r => r.pkgOrigin === 'node_modules');
 
         if (configVersions.length > 0) {
             // Побеждают configuration-версии.
@@ -540,6 +541,7 @@ function loadData(ctx) {
         const documentTitles = loadAllDocumentTitles(projectRoot, targetDocNames);
         const { loadAttachmentType } = require('./attachments');
         const att = loadAttachmentType(projectRoot);
+        const groupRoles = [...collectGroupRoles(projectRoot)];
 
         ctx.projectCache = {
             projectRoot,
@@ -549,7 +551,8 @@ function loadData(ctx) {
             documentTitles,
             attachmentTypeDir: att.dir,
             attachmentTypeCodes: att.codes,
-            attachmentTypeTranslations: att.translations
+            attachmentTypeTranslations: att.translations,
+            groupRoles
         };
     }
 
@@ -561,6 +564,7 @@ function loadData(ctx) {
     ctx.attachmentTypeDir = ctx.projectCache.attachmentTypeDir;
     ctx.attachmentTypeCodes = ctx.projectCache.attachmentTypeCodes;
     ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
+    ctx.groupRoles = ctx.projectCache.groupRoles;
 }
 
 function writeAll(ctx) {
@@ -600,7 +604,7 @@ function pushRender(ctx, panel) {
     const details = buildStateDetails(flow, config, trans);
     const graph = buildGraph(flow, ui, trans, ctx);
     const hasUi = Array.isArray(ui) && ui.length > 0;
-    const authMeta = buildAuthMeta(flowPath, auth, authPath);
+    const authMeta = buildAuthMeta(flowPath, auth, authPath, ctx.groupRoles || []);
     const relMeta = buildRelationsMeta(ctx, flow, ctx.documentTitles || {});
     const attMeta = { path: ctx.attachmentTypeDir || null };
 

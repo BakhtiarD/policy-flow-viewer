@@ -107,7 +107,7 @@ function buildMeta(flow, config, csv, trans, ctx) {
 }
 
 
-function buildAuthMeta(flowPath, authCsv, authPath) {
+function buildAuthMeta(flowPath, authCsv, authPath, groupRoles) {
     const path = require('path');
     const docName = path.basename(path.dirname(flowPath));
 
@@ -133,7 +133,9 @@ function buildAuthMeta(flowPath, authCsv, authPath) {
         const codeName = row[idx['CodeName']];
         const conceptType = row[idx['ConceptTypeName']];
         const permType = row[idx['PermissionType']];
+        const assigned = row[idx['AssignedPermission']];
 
+        // Для списка назначений этого документа берём только строки нашего документа.
         if (codeName !== docName) continue;
         if (conceptType !== 'DocumentConfiguration') continue;
         if (permType !== 'Allow Actor') continue;
@@ -141,17 +143,34 @@ function buildAuthMeta(flowPath, authCsv, authPath) {
         rows.push({
             origIndex: r,
             role: appRole || '',
-            actor: row[idx['AssignedPermission']] || '',
+            actor: assigned || '',
             op: row[idx['AssignmentOperator']] || 'Add'
         });
     }
+
+    // Роли, реально назначенные каждому актору в этом документе.
+    const actorRoles = {};
+    for (const r of rows) {
+        if (!r.actor) continue;
+        if (!actorRoles[r.actor]) actorRoles[r.actor] = [];
+        if (r.role && !actorRoles[r.actor].includes(r.role)) {
+            actorRoles[r.actor].push(r.role);
+        }
+    }
+    for (const a of Object.keys(actorRoles)) actorRoles[a].sort();
+
+    // Объединяем роли из authorization.csv и из groupAuthorization.csv.
+    const allRolesSet = new Set(rolesSet);
+    for (const role of (groupRoles || [])) allRolesSet.add(role);
 
     return {
         found: true,
         docName,
         path: authPath || null,
         rows,
-        allRoles: [...rolesSet].sort()
+        allRoles: [...allRolesSet].sort(),
+        groupRoles: [...(groupRoles || [])].sort(),
+        actorRoles
     };
 }
 

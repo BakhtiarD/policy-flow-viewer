@@ -23,15 +23,24 @@
         const cur = PF.state.viewMode || 'table';
         const next = cur === 'table' ? 'graph'
             : cur === 'graph' ? 'matrix'
-                : 'table';
+                : cur === 'matrix' ? 'actors'
+                    : 'table';
         const titleByNext = {
             table: 'Показать таблицу',
             graph: 'Показать граф',
-            matrix: 'Показать матрицу переходов'
+            matrix: 'Показать матрицу переходов',
+            actors: 'Показать таблицу акторов'
         };
-        btn.setAttribute('data-icon', next);
+        const iconByNext = {
+            table: 'table',
+            graph: 'graph',
+            matrix: 'matrix',
+            actors: 'actors'
+        };
+        const key = iconByNext[next];
+        btn.setAttribute('data-icon', key);
         btn.title = titleByNext[next];
-        btn.innerHTML = ICONS[next];
+        btn.innerHTML = ICONS[key];
     }
 
     function adjustBodyPaddingForToolbar() {
@@ -211,17 +220,19 @@
     }
 
     /* ============================================================
-     * ПЕРЕКЛЮЧЕНИЕ ТАБЛИЦА / ГРАФ
+     * ПЕРЕКЛЮЧЕНИЕ ТАБЛИЦА СОСТОЯНИЙ / ГРАФ / МАТРИЦА / ТАБЛИЦА АКТОРОВ
      * ============================================================ */
     function applyViewMode() {
         const tv = document.getElementById('tableView');
         const gv = document.getElementById('graphView');
         const mv = document.getElementById('matrixView');
+        const av = document.getElementById('actorsView');
         const mode = PF.state.viewMode || 'table';
 
         tv.classList.toggle('hidden', mode !== 'table');
         gv.classList.toggle('active', mode === 'graph');
         if (mv) mv.classList.toggle('active', mode === 'matrix');
+        if (av) av.classList.toggle('active', mode === 'actors');
 
         if (mode === 'graph') {
             document.getElementById('graphHint').textContent =
@@ -244,9 +255,13 @@
             PF.matrix.render();
         }
 
+        if (mode === 'actors' && PF.actors) {
+            PF.actors.attachHandlers();
+            PF.actors.render();
+        }
+
         updateViewToggleIcon();
     }
-
     /* ============================================================
      * ИНИЦИАЛИЗАЦИЯ (привязка всех кнопок тулбара)
      * ============================================================ */
@@ -287,12 +302,13 @@
             });
         }
 
-        // Переключение таблица → граф → матрица → таблица
+        // Переключение таблица → граф → матрица → акторы → таблица
         document.getElementById('viewToggle').addEventListener('click', () => {
             const cur = PF.state.viewMode || 'table';
             PF.state.viewMode = cur === 'table' ? 'graph'
-                              : cur === 'graph' ? 'matrix'
-                              : 'table';
+                : cur === 'graph' ? 'matrix'
+                    : cur === 'matrix' ? 'actors'
+                        : 'table';
             PF.persistState();
             applyViewMode();
         });

@@ -6,6 +6,82 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.5.0] — 2026-10-16
+
+### Добавлено
+- **Режим «Акторы»** — четвёртый режим просмотра (таблица → граф →
+  матрица → акторы → таблица). Таблица из трёх колонок:
+  - **Актор** — имя + кнопки `✎` (переименовать), `🔑` (авторизация),
+    `⧉` (копировать), `×` (удалить);
+  - **Состояния** — чипы состояний, где актор присутствует. Клик по чипу
+    открывает модалку прав актора в этом состоянии. Крестик на чипе —
+    убрать актора из состояния. Кнопка `＋ Состояние` — добавить.
+  - **Переходы** — чипы всех переходов актора (плоский union по всем
+    состояниям). Клик — открыть форму перехода. Крестик — убрать переход
+    у актора. Кнопка `＋ Переход` — добавить (если у актора нет записи
+    в состоянии-источнике перехода, запись создаётся автоматически).
+- **Модалка прав актора в состоянии** — переиспользует существующую
+  карточку прав: комментарии, операции, переходы (чекбоксы по исходящим),
+  вложения. Поле выбора актора и кнопка удаления скрыты.
+- **Модалка авторизации актора** (`🔑`) — чекбоксы ролей. Роли берутся
+  из объединения:
+  - `configuration/@config-*/application-user-group/authorization/groupAuthorization.csv`
+    (все пакеты в `configuration/`, `node_modules/` не трогаем);
+  - `authorization.csv` текущего документа (`ApplicationRole` для этого
+    документа, `ConceptTypeName = DocumentConfiguration`,
+    `PermissionType = Allow Actor`).
+  Отмеченные роли → строки в `authorization.csv`. Снятые — удаляются.
+- **Переименование актора** (`✎`) — обновляет ссылки во всех местах:
+  - `documentFlow.json → actors[]`;
+  - `configuration.json → states[].actors[].actor`;
+  - `translation.csv` (`ItemType=actors` — `TranslationKey`, `Expression`,
+    `Translation_en-US`);
+  - `authorization.csv` (`AssignedPermission`).
+- **Копирование актора** (`⧉`) — создаёт копию под новым именем со всеми
+  записями во всех состояниях. Неучтённые свойства (например, `uiSchema`)
+  переносятся через `JSON.parse(JSON.stringify())`.
+- **Удаление актора** (`×`) — убирает актора:
+  - из `documentFlow.json → actors[]`;
+  - из всех `configuration.json → states[].actors[]`;
+  - из `translation.csv` (строки `ItemType=actors`);
+  - из `authorization.csv` (все `Allow Actor` строки для этого документа).
+- Новый модуль `src/authorization.js` — `collectGroupRoles(projectRoot)`
+  (собирает уникальные роли из `groupAuthorization.csv`).
+- Новая иконка `actors` для переключателя вида.
+
+### Изменено
+- `viewToggle` теперь переключает **четыре** режима по циклу:
+  таблица → граф → матрица → акторы → таблица. Иконка показывает
+  следующий режим.
+- `buildAuthMeta` расширен: возвращает `actorRoles` (роли каждого актора
+  в текущем документе) и объединённый `allRoles` (из `authorization.csv` +
+  `groupAuthorization.csv`).
+- `PF.state.viewMode` сохраняет и `'actors'` в `persistState`.
+
+### Исправлено
+- **Авторизация и сохранение extras при добавлении и удалении актора.**
+  Раньше при удалении актора строка оставалась в таблице (запись жила
+  в `translation.csv`), а при копировании/переименовании терялись
+  нестандартные поля вроде `uiSchema`.
+- Из `src/authorization.js` убрана зависимость от `./utils` и `./csv`:
+  в среде `adinsure-studio` патченный `require` резолвил `require('./utils')`
+  в вебвью-версию `media/modules/utils.js`, что давало
+  `ReferenceError: window is not defined` при старте расширения.
+
+### Технические детали
+- Новый модуль `media/modules/actors.js` (`PF.actors.render`,
+  `.attachHandlers`, `.collectActors`, `.collectStatesByActor`,
+  `.collectTransitionsByActor`, `.openStatePermForm`, `.openActorAuthForm`).
+- Новые хендлеры: `handleAddActor`, `handleDeleteActor`,
+  `handleAddStateToActor`, `handleDeleteStateFromActor`,
+  `handleAddTransitionToActor`, `handleDeleteTransitionFromActor`,
+  `handleEditActorPerm`, `handleDuplicateActor`, `handleRenameActor`,
+  `handleSaveActorAuth`.
+- Плейсхолдер `{{JS_ACTORS}}` добавлен в `src/html.js` и `media/index.html`.
+- `collectGroupRoles` вызывается один раз при построении кеша проекта
+  (`ctx.projectCache.groupRoles`), импорт поднят на верхний уровень
+  `src/storage.js`, чтобы не зависеть от ленивого `require`.
+
 ## [0.4.5] — 2026-10-16
 
 ### Добавлено

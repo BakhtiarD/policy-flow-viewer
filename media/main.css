@@ -1365,6 +1365,11 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     background: rgba(128, 128, 128, 0.18);
 }
 
+.matrix-col-h,
+.matrix-row-h {
+    cursor: pointer;
+}
+
 .matrix-cell.filled:hover {
     background: rgba(128, 128, 128, 0.32);
 }
@@ -1443,4 +1448,171 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
 
 .matrix-legend-name {
     opacity: 0.9;
+}
+
+#actorsView {
+    display: none;
+    padding: 12px;
+    overflow: auto;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+#actorsView.active {
+    display: block;
+}
+
+.actors-container {
+    max-width: 1400px;
+}
+
+.actors-table {
+    border-collapse: collapse;
+    font-size: 12px;
+    width: 100%;
+}
+
+.actors-table th,
+.actors-table td {
+    border: 1px solid var(--vscode-panel-border, #333);
+    padding: 6px 10px;
+    vertical-align: top;
+    text-align: left;
+}
+
+.actors-th-actor {
+    width: 180px;
+}
+
+.actors-th-states {
+    width: 40%;
+}
+
+.actors-th-transitions {
+    width: 40%;
+}
+
+.actors-table thead th {
+    background: var(--vscode-editorGroupHeader-tabsBackground, #2d2d30);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.actors-cell-actor {
+    white-space: nowrap;
+}
+
+.actors-actor-name {
+    font-weight: 600;
+    font-family: var(--vscode-editor-font-family, monospace);
+    margin-right: 6px;
+}
+
+.actors-cell-actor button {
+    padding: 0 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-left: 2px;
+}
+
+.actors-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.actors-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px 2px 8px;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.actors-chip:hover {
+    background: rgba(128, 128, 128, 0.28);
+}
+
+.actors-chip-label {
+    user-select: none;
+}
+
+.actors-chip-del {
+    opacity: 0.55;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.actors-chip-del:hover {
+    opacity: 1;
+    background: rgba(200, 50, 50, 0.3);
+}
+
+.actors-add {
+    padding: 1px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.actors-empty {
+    padding: 20px;
+    font-style: italic;
+    opacity: 0.7;
+    text-align: center;
+}
+
+.actors-add-row td {
+    background: transparent;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 10px;
+    text-align: center;
+}
+.actor-auth-modal {
+    max-width: 520px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.actor-auth-roles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 6px 8px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+.actor-auth-role {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.actor-auth-role:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.actor-auth-role input[type="checkbox"] {
+    margin: 0;
 }

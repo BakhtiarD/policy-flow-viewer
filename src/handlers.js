@@ -1195,6 +1195,444 @@ async function handleRemoveAttachmentFromDoc(ctx, panel, code) {
     vscode.window.showInformationMessage('Вложение «' + code + '» удалено из документа.');
 }
 
+/* ---------- Акторы (view «Акторы») ---------- */
+
+async function handleAddActor(ctx, panel, payload) {
+    const name = (payload && payload.name || '').trim();
+    if (!name) throw new Error('Не передано имя актора.');
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+        throw new Error('Некорректное имя актора: ' + name);
+    }
+
+    const flow = ctx.flow;
+    flow.actors = flow.actors || [];
+    if (flow.actors.includes(name)) {
+        throw new Error('Актор «' + name + '» уже есть в documentFlow.json.');
+    }
+    flow.actors.push(name);
+
+    writeFlow(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage('Актор «' + name + '» добавлен.');
+}
+
+async function handleDeleteActor(ctx, panel, payload) {
+    const name = (payload && payload.name || '').trim();
+    if (!name) throw new Error('Не передано имя актора.');
+
+    const flow = ctx.flow;
+    const config = ctx.config;
+    const csv = ctx.csv;
+
+    let touched = false;
+
+    if (Array.isArray(flow.actors) && flow.actors.includes(name)) {
+        flow.actors = flow.actors.filter(a => a !== name);
+        touched = true;
+    }
+
+    for (const s of (config.states || [])) {
+        if (!Array.isArray(s.actors)) continue;
+        const before = s.actors.length;
+        s.actors = s.actors.filter(a => a.actor !== name);
+        if (s.actors.length !== before) touched = true;
+    }
+
+    if (csv && Array.isArray(csv.rows) && Array.isArray(csv.header)) {
+        const idx = indexOf(csv.header);
+        const before = csv.rows.length;
+        csv.rows = csv.rows.filter(row => {
+            if (row[idx['ItemType']] !== 'actors') return true;
+            const key = row[idx['TranslationKey']];
+            const expr = row[idx['Expression']];
+            return key !== name && expr !== name;
+        });
+        if (csv.rows.length !== before) touched = true;
+    }
+
+    // authorization.csv — убираем все назначения этого актора в этом документе.
+    let authTouched = false;
+    if (ctx.authPath && ctx.auth) {
+        const auth = ctx.auth;
+        const idx = indexOf(auth.header);
+        const docName = path.basename(path.dirname(ctx.flowPath));
+        const before = auth.rows.length;
+        auth.rows = auth.rows.filter(row => {
+            const assigned = row[idx['AssignedPermission']];
+            const codeName = row[idx['CodeName']];
+            const conceptType = row[idx['ConceptTypeName']];
+            const permType = row[idx['PermissionType']];
+            const isThisActor = assigned === name &&
+                codeName === docName &&
+                conceptType === 'DocumentConfiguration' &&
+                permType === 'Allow Actor';
+            return !isThisActor;
+        });
+        if (auth.rows.length !== before) authTouched = true;
+    }
+
+    if (!touched && !authTouched) {
+        vscode.window.showInformationMessage('Актор «' + name + '» нигде не найден.');
+        return;
+    }
+
+    writeAll(ctx);
+    if (authTouched) writeAuth(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage('Актор «' + name + '» удалён из всех состояний и авторизации.');
+}
+
+async function handleAddStateToActor(ctx, panel, payload) {
+    const actor = (payload && payload.actor || '').trim();
+    const state = (payload && payload.state || '').trim();
+    if (!actor) throw new Error('Не передано имя актора.');
+    if (!state) throw new Error('Не передано имя состояния.');
+
+    const config = ctx.config;
+    const flow = ctx.flow;
+
+    if (!(flow.states || []).some(s => s.name === state)) {
+        throw new Error('Состояние «' + state + '» не найдено.');
+    }
+
+    let cs = (config.states || []).find(s => s.name === state);
+    if (!cs) {
+        cs = { name: state, actors: [] };
+        config.states = config.states || [];
+        config.states.push(cs);
+    }
+    cs.actors = cs.actors || [];
+    if (cs.actors.some(a => a.actor === actor)) {
+        throw new Error('Актор «' + actor + '» уже есть в состоянии «' + state + '».');
+    }
+
+    cs.actors.push({
+        actor,
+        allowComments: false,
+        operations: [],
+        transitions: [],
+        attachmentsRestrictions: []
+    });
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+}
+
+async function handleDeleteStateFromActor(ctx, panel, payload) {
+    const actor = (payload && payload.actor || '').trim();
+    const state = (payload && payload.state || '').trim();
+    if (!actor || !state) throw new Error('Не переданы actor/state.');
+
+    const cs = (ctx.config.states || []).find(s => s.name === state);
+    if (!cs || !Array.isArray(cs.actors)) {
+        throw new Error('Состояние «' + state + '» не найдено.');
+    }
+
+    const before = cs.actors.length;
+    cs.actors = cs.actors.filter(a => a.actor !== actor);
+    if (cs.actors.length === before) {
+        throw new Error('Актор «' + actor + '» не найден в состоянии «' + state + '».');
+    }
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+}
+
+async function handleAddTransitionToActor(ctx, panel, payload) {
+    const actor = (payload && payload.actor || '').trim();
+    const transition = (payload && payload.transition || '').trim();
+    if (!actor || !transition) throw new Error('Не переданы actor/transition.');
+
+    const flow = ctx.flow;
+    const config = ctx.config;
+
+    const tr = (flow.transitions || []).find(t => t.name === transition);
+    if (!tr) throw new Error('Переход «' + transition + '» не найден.');
+    const fromState = tr.from;
+    if (!fromState) throw new Error('У перехода нет состояния-источника.');
+
+    let cs = (config.states || []).find(s => s.name === fromState);
+    if (!cs) {
+        cs = { name: fromState, actors: [] };
+        config.states = config.states || [];
+        config.states.push(cs);
+    }
+    cs.actors = cs.actors || [];
+
+    let actorRec = cs.actors.find(a => a.actor === actor);
+    if (!actorRec) {
+        actorRec = {
+            actor,
+            allowComments: false,
+            operations: [],
+            transitions: [],
+            attachmentsRestrictions: []
+        };
+        cs.actors.push(actorRec);
+    }
+
+    actorRec.transitions = Array.isArray(actorRec.transitions) ? actorRec.transitions : [];
+    const has = actorRec.transitions.some(t => (typeof t === 'string' ? t : t && t.name) === transition);
+    if (has) {
+        vscode.window.showInformationMessage(
+            'У актора «' + actor + '» уже есть переход «' + transition + '».'
+        );
+        return;
+    }
+    actorRec.transitions.push(transition);
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+}
+
+async function handleDeleteTransitionFromActor(ctx, panel, payload) {
+    const actor = (payload && payload.actor || '').trim();
+    const transition = (payload && payload.transition || '').trim();
+    if (!actor || !transition) throw new Error('Не переданы actor/transition.');
+
+    const config = ctx.config;
+    let touched = false;
+
+    for (const s of (config.states || [])) {
+        const actorRec = (s.actors || []).find(a => a.actor === actor);
+        if (!actorRec || !Array.isArray(actorRec.transitions)) continue;
+        const before = actorRec.transitions.length;
+        actorRec.transitions = actorRec.transitions.filter(t => {
+            const n = (typeof t === 'string') ? t : (t && t.name);
+            return n !== transition;
+        });
+        if (actorRec.transitions.length !== before) touched = true;
+    }
+
+    if (!touched) {
+        vscode.window.showInformationMessage(
+            'У актора «' + actor + '» нет перехода «' + transition + '».'
+        );
+        return;
+    }
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+}
+
+async function handleEditActorPerm(ctx, panel, payload) {
+    const { stateName, actorName, perm } = payload || {};
+    if (!stateName || !actorName || !perm) {
+        throw new Error('Не переданы stateName/actorName/perm.');
+    }
+
+    const config = ctx.config;
+    const cs = (config.states || []).find(s => s.name === stateName);
+    if (!cs || !Array.isArray(cs.actors)) {
+        throw new Error('Состояние «' + stateName + '» не найдено.');
+    }
+
+    const idx = cs.actors.findIndex(a => a.actor === actorName);
+    if (idx < 0) {
+        throw new Error('Актор «' + actorName + '» не найден в состоянии «' + stateName + '».');
+    }
+
+    const original = cs.actors[idx];
+    cs.actors[idx] = buildActorConfig(perm, original);
+
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage(
+        'Права актора «' + actorName + '» в состоянии «' + stateName + '» сохранены.'
+    );
+}
+
+async function handleDuplicateActor(ctx, panel, payload) {
+    const oldName = (payload && payload.oldName || '').trim();
+    const newName = (payload && payload.newName || '').trim();
+    if (!oldName || !newName) throw new Error('Не переданы oldName/newName.');
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
+        throw new Error('Некорректное имя актора: ' + newName);
+    }
+    if (oldName === newName) throw new Error('Имя совпадает с исходным.');
+
+    const flow = ctx.flow;
+    const config = ctx.config;
+
+    // Убеждаемся, что исходный актор вообще существует
+    const exists = (config.states || []).some(s =>
+        (s.actors || []).some(a => a.actor === oldName)
+    ) || (flow.actors || []).includes(oldName);
+    if (!exists) throw new Error('Актор «' + oldName + '» не найден.');
+
+    // Проверяем, что нового имени ещё нет
+    const alreadyExists = (config.states || []).some(s =>
+        (s.actors || []).some(a => a.actor === newName)
+    ) || (flow.actors || []).includes(newName);
+    if (alreadyExists) throw new Error('Актор «' + newName + '» уже существует.');
+
+    // 1. Глобальный список акторов
+    flow.actors = flow.actors || [];
+    if (!flow.actors.includes(oldName)) flow.actors.push(oldName);
+    flow.actors.push(newName);
+
+    // 2. Копируем записи актора во всех состояниях, где он есть
+    let copied = 0;
+    for (const s of (config.states || [])) {
+        const src = (s.actors || []).find(a => a.actor === oldName);
+        if (!src) continue;
+        const clone = JSON.parse(JSON.stringify(src));
+        clone.actor = newName;
+        s.actors.push(clone);
+        copied++;
+    }
+
+    writeFlow(ctx);
+    writeConfig(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage(
+        'Актор «' + newName + '» создан как копия «' + oldName + '»' +
+        (copied ? ' (' + copied + ' состояни' + (copied === 1 ? 'е' : 'й') + ')' : '') + '.'
+    );
+}
+
+/* ---------- Авторизация актора ---------- */
+
+async function handleSaveActorAuth(ctx, panel, payload) {
+    const { actorName, roles } = payload || {};
+    if (!actorName) throw new Error('Не передано имя актора.');
+    if (!Array.isArray(roles)) throw new Error('roles должен быть массивом.');
+
+    if (!ctx.authPath || !ctx.auth) {
+        throw new Error('Файл authorization.csv не найден.');
+    }
+
+    const auth = ctx.auth;
+    const idx = indexOf(auth.header);
+    const docName = path.basename(path.dirname(ctx.flowPath));
+
+    // Убираем все текущие строки Allow Actor для этого актора в этом документе.
+    const keep = auth.rows.filter(row => {
+        const codeName = row[idx['CodeName']];
+        const conceptType = row[idx['ConceptTypeName']];
+        const permType = row[idx['PermissionType']];
+        const assigned = row[idx['AssignedPermission']];
+
+        const isThisActor = assigned === actorName &&
+            codeName === docName &&
+            conceptType === 'DocumentConfiguration' &&
+            permType === 'Allow Actor';
+        return !isThisActor;
+    });
+
+    // Добавляем новые.
+    for (const role of roles) {
+        if (!role) continue;
+        const row = new Array(auth.header.length).fill('');
+        row[idx['ApplicationRole']] = role;
+        row[idx['PermissionType']] = 'Allow Actor';
+        row[idx['CodeName']] = docName;
+        row[idx['ConceptTypeName']] = 'DocumentConfiguration';
+        row[idx['AssignedPermission']] = actorName;
+        row[idx['AssignmentOperator']] = 'Add';
+        keep.push(row);
+    }
+
+    auth.rows = keep;
+
+    writeAuth(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+
+    vscode.window.showInformationMessage(
+        'Авторизация актора «' + actorName + '» сохранена (' + roles.length + ' ролей).'
+    );
+}
+
+async function handleRenameActor(ctx, panel, payload) {
+    const oldName = (payload && payload.oldName || '').trim();
+    const newName = (payload && payload.newName || '').trim();
+    if (!oldName || !newName) throw new Error('Не переданы oldName/newName.');
+    if (oldName === newName) throw new Error('Имя совпадает с исходным.');
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
+        throw new Error('Некорректное имя актора: ' + newName);
+    }
+
+    const flow = ctx.flow;
+    const config = ctx.config;
+    const csv = ctx.csv;
+
+    // Проверяем, что старого актора вообще можно найти, а нового ещё нет.
+    const exists = (config.states || []).some(s =>
+        (s.actors || []).some(a => a.actor === oldName)
+    ) || (flow.actors || []).includes(oldName);
+    if (!exists) throw new Error('Актор «' + oldName + '» не найден.');
+
+    const conflict = (config.states || []).some(s =>
+        (s.actors || []).some(a => a.actor === newName)
+    ) || (flow.actors || []).includes(newName);
+    if (conflict) throw new Error('Актор «' + newName + '» уже существует.');
+
+    // 1. documentFlow.json → actors[]
+    if (Array.isArray(flow.actors)) {
+        flow.actors = flow.actors.map(a => a === oldName ? newName : a);
+    }
+
+    // 2. configuration.json → states[].actors[].actor
+    for (const s of (config.states || [])) {
+        for (const a of (s.actors || [])) {
+            if (a.actor === oldName) a.actor = newName;
+        }
+    }
+
+    // 3. translation.csv → строки ItemType=actors
+    if (csv && Array.isArray(csv.rows) && Array.isArray(csv.header)) {
+        const idx = indexOf(csv.header);
+        for (const row of csv.rows) {
+            if (row[idx['ItemType']] !== 'actors') continue;
+            const key = row[idx['TranslationKey']];
+            const expr = row[idx['Expression']];
+            if (key === oldName) row[idx['TranslationKey']] = newName;
+            if (expr === oldName) row[idx['Expression']] = newName;
+            // Translation_en-US исторически совпадает с именем — переписываем тоже
+            const en = row[idx['Translation_en-US']];
+            if (en === oldName) row[idx['Translation_en-US']] = newName;
+        }
+    }
+
+    // 4. authorization.csv → AssignedPermission
+    let authTouched = false;
+    if (ctx.authPath && ctx.auth) {
+        const auth = ctx.auth;
+        const idx = indexOf(auth.header);
+        const docName = path.basename(path.dirname(ctx.flowPath));
+        for (const row of auth.rows) {
+            const assigned = row[idx['AssignedPermission']];
+            const codeName = row[idx['CodeName']];
+            const conceptType = row[idx['ConceptTypeName']];
+            const permType = row[idx['PermissionType']];
+            if (assigned === oldName &&
+                codeName === docName &&
+                conceptType === 'DocumentConfiguration' &&
+                permType === 'Allow Actor') {
+                row[idx['AssignedPermission']] = newName;
+                authTouched = true;
+            }
+        }
+    }
+
+    writeAll(ctx);
+    if (authTouched) writeAuth(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+    vscode.window.showInformationMessage(
+        'Актор «' + oldName + '» переименован в «' + newName + '».'
+    );
+}
+
 module.exports = {
     handleToggleTerminal,
     handleDeleteState,
@@ -1216,5 +1654,15 @@ module.exports = {
     handleAddAttachmentType,
     handleRemoveAttachmentType,
     handleAddAttachmentToDoc,
-    handleRemoveAttachmentFromDoc
+    handleRemoveAttachmentFromDoc,
+    handleAddActor,
+    handleDeleteActor,
+    handleAddStateToActor,
+    handleDeleteStateFromActor,
+    handleAddTransitionToActor,
+    handleDeleteTransitionFromActor,
+    handleEditActorPerm,
+    handleDuplicateActor,
+    handleSaveActorAuth,
+    handleRenameActor
 };

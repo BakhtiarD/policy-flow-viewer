@@ -175,6 +175,7 @@
         view.dataset.handlersAttached = '1';
 
         view.addEventListener('click', (ev) => {
+            if (ev.button !== 0) return;
             const th = ev.target.closest('.matrix-col-h, .matrix-row-h');
             if (!th) return;
             const name = th.dataset.state;
@@ -184,7 +185,43 @@
             }
         });
 
+        view.addEventListener('contextmenu', async (ev) => {
+            const th = ev.target.closest('.matrix-col-h, .matrix-row-h');
+            if (th) {
+                ev.preventDefault();
+                const name = th.dataset.state;
+                if (!name) return;
+                const ok = await PF.utils.showConfirm(
+                    'Удалить состояние «' + name + '» со всеми отсылками?\n\n' +
+                    'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
+                    ' documentFlow.ui.json.\n' +
+                    'Файлы flowRules/*.js всех переходов этого состояния будут удалены.',
+                    'Удаление состояния'
+                );
+                if (!ok) return;
+                PF.vscode.postMessage({ type: 'deleteState', state: name });
+                return;
+            }
+
+            const td = ev.target.closest('.matrix-cell');
+            if (!td) return;
+            if (!td.classList.contains('filled')) return;
+            ev.preventDefault();
+            const tName = td.dataset.transition;
+            if (!tName) return;
+            const ok = await PF.utils.showConfirm(
+                'Удалить переход «' + tName + '»?\n\n' +
+                'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
+                ' documentFlow.ui.json.\n' +
+                'Файл flowRules/' + tName + '.js также будет удалён.',
+                'Удаление перехода'
+            );
+            if (!ok) return;
+            PF.vscode.postMessage({ type: 'deleteTransitions', names: [tName] });
+        });
+
         view.addEventListener('dblclick', (ev) => {
+            if (ev.button !== 0) return;
             const td = ev.target.closest('.matrix-cell');
             if (!td) return;
             if (td.classList.contains('terminal')) return;
