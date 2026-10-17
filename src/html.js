@@ -11,6 +11,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const dagreUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'vendor', 'dagre.min.js'));
     const jsStateUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'state.js'));
     const jsUtilsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'utils.js'));
+    const jsI18nUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'i18n.js'));
     const jsIconsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'icons.js'));
     const jsRelationsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'relations.js'));
     const jsRoutingUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'routing.js'));
@@ -42,6 +43,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{CSS_URI\}\}/g, () => cssUri.toString())
         .replace(/\{\{JS_STATE\}\}/g, () => jsStateUri.toString())
         .replace(/\{\{JS_UTILS\}\}/g, () => jsUtilsUri.toString())
+        .replace(/\{\{JS_I18N\}\}/g, () => jsI18nUri.toString())
         .replace(/\{\{JS_ICONS\}\}/g, () => jsIconsUri.toString())
         .replace(/\{\{JS_RELATIONS\}\}/g, () => jsRelationsUri.toString())
         .replace(/\{\{JS_ROUTING\}\}/g, () => jsRoutingUri.toString())

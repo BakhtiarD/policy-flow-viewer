@@ -34,12 +34,17 @@
             const stName = document.createElement('span');
             stName.className = 'state-name';
             stName.textContent = g.state;
-            const stRu = document.createElement('span');
-            stRu.className = 'state-ru';
-            stRu.textContent = '(' + g.stateRu + ')';
-            gs.appendChild(stName);
-            gs.appendChild(document.createTextNode(' '));
-            gs.appendChild(stRu);
+            const gsTr = PF.i18n.tr({ trans: g.stateTrans, ru: g.stateRu });
+            if (gsTr) {
+                const stRu = document.createElement('span');
+                stRu.className = 'state-ru';
+                stRu.textContent = '(' + gsTr + ')';
+                gs.appendChild(stName);
+                gs.appendChild(document.createTextNode(' '));
+                gs.appendChild(stRu);
+            } else {
+                gs.appendChild(stName);
+            }
             div.appendChild(gs);
 
             const ul = document.createElement('ul');
@@ -51,12 +56,15 @@
                 tn.dataset.transition = t.name;
                 tn.title = 'Открыть переход для редактирования';
                 tn.textContent = t.name;
-                const tr = document.createElement('span');
-                tr.className = 'trans-ru';
-                tr.textContent = '(' + t.ru + ')';
                 li.appendChild(tn);
-                li.appendChild(document.createTextNode(' '));
-                li.appendChild(tr);
+                const tTr = PF.i18n.tr({ trans: t.trans, ru: t.ru });
+                if (tTr) {
+                    const tr = document.createElement('span');
+                    tr.className = 'trans-ru';
+                    tr.textContent = '(' + tTr + ')';
+                    li.appendChild(document.createTextNode(' '));
+                    li.appendChild(tr);
+                }
                 ul.appendChild(li);
             }
             div.appendChild(ul);
@@ -138,9 +146,16 @@
             const toggle = document.createElement('span');
             toggle.className = 'perm-toggle';
             toggle.textContent = '▼';
+            const trs = (PF.state.meta && PF.state.meta.translations) || {};
+            const actorTransAll = trs.actorTransAll || {};
+            const actorTrans = trs.actorTrans || {};
+
             const actor = document.createElement('span');
             actor.className = 'perm-actor';
-            actor.textContent = p.actor;
+            actor.textContent = PF.i18n.label(p.actor, {
+                trans: actorTransAll[p.actor],
+                ru: actorTrans[p.actor]
+            });
             header.appendChild(toggle);
             header.appendChild(actor);
 
@@ -204,8 +219,8 @@
                 .filter(t => t && (typeof t === 'string' || t.name))
                 .map(t => {
                     const n = typeof t === 'string' ? t : t.name;
-                    const ru = (typeof t === 'object' && t.ru) ? t.ru : n;
-                    return { kind: 'transition', label: n + ' (' + ru + ')' };
+                    const obj = (typeof t === 'object') ? t : { name: n };
+                    return { kind: 'transition', label: PF.i18n.label(n, obj) };
                 });
 
             const rels = getRelationsFor(stateName, p.actor);
@@ -214,15 +229,17 @@
             for (const r of rels) {
                 if (r.transitionName) {
                     const tr = (PF.state.graphData.transitions || []).find(x => x.name === r.transitionName);
-                    const ru = tr ? (tr.ru || tr.name) : r.transitionName;
+                    const relLabel = tr
+                        ? PF.i18n.label(tr.name, tr)
+                        : r.transitionName;
                     transItems.push({
                         kind: 'relation',
-                        label: r.transitionName + ' (' + ru + ') (relation)'
+                        label: relLabel + ' (relation)'
                     });
                 } else {
                     const isCopy = (r.targetDocument === DATA.relations.docName);
-                    const title = r.targetDocumentTitle + (isCopy ? ' (копия)' : '');
-                    linkItems.push({ kind: 'link', label: title });
+                    const title = PF.i18n.label(r.targetDocument, { trans: r.targetDocumentTitleTrans });
+                    linkItems.push({ kind: 'link', label: title + (isCopy ? ' (копия)' : '') });
                 }
             }
 
@@ -233,8 +250,11 @@
             }
 
             const atts = (p.attachments || []).filter(a => a && a.type);
+            const attTransAll = (PF.state.meta && PF.state.meta.attachmentTypeCatalog &&
+                PF.state.meta.attachmentTypeCatalog.translationsAll) || {};
             body.appendChild(makePermSectionList('attachments', atts,
-                a => a.type + ': [' + ((a.permissions || []).join(', ')) + ']'));
+                a => PF.i18n.label(a.type, { trans: attTransAll[a.type] }) +
+                    ': [' + ((a.permissions || []).join(', ')) + ']'));
 
             perm.appendChild(body);
             frag.appendChild(perm);
@@ -268,11 +288,16 @@
                 tdState.appendChild(icon);
             }
 
+            const rTr = PF.i18n.tr({ trans: r.stateTrans, ru: r.stateRu });
+            const stateLabel = rTr
+                ? r.stateName + ' (' + rTr + ')'
+                : r.stateName;
+
             const nameEl = document.createElement('span');
             nameEl.className = 'state-name clickable';
             nameEl.dataset.edit = r.stateName;
             nameEl.title = 'Редактировать состояние';
-            nameEl.textContent = r.stateLabel;
+            nameEl.textContent = stateLabel;
             tdState.appendChild(nameEl);
 
             const btnDel = document.createElement('button');

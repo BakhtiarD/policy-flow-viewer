@@ -26,6 +26,7 @@
         <span class="toolbar-spacer"></span>
         <span class="hint" id="metaInfo"></span>
         <button id="toolbarSettingsBtn" data-icon="gear" title="Расположение тулбара" class="secondary"></button>
+        <div id="langSelectHost"></div>
     </div>
 
     <div id="tableView">
@@ -185,9 +186,9 @@
                     <label>Код перехода</label>
                     <input type="text" class="f-name" placeholder="Draft_UnderReview">
                 </div>
-                <div>
-                    <label>Перевод RU перехода</label>
-                    <input type="text" class="f-ru" placeholder="На проверке">
+                <div data-tr-field>
+                    <label data-tr-label>Перевод</label>
+                    <input type="text" class="f-ru">
                 </div>
             </div>
         </div>
@@ -204,9 +205,9 @@
                         <input type="text" class="f-new-name" placeholder="UnderReview">
                         <div class="hint">Этот же код будет записан как EN-перевод</div>
                     </div>
-                    <div class="form-row">
-                        <label>Перевод RU</label>
-                        <input type="text" class="f-new-ru" placeholder="На проверке">
+                    <div class="form-row" data-tr-field>
+                        <label data-tr-label>Перевод</label>
+                        <input type="text" class="f-new-ru">
                     </div>
                 </div>
                 <div class="form-row">
@@ -248,8 +249,8 @@
                         <input type="text" class="f-edit-name">
                         <div class="hint">Переименование обновит все ссылки в 3 файлах</div>
                     </div>
-                    <div class="form-row">
-                        <label>Перевод RU</label>
+                    <div class="form-row" data-tr-field>
+                        <label data-tr-label>Перевод</label>
                         <input type="text" class="f-edit-ru">
                     </div>
                 </div>
@@ -296,8 +297,8 @@
                         <label>Код перехода</label>
                         <input type="text" class="f-tr-name">
                     </div>
-                    <div class="form-row">
-                        <label>Перевод RU</label>
+                    <div class="form-row" data-tr-field>
+                        <label data-tr-label>Перевод</label>
                         <input type="text" class="f-tr-ru">
                     </div>
                 </div>
@@ -401,7 +402,7 @@
                                 <tr>
                                     <th style="width:40px">№</th>
                                     <th>Код</th>
-                                    <th>Перевод RU</th>
+                                    <th data-tr-col>Перевод</th>
                                     <th style="width:40px"></th>
                                 </tr>
                             </thead>
@@ -425,7 +426,7 @@
                                     <th>Код</th>
                                     <th>From</th>
                                     <th>To</th>
-                                    <th>Перевод RU</th>
+                                    <th data-tr-col>Перевод</th>
                                     <th style="width:40px"></th>
                                 </tr>
                             </thead>
@@ -568,6 +569,7 @@
     <script id="policyFlowData" type="application/json">{{DATA_JSON}}</script>
     <script src="{{DAGRE_URI}}"></script>
     <script src="{{JS_STATE}}"></script>
+    <script src="{{JS_I18N}}"></script>
     <script src="{{JS_ICONS}}"></script>
     <script src="{{JS_UTILS}}"></script>
     <script src="{{JS_RELATIONS}}"></script>

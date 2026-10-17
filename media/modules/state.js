@@ -28,6 +28,8 @@
         viewBox: { x: 0, y: 0, w: 1000, h: 1000 },
         zoomPercent: 100,
 
+        selectedLang: 'en-US',
+        languages: [],
         selectedStates: new Set(),
         selectedTransitions: new Set(),
         draftTransition: null,
@@ -40,6 +42,13 @@
         PF.state.stateDetails = DATA.stateDetails;
         // graphData — отдельная копия, чтобы drag/reroute не мутировал DATA.graph
         PF.state.graphData = JSON.parse(JSON.stringify(DATA.graph || { states: [], transitions: [] }));
+        if (PF.i18n && PF.i18n.init) {
+            PF.i18n.init(
+                (DATA.meta && DATA.meta.languages) || [],
+                (DATA.meta && DATA.meta.defaultLang) || 'en-US'
+            );
+            setTimeout(() => PF.i18n.attachSelector(), 0);
+        }
     };
 
     PF.app = {};

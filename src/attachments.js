@@ -30,36 +30,115 @@ function translationCsvPath(dir) {
     return path.join(dir, 'translation', 'translation.csv');
 }
 
-// data.csv — одноколоночный список кодов (без шапки).
-// Читаем: строки, обрезаем \r, пустые пропускаем.
-function loadAttachmentCodes(dir) {
+// data.csv может содержать произвольное число колонок через \t.
+// Первая колонка — код (валидный идентификатор). Шапка присутствует,
+// если первая ячейка не является валидным кодом ИЛИ равна «Code»
+// (без учёта регистра). Всё остальное — extras, которые мы сохраняем.
+function readDataCsvRaw(dir) {
     const p = dataCsvPath(dir);
-    if (!fs.existsSync(p)) return [];
+    if (!fs.existsSync(p)) return { header: null, rows: [] };
+
     const text = stripBom(fs.readFileSync(p, 'utf8'));
-    return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const lines = text.split(/\r?\n/);
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    if (!lines.length) return { header: null, rows: [] };
+
+    const isCode = (s) => /^[A-Za-z][A-Za-z0-9_]*$/.test(s);
+
+    const firstParts = lines[0].split('\t');
+    const firstCell = (firstParts[0] || '').trim();
+    const hasHeader = !isCode(firstCell) || /^code$/i.test(firstCell);
+
+    let header = null;
+    let startIdx = 0;
+    if (hasHeader) {
+        header = firstParts.map(x => x);   // как есть, без trim — сохраняем
+        startIdx = 1;
+    }
+
+    const rows = [];
+    for (let i = startIdx; i < lines.length; i++) {
+        const parts = lines[i].split('\t');
+        const code = (parts[0] || '').trim();
+        if (!isCode(code)) continue;
+        const extras = parts.slice(1);     // как есть
+        rows.push({ code, extras });
+    }
+    return { header, rows };
 }
 
-// Записываем data.csv: по одному коду на строку, trailing newline.
+function loadAttachmentCodes(dir) {
+    return readDataCsvRaw(dir).rows.map(r => r.code);
+}
+
 function saveAttachmentCodes(dir, codes) {
-    fs.writeFileSync(dataCsvPath(dir), codes.join('\n') + '\n', 'utf8');
+    const p = dataCsvPath(dir);
+    const raw = readDataCsvRaw(dir);
+
+    const byCode = new Map();
+    for (const r of raw.rows) byCode.set(r.code, r.extras);
+
+    let maxExtras = 0;
+    for (const r of raw.rows) {
+        if (r.extras.length > maxExtras) maxExtras = r.extras.length;
+    }
+    const colCount = raw.header
+        ? Math.max(raw.header.length - 1, maxExtras)
+        : maxExtras;
+
+    const out = [];
+    if (raw.header) out.push(raw.header.join('\t'));
+
+    for (const code of codes) {
+        let extras;
+        if (byCode.has(code)) {
+            extras = byCode.get(code);
+        } else if (raw.header) {
+            // Новый код: description-колонки заполняем кодом, остальные пусто.
+            extras = [];
+            for (let i = 0; i < colCount; i++) {
+                const h = raw.header[i + 1] || '';
+                extras.push(/description/i.test(h) ? code : '');
+            }
+        } else {
+            // Нет шапки — новых кодов без extras (одноколочно).
+            extras = [];
+        }
+
+        // Хвостовые пустые колонки не тащим — иначе получим code\t\t\t.
+        let last = extras.length - 1;
+        while (last >= 0 && extras[last] === '') last--;
+        const trimmed = extras.slice(0, last + 1);
+
+        out.push(trimmed.length ? (code + '\t' + trimmed.join('\t')) : code);
+    }
+
+    fs.writeFileSync(p, out.join('\n') + '\n', 'utf8');
 }
 
 // translation.csv — заголовочная таблица. Индексы ищем по имени колонки,
 // порядок и набор языков могут отличаться.
 function loadAttachmentTranslations(dir) {
     const p = translationCsvPath(dir);
-    if (!fs.existsSync(p)) return { csv: null, map: {} };
+    if (!fs.existsSync(p)) return { csv: null, map: {}, mapAll: {} };
     const csv = parseCsv(stripBom(fs.readFileSync(p, 'utf8')));
-    const map = parseTranslations(csv);
-    return { csv, map };
+    const { map, mapAll } = parseTranslations(csv);
+    return { csv, map, mapAll };
 }
 
 function parseTranslations(csv) {
     const map = {};
-    if (!csv || !csv.header || !csv.header.length) return map;
+    const mapAll = {};
+    if (!csv || !csv.header || !csv.header.length) return { map, mapAll };
+
+    const langCols = [];
+    for (let c = 0; c < csv.header.length; c++) {
+        const m = /^Translation_(.+)$/.exec(csv.header[c]);
+        if (!m) continue;
+        langCols.push({ lang: m[1], col: c });
+    }
+
     const idx = indexOf(csv.header);
-    const ruIdx = idx['Translation_ru-RU'];
-    if (ruIdx == null) return map;
 
     for (const row of csv.rows) {
         const key = row[idx['TranslationKey']];
@@ -67,25 +146,44 @@ function parseTranslations(csv) {
         const m = String(key).match(/^AttachmentType@(.+?)@description$/);
         if (!m) continue;
         const code = m[1];
-        const ru = row[ruIdx];
-        if (ru) map[code] = ru;
+        const obj = {};
+        for (const { lang, col } of langCols) {
+            const v = row[col];
+            if (v) obj[lang] = v;
+        }
+        if (!Object.keys(obj).length) continue;
+        mapAll[code] = obj;
+        map[code] = obj['ru-RU'] || obj['en-US'] || Object.values(obj)[0] || code;
     }
-    return map;
+    return { map, mapAll };
 }
 
 // Возвращает { codes, translations, dir }
 function loadAttachmentType(projectRoot) {
     const dir = findAttachmentTypeDir(projectRoot);
-    if (!dir) return { codes: [], translations: {}, dir: null };
+    if (!dir) return { codes: [], translations: {}, translationsAll: {}, dir: null };
 
     const codes = loadAttachmentCodes(dir);
-    const { map: translations } = loadAttachmentTranslations(dir);
-    return { codes, translations, dir };
+    const { map: translations, mapAll: translationsAll } = loadAttachmentTranslations(dir);
+    return { codes, translations, translationsAll, dir };
 }
 
 // Добавляет код в data.csv + запись перевода в translation.csv.
 // Возвращает true, если что-то изменилось.
-function addAttachmentType(dir, code, ruTitle) {
+// Выбирает колонку перевода под язык: сначала Translation_<lang>,
+// затем Translation_ru-RU, затем первая не-en колонка.
+// null — если ни одной (тогда пишем только en-US).
+function pickTrCol(header, lang) {
+    const target = 'Translation_' + lang;
+    if (header.includes(target)) return target;
+    if (header.includes('Translation_ru-RU')) return 'Translation_ru-RU';
+    const firstNonEn = header.find(h =>
+        /^Translation_/.test(h) && h !== 'Translation_en-US'
+    );
+    return firstNonEn || null;
+}
+
+function addAttachmentType(dir, code, trValue, lang) {
     if (!dir) throw new Error('AttachmentType не найден в проекте.');
     if (!code || !/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
         throw new Error('Некорректный код вложения: ' + code);
@@ -103,7 +201,6 @@ function addAttachmentType(dir, code, ruTitle) {
     if (fs.existsSync(p)) {
         csv = parseCsv(stripBom(fs.readFileSync(p, 'utf8')));
     } else {
-        // Если файла нет — создаём с минимальной шапкой.
         csv = {
             header: [
                 'ConfigurationType', 'ConfigurationName', 'ItemType', 'TranslationKey',
@@ -121,10 +218,19 @@ function addAttachmentType(dir, code, ruTitle) {
     row[idx['TranslationKey']] = 'AttachmentType@' + code + '@description';
     row[idx['Expression']] = 'description';
     row[idx['Translation_en-US']] = code;
-    row[idx['Translation_ru-RU']] = ruTitle || code;
+
+    // Язык перевода. При en-US не пишем в не-en колонки: код уже
+    // и есть en-US.
+    const trLang = lang || 'ru-RU';
+    if (trLang !== 'en-US') {
+        const colName = pickTrCol(csv.header, trLang);
+        if (colName && (colName in idx)) {
+            row[idx[colName]] = trValue || code;
+        }
+    }
+
     csv.rows.push(row);
 
-    // Если папки translation нет — создадим
     const tdir = path.dirname(p);
     if (!fs.existsSync(tdir)) fs.mkdirSync(tdir, { recursive: true });
 

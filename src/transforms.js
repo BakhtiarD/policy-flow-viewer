@@ -26,25 +26,88 @@ function pointOnEdge(rect, towardX, towardY) {
  * TRANSLATIONS / META
  * ============================================================ */
 function buildTranslations(csv) {
-    const stateTrans = {}, transTrans = {}, opTrans = {};
+    const stateTrans = {}, transTrans = {}, opTrans = {}, actorTrans = {};
+    const stateTransAll = {}, transTransAll = {}, opTransAll = {}, actorTransAll = {};
+
     const idx = indexOf(csv.header);
+
+    // Языковые колонки: Translation_<code>.
+    // - langCols     — все, включая en-US (нужны для карты переводов);
+    // - nonEnLangs   — только не-EN (для селектора в тулбаре).
+    // en-US в списке языков селектора не участвует, но в карте переводов есть.
+    const langCols = [];
+    const nonEnLangs = [];
+    for (let c = 0; c < csv.header.length; c++) {
+        const m = /^Translation_(.+)$/.exec(csv.header[c]);
+        if (!m) continue;
+        langCols.push({ lang: m[1], col: c });
+        if (m[1] !== 'en-US') nonEnLangs.push(m[1]);
+    }
+    const languages = nonEnLangs;
+    const defaultLang = nonEnLangs[0] || 'en-US';
+
+    const setAll = (target, name, lang, value) => {
+        if (!target[name]) target[name] = {};
+        target[name][lang] = value;
+    };
+
     for (const row of csv.rows) {
         const type = row[idx['ItemType']];
         const key = row[idx['TranslationKey']];
-        const ru = row[idx['Translation_ru-RU']];
-        if (!ru) continue;
 
+        let itemName, target, targetAll;
         if (type === 'states' && key.startsWith('states@')) {
-            stateTrans[key.slice('states@'.length)] = ru;
+            itemName = key.slice('states@'.length);
+            target = stateTrans; targetAll = stateTransAll;
         } else if (type === 'transitions' && key.startsWith('transitions@')) {
             const m = key.match(/^transitions@(.+?)@Title$/);
-            if (m) transTrans[m[1]] = ru;
+            if (!m) continue;
+            itemName = m[1];
+            target = transTrans; targetAll = transTransAll;
         } else if (type === 'operations' && key.startsWith('operations@')) {
             const m = key.match(/^operations@(.+?)@Title$/);
-            if (m) opTrans[m[1]] = ru;
+            if (!m) continue;
+            itemName = m[1];
+            target = opTrans; targetAll = opTransAll;
+        } else if (type === 'actors') {
+            // TranslationKey = код актора.
+            itemName = key;
+            if (!itemName) continue;
+            target = actorTrans; targetAll = actorTransAll;
+        } else {
+            continue;
+        }
+
+        // Старый формат (ru-RU) — для совместимости с формами и др. модулями.
+        const ru = row[idx['Translation_ru-RU']];
+        if (ru) target[itemName] = ru;
+
+        // Новый формат — карта по всем языкам.
+        for (const { lang, col } of langCols) {
+            const v = row[col];
+            if (v) {
+                setAll(targetAll, itemName, lang, v);
+            } else if (lang === 'en-US') {
+                setAll(targetAll, itemName, lang, itemName);
+            }
         }
     }
-    return { stateTrans, transTrans, opTrans };
+
+    const ensureEn = (map) => {
+        for (const k of Object.keys(map)) {
+            if (!map[k]['en-US']) map[k]['en-US'] = k;
+        }
+    };
+    ensureEn(stateTransAll);
+    ensureEn(transTransAll);
+    ensureEn(opTransAll);
+    ensureEn(actorTransAll);
+
+    return {
+        stateTrans, transTrans, opTrans, actorTrans,
+        stateTransAll, transTransAll, opTransAll, actorTransAll,
+        languages, defaultLang
+    };
 }
 
 function detectFlowName(csv) {
@@ -100,12 +163,14 @@ function buildMeta(flow, config, csv, trans, ctx) {
         states: (flow.states || []).map(s => s.name),
         attachmentTypeCatalog: {
             codes: Array.isArray(ctx && ctx.attachmentTypeCodes) ? ctx.attachmentTypeCodes : [],
-            translations: (ctx && ctx.attachmentTypeTranslations) || {}
+            translations: (ctx && ctx.attachmentTypeTranslations) || {},
+            translationsAll: (ctx && ctx.attachmentTypeTranslationsAll) || {}
         },
-        translations: trans
+        translations: trans,
+        languages: trans.languages || [],
+        defaultLang: trans.defaultLang || 'en-US'
     };
 }
-
 
 function buildAuthMeta(flowPath, authCsv, authPath, groupRoles) {
     const path = require('path');
@@ -220,6 +285,14 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
             issues.push('Дублируется в пакетах: ' + r.duplicateAcrossPackages.join(', '));
         }
 
+        const titleEntry = titles[r.targetDocument];
+        const titleIsMap = titleEntry && typeof titleEntry === 'object';
+        const targetDocumentTitle = titleIsMap
+            ? (titleEntry['ru-RU'] || titleEntry['en-US'] ||
+               Object.values(titleEntry)[0] || r.targetDocument)
+            : (titleEntry || r.targetDocument);
+        const targetDocumentTitleTrans = titleIsMap ? titleEntry : {};
+
         relations.push({
             name: r.name,
             path: r.path,
@@ -233,7 +306,8 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
             actionToRunBefore: r.actionToRunBefore,
             targetDocument: r.targetDocument,
             targetDocumentVersion: r.targetDocumentVersion,
-            targetDocumentTitle: titles[r.targetDocument] || r.targetDocument,
+            targetDocumentTitle,
+            targetDocumentTitleTrans,
             targetState: r.targetState,
             keywords: r.keywords,
             isOutgoing,
@@ -294,26 +368,41 @@ function buildTable(flow, config, trans) {
 
     return states.map(state => {
         const stRu = trans.stateTrans[state] || state;
+        const stTrans = trans.stateTransAll[state] || {};
         const stateLabel = `${state} (${stRu})`;
 
         const outMap = new Map();
         for (const t of transitions) {
             if (t.from !== state) continue;
             if (!outMap.has(t.to)) outMap.set(t.to, []);
-            outMap.get(t.to).push({ name: t.name, ru: trans.transTrans[t.name] || t.name });
+            outMap.get(t.to).push({
+                name: t.name,
+                ru: trans.transTrans[t.name] || t.name,
+                trans: trans.transTransAll[t.name] || {}
+            });
         }
         const outgoing = [...outMap.entries()].map(([st, trs]) => ({
-            state: st, stateRu: trans.stateTrans[st] || st, transitions: trs
+            state: st,
+            stateRu: trans.stateTrans[st] || st,
+            stateTrans: trans.stateTransAll[st] || {},
+            transitions: trs
         }));
 
         const inMap = new Map();
         for (const t of transitions) {
             if (t.to !== state) continue;
             if (!inMap.has(t.from)) inMap.set(t.from, []);
-            inMap.get(t.from).push({ name: t.name, ru: trans.transTrans[t.name] || t.name });
+            inMap.get(t.from).push({
+                name: t.name,
+                ru: trans.transTrans[t.name] || t.name,
+                trans: trans.transTransAll[t.name] || {}
+            });
         }
         const incoming = [...inMap.entries()].map(([st, trs]) => ({
-            state: st, stateRu: trans.stateTrans[st] || st, transitions: trs
+            state: st,
+            stateRu: trans.stateTrans[st] || st,
+            stateTrans: trans.stateTransAll[st] || {},
+            transitions: trs
         }));
 
         const configState = (config.states || []).find(s => s.name === state);
@@ -329,7 +418,11 @@ function buildTable(flow, config, trans) {
                     transitions: (a.transitions || [])
                         .map(t => {
                             const n = normalizeTransitionName(t);
-                            return n ? { name: n, ru: trans.transTrans[n] || n } : null;
+                            return n ? {
+                                name: n,
+                                ru: trans.transTrans[n] || n,
+                                trans: trans.transTransAll[n] || {}
+                            } : null;
                         })
                         .filter(Boolean),
                     attachments: (a.attachmentsRestrictions || []).map(ar => ({
@@ -338,7 +431,14 @@ function buildTable(flow, config, trans) {
                 });
             }
         }
-        return { stateName: state, stateLabel, incoming, outgoing, perms, flags: flagsByState[state] };
+        return {
+            stateName: state,
+            stateLabel,
+            stateRu: stRu,
+            stateTrans: stTrans,
+            incoming, outgoing, perms,
+            flags: flagsByState[state]
+        };
     });
 }
 
@@ -347,14 +447,23 @@ function buildStateDetails(flow, config, trans) {
     for (const s of (flow.states || [])) {
         const name = s.name;
         const ru = trans.stateTrans[name] || name;
+        const stateTransMap = trans.stateTransAll[name] || {};
 
         const outgoing = (flow.transitions || [])
             .filter(t => t.from === name)
-            .map(t => ({ name: t.name, to: t.to, ru: trans.transTrans[t.name] || t.name }));
+            .map(t => ({
+                name: t.name, to: t.to,
+                ru: trans.transTrans[t.name] || t.name,
+                trans: trans.transTransAll[t.name] || {}
+            }));
 
         const incoming = (flow.transitions || [])
             .filter(t => t.to === name)
-            .map(t => ({ name: t.name, from: t.from, ru: trans.transTrans[t.name] || t.name }));
+            .map(t => ({
+                name: t.name, from: t.from,
+                ru: trans.transTrans[t.name] || t.name,
+                trans: trans.transTransAll[t.name] || {}
+            }));
 
         const cs = (config.states || []).find(x => x.name === name);
         const permissions = ((cs && cs.actors) || []).map(a => {
@@ -381,7 +490,12 @@ function buildStateDetails(flow, config, trans) {
             };
         });
 
-        details[name] = { ru, isTerminal: !!s.isTerminal, outgoing, incoming, permissions };
+        details[name] = {
+            ru,
+            trans: stateTransMap,
+            isTerminal: !!s.isTerminal,
+            outgoing, incoming, permissions
+        };
     }
     return details;
 }
@@ -424,6 +538,7 @@ function buildGraph(flow, ui, trans, ctx) {
     const states = flowStates.map(name => ({
         name,
         ru: trans.stateTrans[name] || name,
+        trans: trans.stateTransAll[name] || {},
         x: uiStates[name].cx - 80,
         y: uiStates[name].cy - 25,
         w: 160, h: 50
@@ -436,6 +551,7 @@ function buildGraph(flow, ui, trans, ctx) {
             from: t.from,
             to: t.to,
             ru: trans.transTrans[t.name] || t.name,
+            trans: trans.transTransAll[t.name] || {},
             actionToRunBefore: t.actionToRunBefore || '',
             actionToRunBeforeExists: (() => {
                 if (!t.actionToRunBefore || !ctx) return true;

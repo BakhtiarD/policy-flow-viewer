@@ -11,6 +11,26 @@ const {
 const { renderHtml } = require('./html');
 const { collectGroupRoles } = require('./authorization');
 
+// sourceDocumentStates в documentRelation/*/configuration.json может
+// содержать actors как строки, так и объекты {actor: '...'}. Приводим
+// к строкам здесь, чтобы все потребители (валидатор, панель «Связи»,
+// buildRelationsMeta) работали с одинаковым форматом.
+function normalizeSourceDocumentStates(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map(st => {
+        const name = (st && st.name) ? String(st.name) : '';
+        const actorsRaw = Array.isArray(st && st.actors) ? st.actors : [];
+        const actors = actorsRaw
+            .map(a => {
+                if (typeof a === 'string') return a;
+                if (a && typeof a === 'object') return a.actor || a.name || '';
+                return '';
+            })
+            .filter(Boolean);
+        return { name, actors };
+    }).filter(st => st.name);
+}
+
 async function resolveRoot(uri) {
     if (uri && uri.fsPath) {
         try {
@@ -182,7 +202,7 @@ function loadRelationsFromDir(dir, originPackage) {
                 originPackage: originPackage || null,
                 sourceDocument: cfg.sourceDocument || '',
                 sourceDocumentVersion: cfg.sourceDocumentVersion || '',
-                sourceDocumentStates: Array.isArray(cfg.sourceDocumentStates) ? cfg.sourceDocumentStates : [],
+                sourceDocumentStates: normalizeSourceDocumentStates(cfg.sourceDocumentStates),
                 actionToRunBefore: cfg.actionToRunBefore || '',
                 targetDocument: cfg.targetDocument || '',
                 targetDocumentVersion: cfg.targetDocumentVersion || '',
@@ -326,7 +346,7 @@ function loadRelations(productLevel) {
                 path: cfgPath,
                 sourceDocument: cfg.sourceDocument || '',
                 sourceDocumentVersion: cfg.sourceDocumentVersion || '',
-                sourceDocumentStates: Array.isArray(cfg.sourceDocumentStates) ? cfg.sourceDocumentStates : [],
+                sourceDocumentStates: normalizeSourceDocumentStates(cfg.sourceDocumentStates),
                 actionToRunBefore: cfg.actionToRunBefore || '',
                 targetDocument: cfg.targetDocument || '',
                 targetDocumentVersion: cfg.targetDocumentVersion || '',
@@ -434,13 +454,28 @@ function loadAllDocumentTitles(projectRoot, onlyFor) {
             try {
                 const csv = parseCsv(stripBom(fs.readFileSync(tPath, 'utf8')));
                 const idx = indexOf(csv.header);
+
+                const langCols = [];
+                for (let c = 0; c < csv.header.length; c++) {
+                    const m = /^Translation_(.+)$/.exec(csv.header[c]);
+                    if (!m) continue;
+                    langCols.push({ lang: m[1], col: c });
+                }
+
+                const langMap = {};
                 for (const row of csv.rows) {
                     if (row[idx['ItemType']] === 'rootConfiguration' &&
                         row[idx['ConfigurationName']] === docName) {
-                        const ru = row[idx['Translation_ru-RU']];
-                        if (ru) { result[docName] = ru; break; }
+                        for (const { lang, col } of langCols) {
+                            const v = row[col];
+                            if (v) langMap[lang] = v;
+                        }
+                        break;
                     }
                 }
+
+                if (!Object.keys(langMap).length) langMap['en-US'] = docName;
+                result[docName] = langMap;
             } catch (err) {
                 console.error('document title parse error:', pkg.name, docName, err);
             }
@@ -552,6 +587,7 @@ function loadData(ctx) {
             attachmentTypeDir: att.dir,
             attachmentTypeCodes: att.codes,
             attachmentTypeTranslations: att.translations,
+            attachmentTypeTranslationsAll: att.translationsAll || {},
             groupRoles
         };
     }
@@ -564,6 +600,7 @@ function loadData(ctx) {
     ctx.attachmentTypeDir = ctx.projectCache.attachmentTypeDir;
     ctx.attachmentTypeCodes = ctx.projectCache.attachmentTypeCodes;
     ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
+    ctx.attachmentTypeTranslationsAll = ctx.projectCache.attachmentTypeTranslationsAll || {};
     ctx.groupRoles = ctx.projectCache.groupRoles;
 }
 

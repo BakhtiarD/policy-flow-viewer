@@ -242,9 +242,10 @@
                 g.appendChild(hit);
             }
 
-            if (t.label && PF.state.showTransitionLabels) {
+                        if (t.label && PF.state.showTransitionLabels) {
+                const tTr = PF.i18n.tr({ trans: t.trans, ru: t.ru });
                 const labelText = t.name + (t.manual ? ' ✎' : '') +
-                    (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+                    (tTr ? ' (' + tTr + ')' : '');
                 const textW = Math.max(30, labelText.length * 5.5 + 8);
                 const boxW = textW + 8;
                 const boxH = 16;
@@ -334,11 +335,12 @@
 
             const cx = s.x + s.w / 2;
             const cy = s.y + s.h / 2;
-            const hasRu = s.ru && s.ru !== s.name;
+            const sTr = PF.i18n.tr({ trans: s.trans, ru: s.ru });
+            const hasTr = !!sTr;
 
             const nameText = svgEl('text', {
                 x: cx,
-                y: hasRu ? cy - 7 : cy,
+                y: hasTr ? cy - 7 : cy,
                 'text-anchor': 'middle',
                 'dominant-baseline': 'middle',
                 'font-weight': '600',
@@ -347,15 +349,15 @@
             nameText.textContent = s.name;
             g.appendChild(nameText);
 
-            if (hasRu) {
-                const ruText = svgEl('text', {
+            if (hasTr) {
+                const trText = svgEl('text', {
                     x: cx, y: cy + 13,
                     'text-anchor': 'middle',
                     'dominant-baseline': 'middle',
                     'font-size': '11', 'opacity': '0.8'
                 });
-                ruText.textContent = s.ru;
-                g.appendChild(ruText);
+                trText.textContent = sTr;
+                g.appendChild(trText);
             }
 
             rect.addEventListener('dblclick', (ev) => {

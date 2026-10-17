@@ -77,8 +77,13 @@
         }
 
         const allStates = (PF.state.meta && PF.state.meta.states) || [];
-        const stateTrans = (PF.state.meta && PF.state.meta.translations &&
-            PF.state.meta.translations.stateTrans) || {};
+        const trs = (PF.state.meta && PF.state.meta.translations) || {};
+        const stateTrans = trs.stateTrans || {};
+        const stateTransAll = trs.stateTransAll || {};
+        const transTrans = trs.transTrans || {};
+        const transTransAll = trs.transTransAll || {};
+        const actorTrans = trs.actorTrans || {};
+        const actorTransAll = trs.actorTransAll || {};
 
         for (const actor of actors) {
             const tr = document.createElement('tr');
@@ -88,7 +93,10 @@
             tdActor.className = 'actors-cell-actor';
             const nameSpan = document.createElement('span');
             nameSpan.className = 'actors-actor-name';
-            nameSpan.textContent = actor;
+            nameSpan.textContent = PF.i18n.label(actor, {
+                trans: actorTransAll[actor],
+                ru: actorTrans[actor]
+            });
             tdActor.appendChild(nameSpan);
 
             const renActor = document.createElement('button');
@@ -139,10 +147,12 @@
                 chip.dataset.state = st;
                 chip.title = 'Редактировать права актора в этом состоянии';
 
-                const ru = stateTrans[st];
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'actors-chip-label';
-                labelSpan.textContent = st + (ru && ru !== st ? ' (' + ru + ')' : '');
+                labelSpan.textContent = PF.i18n.label(st, {
+                    trans: stateTransAll[st],
+                    ru: stateTrans[st]
+                });
                 chip.appendChild(labelSpan);
 
                 const chipDel = document.createElement('span');
@@ -174,23 +184,23 @@
             const transWrap = document.createElement('div');
             transWrap.className = 'actors-chip-list';
 
-            const transTrans = (PF.state.meta && PF.state.meta.translations &&
-                PF.state.meta.translations.transTrans) || {};
-
             const transSet = transitionsByActor[actor] || new Set();
             const transList = [...transSet].sort();
 
             for (const tName of transList) {
-                const tRu = transTrans[tName];
+                const tLabel = PF.i18n.label(tName, {
+                    trans: transTransAll[tName],
+                    ru: transTrans[tName]
+                });
                 const chip = document.createElement('span');
                 chip.className = 'actors-chip';
                 chip.dataset.act = 'open-transition';
                 chip.dataset.transition = tName;
-                chip.title = 'Открыть переход' + (tRu && tRu !== tName ? ' — ' + tRu : '');
+                chip.title = 'Открыть переход — ' + tLabel;
 
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'actors-chip-label';
-                labelSpan.textContent = tName + (tRu && tRu !== tName ? ' (' + tRu + ')' : '');
+                labelSpan.textContent = tLabel;
                 chip.appendChild(labelSpan);
 
                 const chipDel = document.createElement('span');
@@ -353,11 +363,15 @@
         const statesByActor = collectStatesByActor();
         const used = new Set(statesByActor[actor] || []);
         const allStates = (PF.state.meta && PF.state.meta.states) || [];
-        const stateTrans = (PF.state.meta && PF.state.meta.translations &&
-            PF.state.meta.translations.stateTrans) || {};
+        const trs = (PF.state.meta && PF.state.meta.translations) || {};
+        const stateTrans = trs.stateTrans || {};
+        const stateTransAll = trs.stateTransAll || {};
         const options = allStates
             .filter(s => !used.has(s))
-            .map(s => ({ value: s, label: s + (stateTrans[s] && stateTrans[s] !== s ? ' (' + stateTrans[s] + ')' : '') }));
+            .map(s => ({
+                value: s,
+                label: PF.i18n.label(s, { trans: stateTransAll[s], ru: stateTrans[s] })
+            }));
         if (!options.length) {
             PF.utils.showAlert('Не осталось состояний, куда можно добавить актора.');
             return;
@@ -383,11 +397,14 @@
         const transitions = (PF.state.graphData && PF.state.graphData.transitions) || [];
         const options = transitions
             .filter(t => !used.has(t.name))
-            .map(t => ({
-                value: t.name,
-                label: t.name + ' [' + t.from + ' → ' + t.to + ']' +
-                    (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '')
-            }));
+            .map(t => {
+                const trLabel = PF.i18n.tr({ trans: t.trans, ru: t.ru });
+                return {
+                    value: t.name,
+                    label: t.name + ' [' + t.from + ' → ' + t.to + ']' +
+                        (trLabel ? ' (' + trLabel + ')' : '')
+                };
+            });
         if (!options.length) {
             PF.utils.showAlert('Не осталось переходов, которые можно добавить.');
             return;
@@ -420,7 +437,12 @@
         const perm = (det.permissions || []).find(p => p.actor === actor);
         if (!perm) { PF.utils.showAlert('Нет прав актора ' + actor + ' в ' + stateName); return; }
 
-        const outgoing = (det.outgoing || []).map(t => ({ name: t.name, ru: t.ru || '' }));
+        const outgoing = (det.outgoing || []).map(t => ({
+            name: t.name,
+            to: t.to,
+            ru: t.ru || '',
+            trans: t.trans || {}
+        }));
 
         const container = document.getElementById('modalContainer');
         const backdrop = document.createElement('div');
@@ -429,8 +451,16 @@
         const modal = document.createElement('div');
         modal.className = 'modal';
 
+        const trs = (PF.state.meta && PF.state.meta.translations) || {};
+        const actorTransAll = trs.actorTransAll || {};
+        const actorTrans = trs.actorTrans || {};
+        const actorLabel = PF.i18n.label(actor, {
+            trans: actorTransAll[actor],
+            ru: actorTrans[actor]
+        });
+
         const h = document.createElement('h2');
-        h.textContent = 'Права «' + actor + '» в «' + stateName + '»';
+        h.textContent = 'Права «' + actorLabel + '» в «' + stateName + '»';
         modal.appendChild(h);
 
         const card = PF.forms.buildPermissionCard(perm, () => outgoing);

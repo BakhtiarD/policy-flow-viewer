@@ -69,13 +69,19 @@
             }
         }
 
+        const curLang = (PF.state && PF.state.selectedLang) || 'ru-RU';
+        const stateTransAll = (meta.translations && meta.translations.stateTransAll) || {};
+        const transTransAll = (meta.translations && meta.translations.transTransAll) || {};
+
         for (const s of graphStates) {
-            const ru = stateTrans[s.name];
-            if (!ru || !String(ru).trim()) issues.missingStateTranslations.push({ name: s.name });
+            const m = stateTransAll[s.name] || {};
+            const v = m[curLang] || (curLang === 'ru-RU' ? stateTrans[s.name] : '');
+            if (!v || !String(v).trim()) issues.missingStateTranslations.push({ name: s.name });
         }
         for (const t of graphTransitions) {
-            const ru = transTrans[t.name];
-            if (!ru || !String(ru).trim()) issues.missingTransitionTranslations.push({ name: t.name });
+            const m = transTransAll[t.name] || {};
+            const v = m[curLang] || (curLang === 'ru-RU' ? transTrans[t.name] : '');
+            if (!v || !String(v).trim()) issues.missingTransitionTranslations.push({ name: t.name });
         }
 
         for (const r of (DATA.rows || [])) {
@@ -179,6 +185,24 @@
                 : '⚠️ Найдено проблем: ' + total;
             summary.classList.toggle('ok', total === 0);
 
+            const trs = (PF.state.meta && PF.state.meta.translations) || {};
+            const stateTransAll = trs.stateTransAll || {};
+            const stateTrans = trs.stateTrans || {};
+            const transTransAll = trs.transTransAll || {};
+            const transTrans = trs.transTrans || {};
+            const actorTransAll = trs.actorTransAll || {};
+            const actorTrans = trs.actorTrans || {};
+
+            const stateLabel = (n) => escHtml(
+                PF.i18n.label(n, { trans: stateTransAll[n], ru: stateTrans[n] })
+            );
+            const transLabel = (n) => escHtml(
+                PF.i18n.label(n, { trans: transTransAll[n], ru: transTrans[n] })
+            );
+            const actorLabel = (n) => escHtml(
+                PF.i18n.label(n, { trans: actorTransAll[n], ru: actorTrans[n] })
+            );
+
             function section(title, items, renderFn, emptyText) {
                 const sec = document.createElement('section');
                 sec.className = 'validate-section';
@@ -205,34 +229,36 @@
 
             section('1. Недостижимые состояния', issues.unreachable, it => {
                 if (it.note) return '<span style="opacity:.8">' + escHtml(it.note) + '</span>';
-                return '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>';
+                return '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + stateLabel(it.name) + '</a>';
             }, 'Все состояния достижимы из initialState');
 
             section('2. Терминальные с исходящими переходами', issues.terminalWithOutgoing,
                 it =>
-                    '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>' +
-                    ' — переходы: ' + it.transitions.map(x => '<code>' + escHtml(x) + '</code>').join(', '),
+                    '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + stateLabel(it.name) + '</a>' +
+                    ' — переходы: ' + it.transitions.map(x => '<code>' + transLabel(x) + '</code>').join(', '),
                 'Нет');
 
-            section('3.1. Нет перевода RU (состояния)', issues.missingStateTranslations,
-                it => '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>',
+            const curLang = (PF.state && PF.state.selectedLang) || 'ru-RU';
+
+            section('3.1. Нет перевода (' + curLang + ') — состояния', issues.missingStateTranslations,
+                it => '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + stateLabel(it.name) + '</a>',
                 'Все состояния переведены');
 
-            section('3.2. Нет перевода RU (переходы)', issues.missingTransitionTranslations,
-                it => '<a class="validate-link" data-transition="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>',
+            section('3.2. Нет перевода (' + curLang + ') — переходы', issues.missingTransitionTranslations,
+                it => '<a class="validate-link" data-transition="' + escHtml(it.name) + '">' + transLabel(it.name) + '</a>',
                 'Все переходы переведены');
 
             section('4. Нет акторов в состоянии', issues.noActors,
-                it => '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + escHtml(it.name) + '</a>',
+                it => '<a class="validate-link" data-state="' + escHtml(it.name) + '">' + stateLabel(it.name) + '</a>',
                 'Во всех состояниях есть хотя бы один актор');
 
             section('5. Системные переходы (только System / ServiceExecutor)', issues.missingServerSideEvents,
                 it => {
                     const actorsList = it.actors.length
-                        ? it.actors.map(a => '<code>' + escHtml(a) + '</code>').join(', ')
+                        ? it.actors.map(a => '<code>' + actorLabel(a) + '</code>').join(', ')
                         : '<i>нет акторов с правами</i>';
                     return '<a class="validate-link" data-transition="' + escHtml(it.name) + '">' +
-                        escHtml(it.name) + '</a>' +
+                        transLabel(it.name) + '</a>' +
                         ' — акторы: ' + actorsList +
                         ' — требуется <code>broadcastEvent.serverSideEvents = true</code>';
                 },
@@ -244,7 +270,7 @@
 
             section('7. Акторы без роли в authorization.csv', issues.actorsWithoutRoles,
                 it => '<a class="validate-link" data-actor="' + escHtml(it.name) + '">' +
-                    escHtml(it.name) + '</a>',
+                    actorLabel(it.name) + '</a>',
                 'У всех акторов есть роль в authorization.csv');
 
             body.querySelectorAll('.validate-link').forEach(a => {
@@ -512,10 +538,17 @@
             ph.textContent = '— выберите —';
             sel.appendChild(ph);
 
+            const trs = (PF.state.meta && PF.state.meta.translations) || {};
+            const actorTransAll = trs.actorTransAll || {};
+            const actorTrans = trs.actorTrans || {};
+
             for (const a of allActors) {
                 const opt = document.createElement('option');
                 opt.value = a;
-                opt.textContent = a;
+                opt.textContent = PF.i18n.label(a, {
+                    trans: actorTransAll[a],
+                    ru: actorTrans[a]
+                });
                 sel.appendChild(opt);
             }
             sel.value = r.actor || '';
@@ -675,7 +708,16 @@
         const backdrop = cloneTemplate('tpl-copy-actor-modal');
         container.appendChild(backdrop);
 
-        backdrop.querySelector('.f-copy-source').textContent = actorName + ' @ ' + stateName;
+        {
+            const trs = (PF.state.meta && PF.state.meta.translations) || {};
+            const actorTransAll = trs.actorTransAll || {};
+            const actorTrans = trs.actorTrans || {};
+            const actorLabel = PF.i18n.label(actorName, {
+                trans: actorTransAll[actorName],
+                ru: actorTrans[actorName]
+            });
+            backdrop.querySelector('.f-copy-source').textContent = actorLabel + ' @ ' + stateName;
+        }
 
         const nameInput = backdrop.querySelector('.f-copy-name');
         nameInput.value = actorName;
@@ -697,8 +739,9 @@
             label.appendChild(cb);
 
             const txt = document.createElement('span');
-            const ru = (meta.translations.stateTrans && meta.translations.stateTrans[st]) || st;
-            txt.textContent = st + ' (' + ru + ')';
+            const stateTransAll = (meta.translations && meta.translations.stateTransAll) || {};
+            const stateRu = (meta.translations && meta.translations.stateTrans && meta.translations.stateTrans[st]) || st;
+            txt.textContent = PF.i18n.label(st, { trans: stateTransAll[st] || {}, ru: stateRu });
             label.appendChild(txt);
 
             statesCont.appendChild(label);
@@ -765,16 +808,30 @@
     /* ============================================================
      * КАРКАС ДОКФЛОУ
      * ============================================================ */
+    function applyLangToTable(root) {
+        if (!root) return;
+        const lang = (PF.state && PF.state.selectedLang) || 'ru-RU';
+        const isEn = (lang === 'en-US');
+        root.querySelectorAll('[data-tr-col]').forEach(el => {
+            el.textContent = 'Перевод ' + lang;
+            el.style.display = isEn ? 'none' : '';
+        });
+        root.querySelectorAll('[data-tr-td]').forEach(el => {
+            el.style.display = isEn ? 'none' : '';
+        });
+    }
+
     function openGenerateFlowForm() {
         const container = document.getElementById('modalContainer');
         const backdrop = cloneTemplate('tpl-generate-flow-modal');
         container.appendChild(backdrop);
 
         const meta = PF.state.meta;
+        const lang = PF.state.selectedLang || 'ru-RU';
 
         const existingStates = (PF.state.graphData.states || []).map(s => ({
             name: s.name,
-            ru: (meta.translations.stateTrans && meta.translations.stateTrans[s.name]) || s.ru || s.name,
+            ru: (s.trans && s.trans[lang]) || s.name,
             existing: true
         }));
 
@@ -782,7 +839,7 @@
             name: t.name,
             from: t.from,
             to: t.to,
-            ru: (meta.translations.transTrans && meta.translations.transTrans[t.name]) || t.ru || t.name,
+            ru: (t.trans && t.trans[lang]) || t.name,
             existing: true
         }));
 
@@ -812,6 +869,7 @@
             tr.appendChild(tdCode);
 
             const tdRu = document.createElement('td');
+            tdRu.setAttribute('data-tr-td', '');
             const ruInput = document.createElement('input');
             ruInput.type = 'text';
             ruInput.value = s.ru;
@@ -884,6 +942,7 @@
             tr.appendChild(tdTo);
 
             const tdRu = document.createElement('td');
+            tdRu.setAttribute('data-tr-td', '');
             const ruInput = document.createElement('input');
             ruInput.type = 'text';
             ruInput.value = t.ru;
@@ -937,6 +996,7 @@
 
         renderStatesTable();
         renderTransitionsTable();
+        applyLangToTable(backdrop);
 
         backdrop.querySelector('[data-act="add-states"]').addEventListener('click', () => {
             const ta = backdrop.querySelector('.f-gen-states-input');
@@ -1017,7 +1077,8 @@
                 type: 'generateFlow',
                 payload: {
                     states: genFlowState.states,
-                    transitions: genFlowState.transitions
+                    transitions: genFlowState.transitions,
+                    lang: PF.state.selectedLang || 'ru-RU'
                 }
             });
             backdrop.remove();
@@ -1030,9 +1091,10 @@
     function openAttachmentsForm() {
         const DATA = PF.state.DATA || {};
         const meta = PF.state.meta || {};
-        const catalog = meta.attachmentTypeCatalog || { codes: [], translations: {} };
+        const catalog = meta.attachmentTypeCatalog || { codes: [], translations: {}, translationsAll: {} };
         const codes = (catalog.codes || []).slice();
         const trans = catalog.translations || {};
+        const transAll = catalog.translationsAll || {};
 
         const docAttachments = (meta.attachments || []).slice();
 
@@ -1078,8 +1140,8 @@
                 const isInDoc = docAttachments.includes(code);
 
                 let html = '<span class="att-code">' + esc(code) + '</span>';
-                const ru = trans[code];
-                if (ru) html += ' <span class="att-ru">(' + esc(ru) + ')</span>';
+                const trLabel = PF.i18n.tr({ trans: transAll[code] });
+                if (trLabel) html += ' <span class="att-ru">(' + esc(trLabel) + ')</span>';
                 if (isInDoc) html += ' <span class="badge pkg">в документе</span>';
                 if (isPending) html += ' <span class="badge issues">новое</span>';
 
@@ -1137,9 +1199,9 @@
             for (const code of docAttachments) {
                 const row = document.createElement('div');
                 row.className = 'att-row';
-                const ru = trans[code];
+                const trLabel = PF.i18n.tr({ trans: transAll[code] });
                 let html = '<span class="att-code">' + esc(code) + '</span>';
-                if (ru) html += ' <span class="att-ru">(' + esc(ru) + ')</span>';
+                if (trLabel) html += ' <span class="att-ru">(' + esc(trLabel) + ')</span>';
                 if (!codes.includes(code)) {
                     html += ' <span class="badge issues" title="Кода нет в справочнике">нет в справочнике</span>';
                 }
@@ -1175,6 +1237,9 @@
 
         // Добавление нового типа в справочник
         backdrop.querySelector('[data-act="add-type"]').addEventListener('click', async () => {
+            const curLang = PF.state.selectedLang || 'ru-RU';
+            const isEn = (curLang === 'en-US');
+
             const code = await PF.utils.showPrompt('Код нового типа вложения (латиница)', '');
             if (!code) return;
             if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
@@ -1185,19 +1250,34 @@
                 showAlert('Код «' + code + '» уже есть в справочнике.');
                 return;
             }
-            const ru = await PF.utils.showPrompt('RU-перевод для «' + code + '»', code);
-            if (ru == null) return;
+
+            let trValue = code;
+            if (!isEn) {
+                const v = await PF.utils.showPrompt(
+                    'Перевод ' + curLang + ' для «' + code + '»',
+                    code
+                );
+                if (v == null) return;
+                trValue = v || code;
+            }
 
             // Локально добавляем — UI обновится сразу, окно не закрывается.
             codes.push(code);
             pending.push(code);
-            trans[code] = ru || code;
+            if (!transAll[code]) transAll[code] = {};
+            transAll[code]['en-US'] = code;
+            if (!isEn) transAll[code][curLang] = trValue;
+            trans[code] = trValue;
             refreshPendingHint();
             renderCatalog();
 
             PF.vscode.postMessage({
                 type: 'addAttachmentType',
-                payload: { code, ru: ru || code }
+                payload: {
+                    code,
+                    trValue,
+                    lang: curLang
+                }
             });
         });
 
@@ -1210,11 +1290,11 @@
             }
 
             // Селект типа
-            const chosen = await pickAttachmentCode(available, trans);
+            const chosen = await pickAttachmentCode(available, trans, transAll);
             if (!chosen) return;
 
             // Режим прав
-            const mode = await pickAttachmentMode(chosen);
+            const mode = await pickAttachmentMode(chosen, transAll);
             if (mode == null) return;
 
             PF.vscode.postMessage({
@@ -1233,7 +1313,7 @@
     }
 
     // Простой селект: возвращает выбранный код или null.
-    function pickAttachmentCode(available, trans) {
+    function pickAttachmentCode(available, trans, transAll) {
         return new Promise((resolve) => {
             const container = document.getElementById('modalContainer');
             const backdrop = document.createElement('div');
@@ -1253,7 +1333,8 @@
             for (const code of available) {
                 const opt = document.createElement('option');
                 opt.value = code;
-                opt.textContent = trans[code] ? (code + ' (' + trans[code] + ')') : code;
+                const lbl = PF.i18n.label(code, { trans: transAll[code] });
+                opt.textContent = lbl;
                 sel.appendChild(opt);
             }
             row.appendChild(sel);
@@ -1282,7 +1363,7 @@
     }
 
     // Диалог режима прав. Возвращает 'none' | 'read-all' | 'by-template' | null.
-    function pickAttachmentMode(code) {
+    function pickAttachmentMode(code, transAll) {
         return new Promise((resolve) => {
             const container = document.getElementById('modalContainer');
             const backdrop = document.createElement('div');
@@ -1291,9 +1372,12 @@
             const modal = document.createElement('div');
             modal.className = 'modal dialog';
 
+            const trMap = (transAll && transAll[code]) || {};
+            const label = PF.i18n.label(code, { trans: trMap });
+
             const h = document.createElement('h2');
             h.className = 'dlg-title';
-            h.textContent = 'Права на «' + code + '»';
+            h.textContent = 'Права на «' + label + '»';
             modal.appendChild(h);
 
             const info = document.createElement('div');

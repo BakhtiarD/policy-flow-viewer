@@ -59,12 +59,11 @@
 
         const states = (PF.state.meta && PF.state.meta.states) || [];
         const transitions = (PF.state.graphData && PF.state.graphData.transitions) || [];
-        const stateTrans = (PF.state.meta && PF.state.meta.translations && PF.state.meta.translations.stateTrans) || {};
-        const transTrans = (PF.state.meta && PF.state.meta.translations && PF.state.meta.transitions) || {};
-        // NB: buildTranslations отдаёт ключ transTrans.
-        const transMap = transTrans && Object.keys(transTrans).length
-            ? transTrans
-            : ((PF.state.meta && PF.state.meta.translations && PF.state.meta.translations.transTrans) || {});
+        const trs = (PF.state.meta && PF.state.meta.translations) || {};
+        const stateTrans = trs.stateTrans || {};
+        const stateTransAll = trs.stateTransAll || {};
+        const transMap = trs.transTrans || {};
+        const transTransAll = trs.transTransAll || {};
 
         if (!states.length) {
             grid.innerHTML = '<div class="matrix-empty">Нет состояний</div>';
@@ -103,8 +102,8 @@
             th.className = 'matrix-col-h';
             th.textContent = abbrs[col];
             th.dataset.state = col;
-            th.title = 'Клик — редактировать состояние\n' + col +
-                (stateTrans[col] && stateTrans[col] !== col ? ' (' + stateTrans[col] + ')' : '');
+            th.title = 'Клик — редактировать состояние\n' +
+                PF.i18n.label(col, { trans: stateTransAll[col], ru: stateTrans[col] });
             grid.appendChild(th);
         }
 
@@ -117,8 +116,8 @@
             if (terminalSet.has(rowState)) rowTh.classList.add('terminal');
             rowTh.textContent = abbrs[rowState];
             rowTh.dataset.state = rowState;
-            rowTh.title = 'Клик — редактировать состояние\n' + rowState +
-                (stateTrans[rowState] && stateTrans[rowState] !== rowState ? ' (' + stateTrans[rowState] + ')' : '');
+            rowTh.title = 'Клик — редактировать состояние\n' +
+                PF.i18n.label(rowState, { trans: stateTransAll[rowState], ru: stateTrans[rowState] });
             grid.appendChild(rowTh);
 
             for (let j = 0; j < n; j++) {
@@ -133,8 +132,10 @@
                     const tName = byPair.get(rowState + '|' + colState);
                     if (tName) {
                         td.classList.add('filled');
-                        const tRu = transMap[tName] || tName;
-                        td.title = tName + (tRu !== tName ? ' (' + tRu + ')' : '');
+                        td.title = PF.i18n.label(tName, {
+                            trans: transTransAll[tName],
+                            ru: transMap[tName]
+                        });
                         td.dataset.transition = tName;
                         const icon = document.createElement('span');
                         icon.className = 'matrix-icon';
@@ -154,10 +155,10 @@
 
         // --- легенда сокращений (2 колонки) ---
         const items = states.map(s => {
-            const ru = stateTrans[s] && stateTrans[s] !== s ? ' (' + stateTrans[s] + ')' : '';
+            const lbl = PF.i18n.label(s, { trans: stateTransAll[s], ru: stateTrans[s] });
             return '<div class="matrix-legend-row"><span class="matrix-legend-abbr">' +
                 escapeHtml(abbrs[s]) + '</span><span class="matrix-legend-name">' +
-                escapeHtml(s + ru) + '</span></div>';
+                escapeHtml(lbl) + '</span></div>';
         });
         legend.innerHTML = items.join('');
     }

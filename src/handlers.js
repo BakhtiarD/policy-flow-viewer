@@ -91,7 +91,9 @@ async function handleDeleteState(ctx, panel, stateName) {
 
 /* ---------- add ---------- */
 async function handleAddState(ctx, panel, payload) {
-    const { name, ru, isTerminal, outgoingTransitions = [], permissions = [] } = payload || {};
+    const { name, ru, isTerminal, outgoingTransitions = [], permissions = [], lang } = payload || {};
+    const trLang = lang || 'ru-RU';
+    const trCol = 'Translation_' + trLang;
 
     if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
         throw new Error('Код состояния должен быть идентификатором (буквы/цифры/_, начиная с буквы).');
@@ -128,7 +130,7 @@ async function handleAddState(ctx, panel, payload) {
 
     const idx = indexOf(csv.header);
     const flowName = detectFlowName(csv);
-    const makeRow = (itemType, translationKey, expression, ru) => {
+    const makeRow = (itemType, translationKey, expression, trValue) => {
         const row = new Array(csv.header.length).fill('');
         row[idx['ConfigurationType']] = 'DocumentFlowDefinition';
         row[idx['ConfigurationName']] = flowName;
@@ -136,7 +138,10 @@ async function handleAddState(ctx, panel, payload) {
         row[idx['TranslationKey']] = translationKey;
         row[idx['Expression']] = expression;
         row[idx['Translation_en-US']] = expression;
-        row[idx['Translation_ru-RU']] = ru;
+        if (trLang !== 'en-US') {
+            if (trCol in idx) row[idx[trCol]] = trValue;
+            else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = trValue;
+        }
         return row;
     };
 
@@ -157,7 +162,8 @@ async function handleAddState(ctx, panel, payload) {
 async function handleEditState(ctx, panel, payload) {
     const {
         originalName, name, ru, isTerminal,
-        outgoingTransitions = [], permissions = []
+        outgoingTransitions = [], permissions = [],
+        lang
     } = payload || {};
 
     if (!originalName) throw new Error('Не передан originalName.');
@@ -220,7 +226,10 @@ async function handleEditState(ctx, panel, payload) {
             if (row[idx0['ItemType']] === 'states' && row[idx0['TranslationKey']] === `states@${originalName}`) {
                 row[idx0['TranslationKey']] = `states@${name}`;
                 row[idx0['Expression']] = name;
-                row[idx0['Translation_en-US']] = name;
+                const oldEn = row[idx0['Translation_en-US']];
+                if (!oldEn || oldEn === originalName) {
+                    row[idx0['Translation_en-US']] = name;
+                }
             }
         }
         for (const it of (ctx.ui || [])) {
@@ -234,13 +243,21 @@ async function handleEditState(ctx, panel, payload) {
         if (s) { if (isTerminal) s.isTerminal = true; else delete s.isTerminal; }
     }
 
-    /* 3. RU-перевод */
+    /* 3. Перевод в выбранную колонку */
     {
         const idx = indexOf(csv.header);
+        const trLang = lang || 'ru-RU';
+        const trCol = 'Translation_' + trLang;
+        const writeTr = (row, value) => {
+            if (trLang === 'en-US') return;
+            if (trCol in idx) row[idx[trCol]] = value;
+            else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = value;
+        };
+
         let found = false;
         for (const row of csv.rows) {
             if (row[idx['ItemType']] === 'states' && row[idx['TranslationKey']] === `states@${name}`) {
-                row[idx['Translation_ru-RU']] = ru || name;
+                writeTr(row, ru || name);
                 found = true;
                 break;
             }
@@ -254,7 +271,7 @@ async function handleEditState(ctx, panel, payload) {
             row[idx['TranslationKey']] = `states@${name}`;
             row[idx['Expression']] = name;
             row[idx['Translation_en-US']] = name;
-            row[idx['Translation_ru-RU']] = ru || name;
+            writeTr(row, ru || name);
             csv.rows.push(row);
         }
     }
@@ -321,7 +338,10 @@ async function handleEditState(ctx, panel, payload) {
             if (row[idx['ItemType']] === 'transitions' && row[idx['TranslationKey']] === `transitions@${oldN}@Title`) {
                 row[idx['TranslationKey']] = `transitions@${newN}@Title`;
                 row[idx['Expression']] = newN;
-                row[idx['Translation_en-US']] = newN;
+                const oldEn = row[idx['Translation_en-US']];
+                if (!oldEn || oldEn === oldN) {
+                    row[idx['Translation_en-US']] = newN;
+                }
             }
         }
         for (const it of (ctx.ui || [])) {
@@ -330,26 +350,36 @@ async function handleEditState(ctx, panel, payload) {
     }
 
     /* 6. Обновление/добавление переходов */
-    for (const t of outgoingTransitions) {
-        if (t.originalName) {
-            const ft = (flow.transitions || []).find(x => x.name === t.name);
-            if (ft) ft.to = t.to;
-        } else {
-            flow.transitions.push({ name: t.name, from: name, to: t.to });
-            const flowName = detectFlowName(csv);
-            const row = new Array(csv.header.length).fill('');
-            row[idx['ConfigurationType']] = 'DocumentFlowDefinition';
-            row[idx['ConfigurationName']] = flowName;
-            row[idx['ItemType']] = 'transitions';
-            row[idx['TranslationKey']] = `transitions@${t.name}@Title`;
-            row[idx['Expression']] = t.name;
-            row[idx['Translation_en-US']] = t.name;
-            row[idx['Translation_ru-RU']] = t.ru || t.name;
-            csv.rows.push(row);
-        }
-        for (const row of csv.rows) {
-            if (row[idx['ItemType']] === 'transitions' && row[idx['TranslationKey']] === `transitions@${t.name}@Title`) {
-                row[idx['Translation_ru-RU']] = t.ru || t.name;
+    {
+        const trLang6 = lang || 'ru-RU';
+        const trCol6 = 'Translation_' + trLang6;
+        const writeTr6 = (row, value) => {
+            if (trLang6 === 'en-US') return;
+            if (trCol6 in idx) row[idx[trCol6]] = value;
+            else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = value;
+        };
+
+        for (const t of outgoingTransitions) {
+            if (t.originalName) {
+                const ft = (flow.transitions || []).find(x => x.name === t.name);
+                if (ft) ft.to = t.to;
+            } else {
+                flow.transitions.push({ name: t.name, from: name, to: t.to });
+                const flowName = detectFlowName(csv);
+                const row = new Array(csv.header.length).fill('');
+                row[idx['ConfigurationType']] = 'DocumentFlowDefinition';
+                row[idx['ConfigurationName']] = flowName;
+                row[idx['ItemType']] = 'transitions';
+                row[idx['TranslationKey']] = `transitions@${t.name}@Title`;
+                row[idx['Expression']] = t.name;
+                row[idx['Translation_en-US']] = t.name;
+                writeTr6(row, t.ru || t.name);
+                csv.rows.push(row);
+            }
+            for (const row of csv.rows) {
+                if (row[idx['ItemType']] === 'transitions' && row[idx['TranslationKey']] === `transitions@${t.name}@Title`) {
+                    writeTr6(row, t.ru || t.name);
+                }
             }
         }
     }
@@ -386,8 +416,11 @@ async function handleEditState(ctx, panel, payload) {
 async function handleEditTransition(ctx, panel, payload) {
     const {
         originalName, name, to, ru,
-        actionToRunBefore, serverSideEvents, allowOnValidationErrors
+        actionToRunBefore, serverSideEvents, allowOnValidationErrors,
+        lang
     } = payload || {};
+    const trLangE = lang || 'ru-RU';
+    const trColE = 'Translation_' + trLangE;
 
     if (!originalName) throw new Error('Не передан originalName.');
     if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
@@ -459,7 +492,10 @@ async function handleEditTransition(ctx, panel, payload) {
                 row[idx['TranslationKey']] === `transitions@${originalName}@Title`) {
                 row[idx['TranslationKey']] = `transitions@${name}@Title`;
                 row[idx['Expression']] = name;
-                row[idx['Translation_en-US']] = name;
+                const oldEn = row[idx['Translation_en-US']];
+                if (!oldEn || oldEn === originalName) {
+                    row[idx['Translation_en-US']] = name;
+                }
             }
         }
         for (const it of (ctx.ui || [])) {
@@ -476,14 +512,20 @@ async function handleEditTransition(ctx, panel, payload) {
         }
     }
 
-    /* 4. RU-перевод */
+    /* 4. Перевод в выбранную колонку */
     {
         const idx = indexOf(csv.header);
+        const writeTr = (row, value) => {
+            if (trLangE === 'en-US') return;
+            if (trColE in idx) row[idx[trColE]] = value;
+            else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = value;
+        };
+
         let found = false;
         for (const row of csv.rows) {
             if (row[idx['ItemType']] === 'transitions' &&
                 row[idx['TranslationKey']] === `transitions@${name}@Title`) {
-                row[idx['Translation_ru-RU']] = ru || name;
+                writeTr(row, ru || name);
                 found = true;
                 break;
             }
@@ -497,7 +539,7 @@ async function handleEditTransition(ctx, panel, payload) {
             row[idx['TranslationKey']] = `transitions@${name}@Title`;
             row[idx['Expression']] = name;
             row[idx['Translation_en-US']] = name;
-            row[idx['Translation_ru-RU']] = ru || name;
+            writeTr(row, ru || name);
             csv.rows.push(row);
         }
     }
@@ -512,8 +554,11 @@ async function handleEditTransition(ctx, panel, payload) {
 async function handleAddTransition(ctx, panel, payload) {
     const {
         from, name, to, ru,
-        actionToRunBefore, serverSideEvents, allowOnValidationErrors
+        actionToRunBefore, serverSideEvents, allowOnValidationErrors,
+        lang
     } = payload || {};
+    const trLangA = lang || 'ru-RU';
+    const trColA = 'Translation_' + trLangA;
 
     if (!from) throw new Error('Не указано исходное состояние.');
     if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
@@ -551,11 +596,17 @@ async function handleAddTransition(ctx, panel, payload) {
 
     // translation.csv
     const idx = indexOf(csv.header);
+    const writeTrA = (row, value) => {
+        if (trLangA === 'en-US') return;
+        if (trColA in idx) row[idx[trColA]] = value;
+        else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = value;
+    };
+
     let found = false;
     for (const row of csv.rows) {
         if (row[idx['ItemType']] === 'transitions' &&
             row[idx['TranslationKey']] === `transitions@${name}@Title`) {
-            row[idx['Translation_ru-RU']] = ru || name;
+            writeTrA(row, ru || name);
             found = true;
             break;
         }
@@ -569,7 +620,7 @@ async function handleAddTransition(ctx, panel, payload) {
         row[idx['TranslationKey']] = `transitions@${name}@Title`;
         row[idx['Expression']] = name;
         row[idx['Translation_en-US']] = name;
-        row[idx['Translation_ru-RU']] = ru || name;
+        writeTrA(row, ru || name);
         csv.rows.push(row);
     }
 
@@ -678,11 +729,19 @@ async function handleDeleteTransitions(ctx, panel, names) {
     );
 }
 
-function upsertCsv(csv, itemType, translationKey, expression, ru, flowName) {
+function upsertCsv(csv, itemType, translationKey, expression, trValue, flowName, lang) {
+    const trLang = lang || 'ru-RU';
+    const trCol = 'Translation_' + trLang;
     const idx = indexOf(csv.header);
+    const writeTr = (row, value) => {
+        if (trLang === 'en-US') return;
+        if (trCol in idx) row[idx[trCol]] = value;
+        else if ('Translation_ru-RU' in idx) row[idx['Translation_ru-RU']] = value;
+    };
+
     for (const row of csv.rows) {
         if (row[idx['ItemType']] === itemType && row[idx['TranslationKey']] === translationKey) {
-            row[idx['Translation_ru-RU']] = ru;
+            writeTr(row, trValue);
             return;
         }
     }
@@ -693,13 +752,14 @@ function upsertCsv(csv, itemType, translationKey, expression, ru, flowName) {
     row[idx['TranslationKey']] = translationKey;
     row[idx['Expression']] = expression;
     row[idx['Translation_en-US']] = expression;
-    row[idx['Translation_ru-RU']] = ru;
+    writeTr(row, trValue);
     csv.rows.push(row);
 }
 
 async function handleGenerateFlow(ctx, panel, payload) {
     const targetStates = (payload && payload.states) || [];
     const targetTransitions = (payload && payload.transitions) || [];
+    const genLang = (payload && payload.lang) || 'ru-RU';
 
     const { flow, config, csv } = ctx;
 
@@ -784,10 +844,10 @@ async function handleGenerateFlow(ctx, panel, payload) {
     if (!flowName || flowName === 'UnknownFlow') flowName = folderName + 'Flow';
 
     for (const s of targetStates) {
-        upsertCsv(csv, 'states', `states@${s.name}`, s.name, s.ru || s.name, flowName);
+        upsertCsv(csv, 'states', `states@${s.name}`, s.name, s.ru || s.name, flowName, genLang);
     }
     for (const t of targetTransitions) {
-        upsertCsv(csv, 'transitions', `transitions@${t.name}@Title`, t.name, t.ru || t.name, flowName);
+        upsertCsv(csv, 'transitions', `transitions@${t.name}@Title`, t.name, t.ru || t.name, flowName, genLang);
     }
 
     /* 7. Чистим ui.json */
@@ -1082,17 +1142,23 @@ async function reloadAttachmentCatalog(ctx) {
     ctx.attachmentTypeDir = att.dir;
     ctx.attachmentTypeCodes = att.codes;
     ctx.attachmentTypeTranslations = att.translations;
+    ctx.attachmentTypeTranslationsAll = att.translationsAll || {};
 }
 
 async function handleAddAttachmentType(ctx, panel, payload) {
-    const { code, ru } = payload || {};
+    const { code, ru, trValue, lang } = payload || {};
     if (!code || !/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
         throw new Error('Некорректный код вложения.');
     }
     if (!ctx.attachmentTypeDir) {
         throw new Error('Справочник AttachmentType не найден (configuration/@config-*/infrastructure/masterEntity/AttachmentType).');
     }
-    addAttachmentType(ctx.attachmentTypeDir, code, ru || code);
+    addAttachmentType(
+        ctx.attachmentTypeDir,
+        code,
+        trValue != null ? trValue : (ru || code),
+        lang || 'ru-RU'
+    );
     invalidateProjectCache(ctx);
     await reloadAttachmentCatalog(ctx);
     // pushRender НЕ делаем — окно модалки должно остаться открытым.

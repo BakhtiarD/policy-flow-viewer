@@ -8,8 +8,25 @@
     /* ============================================================
      * ОБЩИЕ ХЕЛПЕРЫ ФОРМ
      * ============================================================ */
+    function applyLangToModal(root) {
+        if (!root) return;
+        const lang = (PF.state && PF.state.selectedLang) || 'ru-RU';
+        const isEn = (lang === 'en-US');
+        const labelText = isEn ? 'Перевод en-US' : ('Перевод ' + lang);
+        root.querySelectorAll('[data-tr-label]').forEach(el => {
+            el.textContent = labelText;
+        });
+        root.querySelectorAll('[data-tr-field]').forEach(el => {
+            el.style.display = isEn ? 'none' : '';
+        });
+    }
+
     function buildActorOptions(selectEl, actors, selected) {
         while (selectEl.options.length > 0) selectEl.remove(0);
+        const trs = (PF.state.meta && PF.state.meta.translations) || {};
+        const actorTransAll = trs.actorTransAll || {};
+        const actorTrans = trs.actorTrans || {};
+
         const ph = document.createElement('option');
         ph.value = '';
         ph.textContent = '— выберите —';
@@ -18,7 +35,10 @@
         for (const a of actors) {
             const opt = document.createElement('option');
             opt.value = a;
-            opt.textContent = a;
+            opt.textContent = PF.i18n.label(a, {
+                trans: actorTransAll[a],
+                ru: actorTrans[a]
+            });
             if (a === selected) opt.selected = true;
             selectEl.appendChild(opt);
         }
@@ -30,13 +50,13 @@
 
     function buildStateOptions(selectEl, states, selected) {
         while (selectEl.options.length > 0) selectEl.remove(0);
-        const stateTrans = (PF.state.meta && PF.state.meta.translations &&
-            PF.state.meta.translations.stateTrans) || {};
+        const trans = (PF.state.meta && PF.state.meta.translations) || {};
+        const transAll = trans.stateTransAll || {};
+        const ruMap = trans.stateTrans || {};
         for (const s of states) {
             const opt = document.createElement('option');
             opt.value = s;
-            const ru = stateTrans[s] || s;
-            opt.textContent = s + ' (' + ru + ')';
+            opt.textContent = PF.i18n.label(s, { trans: transAll[s], ru: ruMap[s] });
             if (s === selected) opt.selected = true;
             selectEl.appendChild(opt);
         }
@@ -134,8 +154,11 @@
                         else trNames.delete(t.name);
                     });
 
+                    const trText = (t.trans && typeof t.trans === 'object')
+                        ? PF.i18n.tr({ trans: t.trans })
+                        : (t.ru || '');
                     const span = document.createElement('span');
-                    span.textContent = t.name + (t.ru && t.ru !== t.name ? ' (' + t.ru + ')' : '');
+                    span.textContent = t.name + (trText ? ' (' + trText + ')' : '');
 
                     row.appendChild(cb);
                     row.appendChild(span);
@@ -171,9 +194,10 @@
         }
 
         const attCont = card.querySelector('.f-attachments');
+        const attTransAll = (meta.attachmentTypeCatalog && meta.attachmentTypeCatalog.translationsAll) || {};
         for (const at of meta.attachments) {
             const row = cloneTemplate('tpl-attach-row');
-            row.querySelector('.type').textContent = at;
+            row.querySelector('.type').textContent = PF.i18n.label(at, { trans: attTransAll[at] });
             const has = atts[at] || [];
             row.querySelectorAll('input[data-att]').forEach(cb => {
                 cb.setAttribute('data-att', at);
@@ -183,6 +207,7 @@
         }
 
         card.querySelector('[data-remove]').addEventListener('click', () => card.remove());
+        applyLangToModal(card);
         return card;
     }
 
@@ -224,7 +249,15 @@
             if (from && to) codeInput.value = from + '_' + to;
         });
 
-        card.querySelector('.f-ru').value = t.ru || '';
+        {
+            const f = card.querySelector('.f-ru');
+            if (f) {
+                const curLang = PF.state.selectedLang || 'ru-RU';
+                f.value = curLang === 'en-US'
+                    ? ''
+                    : ((t.trans && t.trans[curLang]) || '');
+            }
+        }
 
         card.querySelector('[data-remove]').addEventListener('click', () => card.remove());
         return card;
@@ -375,6 +408,7 @@
         const container = document.getElementById('modalContainer');
         const backdrop = cloneTemplate('tpl-add-modal');
         container.appendChild(backdrop);
+        applyLangToModal(backdrop);
 
         const transList = backdrop.querySelector('.f-trans-list');
         const permsList = backdrop.querySelector('.f-perms-list');
@@ -469,7 +503,12 @@
 
             PF.vscode.postMessage({
                 type: 'addState',
-                payload: { name, ru, isTerminal, outgoingTransitions: outgoing, permissions: perms }
+                payload: {
+                    name, ru, isTerminal,
+                    outgoingTransitions: outgoing,
+                    permissions: perms,
+                    lang: PF.state.selectedLang || 'ru-RU'
+                }
             });
             backdrop.remove();
         });
@@ -490,7 +529,15 @@
 
         const editNameInput = backdrop.querySelector('.f-edit-name');
         editNameInput.value = stateName;
-        backdrop.querySelector('.f-edit-ru').value = det.ru;
+        {
+            const f = backdrop.querySelector('.f-edit-ru');
+            if (f) {
+                const curLang = PF.state.selectedLang || 'ru-RU';
+                f.value = curLang === 'en-US'
+                    ? ''
+                    : ((det.trans && det.trans[curLang]) || '');
+            }
+        }
         backdrop.querySelector('.f-edit-term').checked = !!det.isTerminal;
 
         const getFromState = () => editNameInput.value.trim();
@@ -547,7 +594,8 @@
 
         for (const t of det.outgoing) {
             transList.appendChild(buildOutgoingTransitionCard({
-                originalName: t.name, name: t.name, to: t.to, ru: t.ru
+                originalName: t.name, name: t.name, to: t.to,
+                ru: t.ru, trans: t.trans || {}
             }, getFromState));
         }
         for (const p of det.permissions) {
@@ -642,12 +690,14 @@
                     ru: newRu,
                     isTerminal,
                     outgoingTransitions: outgoing,
-                    permissions: perms
+                    permissions: perms,
+                    lang: PF.state.selectedLang || 'ru-RU'
                 }
             });
             backdrop.remove();
         });
 
+        applyLangToModal(backdrop);
         container.appendChild(backdrop);
     }
 
@@ -663,12 +713,21 @@
         const container = document.getElementById('modalContainer');
         const backdrop = cloneTemplate('tpl-transition-modal');
         container.appendChild(backdrop);
+        applyLangToModal(backdrop);
 
         const titleEl = backdrop.querySelector('h2');
         if (titleEl) titleEl.textContent = isNew ? 'Создание перехода' : 'Редактирование перехода';
 
         backdrop.querySelector('.f-tr-name').value = t.name;
-        backdrop.querySelector('.f-tr-ru').value = t.ru || '';
+        {
+            const f = backdrop.querySelector('.f-tr-ru');
+            if (f) {
+                const curLang = PF.state.selectedLang || 'ru-RU';
+                f.value = curLang === 'en-US'
+                    ? ''
+                    : ((t.trans && t.trans[curLang]) || '');
+            }
+        }
         backdrop.querySelector('.f-tr-from').value = t.from;
 
         // Кнопка «flowRules» — только для существующих переходов.
@@ -953,7 +1012,8 @@
                         ru: newRu,
                         actionToRunBefore: action,
                         serverSideEvents: sse,
-                        allowOnValidationErrors: allow
+                        allowOnValidationErrors: allow,
+                        lang: PF.state.selectedLang || 'ru-RU'
                     }
                 });
             } else {
@@ -966,7 +1026,8 @@
                         ru: newRu,
                         actionToRunBefore: action,
                         serverSideEvents: sse,
-                        allowOnValidationErrors: allow
+                        allowOnValidationErrors: allow,
+                        lang: PF.state.selectedLang || 'ru-RU'
                     }
                 });
             }
