@@ -1147,7 +1147,7 @@ async function reloadAttachmentCatalog(ctx) {
 
 async function handleAddAttachmentType(ctx, panel, payload) {
     const { code, ru, trValue, lang } = payload || {};
-    if (!code || !/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
+    if (!code || !/^[A-Za-z][A-Za-z0-9_ ]*$/.test(code)) {
         throw new Error('Некорректный код вложения.');
     }
     if (!ctx.attachmentTypeDir) {

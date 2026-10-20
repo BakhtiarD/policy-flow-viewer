@@ -36,18 +36,21 @@ function translationCsvPath(dir) {
 // (без учёта регистра). Всё остальное — extras, которые мы сохраняем.
 function readDataCsvRaw(dir) {
     const p = dataCsvPath(dir);
-    if (!fs.existsSync(p)) return { header: null, rows: [] };
+    if (!fs.existsSync(p)) return { header: null, rows: [], hasTrailingNewline: true };
 
     const text = stripBom(fs.readFileSync(p, 'utf8'));
+    const hasTrailingNewline = /[\r\n]$/.test(text);
     const lines = text.split(/\r?\n/);
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-    if (!lines.length) return { header: null, rows: [] };
-
-    const isCode = (s) => /^[A-Za-z][A-Za-z0-9_]*$/.test(s);
+    if (!lines.length) return { header: null, rows: [], hasTrailingNewline };
 
     const firstParts = lines[0].split('\t');
     const firstCell = (firstParts[0] || '').trim();
-    const hasHeader = !isCode(firstCell) || /^code$/i.test(firstCell);
+    // Шапка — только если первая ячейка ровно "Code" (без учёта регистра).
+    // Всё остальное — данные, даже если код содержит нестандартные символы
+    // (дефис, точка, пробел, начинается с цифры, и т.д.). Валидация
+    // нового кода делается отдельно — в addAttachmentType.
+    const hasHeader = /^code$/i.test(firstCell);
 
     let header = null;
     let startIdx = 0;
@@ -58,13 +61,14 @@ function readDataCsvRaw(dir) {
 
     const rows = [];
     for (let i = startIdx; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
         const parts = lines[i].split('\t');
         const code = (parts[0] || '').trim();
-        if (!isCode(code)) continue;
+        if (!code) continue;               // пропускаем только совсем пустые
         const extras = parts.slice(1);     // как есть
         rows.push({ code, extras });
     }
-    return { header, rows };
+    return { header, rows, hasTrailingNewline };
 }
 
 function loadAttachmentCodes(dir) {
@@ -113,7 +117,8 @@ function saveAttachmentCodes(dir, codes) {
         out.push(trimmed.length ? (code + '\t' + trimmed.join('\t')) : code);
     }
 
-    fs.writeFileSync(p, out.join('\n') + '\n', 'utf8');
+    const body = out.join('\n');
+    fs.writeFileSync(p, raw.hasTrailingNewline ? (body + '\n') : body, 'utf8');
 }
 
 // translation.csv — заголовочная таблица. Индексы ищем по имени колонки,
@@ -185,7 +190,7 @@ function pickTrCol(header, lang) {
 
 function addAttachmentType(dir, code, trValue, lang) {
     if (!dir) throw new Error('AttachmentType не найден в проекте.');
-    if (!code || !/^[A-Za-z][A-Za-z0-9_]*$/.test(code)) {
+    if (!code || !/^[A-Za-z][A-Za-z0-9_ ]*$/.test(code)) {
         throw new Error('Некорректный код вложения: ' + code);
     }
     const codes = loadAttachmentCodes(dir);

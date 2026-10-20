@@ -1605,3 +1605,54 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     flex: 1;
     min-width: 200px;
 }
+
+/* Табличный вид для прав на вложения */
+.perm-attach-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+}
+.perm-attach-table .perm-attach-header,
+.perm-attach-table .perm-attach-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) repeat(4, 90px);
+    gap: 4px 10px;
+    align-items: center;
+    padding: 3px 0;
+}
+.perm-attach-table .perm-attach-header {
+    font-weight: 600;
+    font-size: 11px;
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+}
+.perm-attach-table .perm-attach-row {
+    font-size: 12px;
+}
+.perm-attach-table .perm-attach-row .type {
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.perm-attach-table .perm-attach-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    margin: 0;
+    cursor: pointer;
+}
+.perm-attach-table .perm-attach-row label input {
+    margin: 0;
+}
+.perm-attach-table .perm-empty {
+    font-size: 12px;
+    opacity: 0.6;
+    padding: 2px 0;
+}

@@ -195,15 +195,28 @@
 
         const attCont = card.querySelector('.f-attachments');
         const attTransAll = (meta.attachmentTypeCatalog && meta.attachmentTypeCatalog.translationsAll) || {};
-        for (const at of meta.attachments) {
-            const row = cloneTemplate('tpl-attach-row');
-            row.querySelector('.type').textContent = PF.i18n.label(at, { trans: attTransAll[at] });
-            const has = atts[at] || [];
-            row.querySelectorAll('input[data-att]').forEach(cb => {
-                cb.setAttribute('data-att', at);
-                cb.checked = has.includes(cb.value);
-            });
-            attCont.appendChild(row);
+
+        attCont.classList.add('perm-attach-table');
+
+        if (!meta.attachments || !meta.attachments.length) {
+            const empty = document.createElement('div');
+            empty.className = 'perm-empty';
+            empty.textContent = 'В документе нет вложений';
+            attCont.appendChild(empty);
+        } else {
+            attCont.appendChild(cloneTemplate('tpl-attach-header'));
+
+            for (const at of meta.attachments) {
+                const row = cloneTemplate('tpl-attach-row');
+                row.querySelector('.type').textContent = PF.i18n.label(at, { trans: attTransAll[at] });
+                row.querySelector('.type').title = at;
+                const has = atts[at] || [];
+                row.querySelectorAll('input[data-att]').forEach(cb => {
+                    cb.setAttribute('data-att', at);
+                    cb.checked = has.includes(cb.value);
+                });
+                attCont.appendChild(row);
+            }
         }
 
         card.querySelector('[data-remove]').addEventListener('click', () => card.remove());
