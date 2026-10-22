@@ -32,6 +32,7 @@
         languages: [],
         selectedStates: new Set(),
         selectedTransitions: new Set(),
+        focusedSegment: null,   // { transitionName, segIdx } | null
         draftTransition: null,
         lastContextMenuBlockUntil: 0
     };

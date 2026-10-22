@@ -265,6 +265,25 @@
         const p2 = t.waypoints[segIdx + 1];
         if (!p1 || !p2) return;
 
+        const lastIdx = t.waypoints.length - 1;
+
+        // Определяем, какие из точек сегмента привязаны к состояниям и на
+        // каких гранях они сейчас лежат. При drag эти точки будут скользить
+        // вдоль своих граней, не отрываясь от состояния.
+        // Для перехода из двух точек (прямая) привязаны обе.
+        const anchors = [];
+        const addAnchor = (idx, stateName) => {
+            if (idx < 0 || idx > lastIdx) return;
+            const s = PF.state.graphData.states.find(x => x.name === stateName);
+            if (!s) return;
+            const r = { x: s.x, y: s.y, w: s.w, h: s.h };
+            const edge = PF.routing.findNearestEdge(r, t.waypoints[idx]);
+            anchors.push({ idx, state: s, edge });
+        };
+
+        if (segIdx === 0) addAnchor(0, t.from);
+        if (segIdx === lastIdx - 1) addAnchor(lastIdx, t.to);
+
         const orig1 = { x: p1.x, y: p1.y };
         const orig2 = { x: p2.x, y: p2.y };
         const perp = PF.routing.segPerp(orig1, orig2);
@@ -281,6 +300,19 @@
         );
         if (hitEl) hitEl.classList.add('dragging');
 
+        function applyAnchors(new1, new2) {
+            for (const a of anchors) {
+                const r = { x: a.state.x, y: a.state.y, w: a.state.w, h: a.state.h };
+                const target = (a.idx === segIdx) ? new1 : new2;
+                const snapped = PF.routing.snapToEdge(r, a.edge, target);
+                if (a.idx === segIdx) {
+                    new1.x = snapped.x; new1.y = snapped.y;
+                } else {
+                    new2.x = snapped.x; new2.y = snapped.y;
+                }
+            }
+        }
+
         function onMove(e) {
             const cur = clientToSvg(e);
             const dx = cur.x - start.x;
@@ -290,8 +322,13 @@
             const nx = proj * perp.x;
             const ny = proj * perp.y;
 
-            t.waypoints[segIdx] = { x: orig1.x + nx, y: orig1.y + ny };
-            t.waypoints[segIdx + 1] = { x: orig2.x + nx, y: orig2.y + ny };
+            const new1 = { x: orig1.x + nx, y: orig1.y + ny };
+            const new2 = { x: orig2.x + nx, y: orig2.y + ny };
+
+            applyAnchors(new1, new2);
+
+            t.waypoints[segIdx] = new1;
+            t.waypoints[segIdx + 1] = new2;
             t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
             t.label = PF.routing.labelFromWaypoints(t.waypoints);
 
@@ -367,6 +404,68 @@
         svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
     }
 
+    function moveFocusedSegment(arrowKey, step) {
+        const f = PF.state.focusedSegment;
+        if (!f) return;
+        const t = PF.state.graphData.transitions.find(x => x.name === f.transitionName);
+        if (!t || !t.waypoints || f.segIdx < 0 || f.segIdx >= t.waypoints.length - 1) return;
+
+        const p1 = t.waypoints[f.segIdx];
+        const p2 = t.waypoints[f.segIdx + 1];
+        const perp = PF.routing.segPerp(p1, p2);
+
+        const av = {
+            ArrowUp: { x: 0, y: -1 },
+            ArrowDown: { x: 0, y: 1 },
+            ArrowLeft: { x: -1, y: 0 },
+            ArrowRight: { x: 1, y: 0 }
+        }[arrowKey];
+        if (!av) return;
+
+        // Проекция стрелки на перпендикуляр. Если ~0 — стрелка вдоль
+        // сегмента, двигать некуда.
+        const proj = av.x * perp.x + av.y * perp.y;
+        if (Math.abs(proj) < 0.01) return;
+
+        const dir = proj > 0 ? 1 : -1;
+        const nx = dir * perp.x * step;
+        const ny = dir * perp.y * step;
+
+        t.manual = true;
+
+        const new1 = { x: p1.x + nx, y: p1.y + ny };
+        const new2 = { x: p2.x + nx, y: p2.y + ny };
+
+        const lastIdx = t.waypoints.length - 1;
+
+        // Snap для крайних сегментов — точки привязаны к граням.
+        if (f.segIdx === 0) {
+            const s = PF.state.graphData.states.find(x => x.name === t.from);
+            if (s) {
+                const r = { x: s.x, y: s.y, w: s.w, h: s.h };
+                const edge = PF.routing.findNearestEdge(r, new1);
+                const snapped = PF.routing.snapToEdge(r, edge, new1);
+                new1.x = snapped.x; new1.y = snapped.y;
+            }
+        }
+        if (f.segIdx === lastIdx - 1) {
+            const s = PF.state.graphData.states.find(x => x.name === t.to);
+            if (s) {
+                const r = { x: s.x, y: s.y, w: s.w, h: s.h };
+                const edge = PF.routing.findNearestEdge(r, new2);
+                const snapped = PF.routing.snapToEdge(r, edge, new2);
+                new2.x = snapped.x; new2.y = snapped.y;
+            }
+        }
+
+        t.waypoints[f.segIdx] = new1;
+        t.waypoints[f.segIdx + 1] = new2;
+        t.manualWaypoints = t.waypoints.map(p => ({ x: p.x, y: p.y }));
+        t.label = PF.routing.labelFromWaypoints(t.waypoints);
+
+        updateTransitionDom(t);
+    }
+
     function attachGraphKeydown() {
         const svg = document.getElementById('graphSvg');
         if (!svg || svg.dataset.kdAttached === '1') return;
@@ -374,9 +473,27 @@
 
         svg.addEventListener('keydown', (ev) => {
             if (PF.state.viewMode !== 'graph') return;
+
+            // Escape — снять фокус с сегмента.
+            if (ev.key === 'Escape' && PF.state.focusedSegment) {
+                ev.preventDefault();
+                PF.render.clearSegmentFocus();
+                return;
+            }
+
             if (!(ev.ctrlKey || ev.metaKey)) return;
             const codes = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
             if (!codes.includes(ev.key)) return;
+
+            // Приоритет — активный сегмент.
+            if (PF.state.focusedSegment) {
+                ev.preventDefault();
+                const step = ev.shiftKey ? 10 : 1;
+                moveFocusedSegment(ev.key, step);
+                return;
+            }
+
+            // Иначе — состояния.
             if (!PF.state.selectedStates.size) return;
 
             ev.preventDefault();
@@ -517,6 +634,7 @@
         startHandleDrag,
         startEndPointDrag,
         startSegmentDrag,
+        moveFocusedSegment,
         updateTransitionDom,
         removeWaypoint,
         addWaypointAt,

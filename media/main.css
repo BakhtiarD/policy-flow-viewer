@@ -397,6 +397,13 @@ input[type=text], select, textarea {
   stroke-linecap: round;
 }
 
+/* Активный сегмент (выбран для перемещения стрелками) */
+.g-handles .g-transition-seg-handle.active {
+    stroke: var(--vscode-focusBorder, #007acc);
+    stroke-width: 3;
+    opacity: 1;
+}
+
 .toolbar-sep {
   width: 1px;
   height: 20px;

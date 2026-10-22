@@ -6,6 +6,28 @@
     const { svgEl, cloneTemplate, showAlert, showConfirm } = PF.utils;
     const ICONS = PF.icons;
 
+    function clearSegmentFocus() {
+        if (!PF.state.focusedSegment) return;
+        PF.state.focusedSegment = null;
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+        svg.querySelectorAll('.g-transition-seg-handle.active, .g-transition-seg-handle-hit.active')
+            .forEach(el => el.classList.remove('active'));
+    }
+
+    function setSegmentFocus(transitionName, segIdx) {
+        const svg = document.getElementById('graphSvg');
+        if (!svg) return;
+        svg.querySelectorAll('.g-transition-seg-handle.active, .g-transition-seg-handle-hit.active')
+            .forEach(el => el.classList.remove('active'));
+        PF.state.focusedSegment = { transitionName, segIdx };
+        const safeName = transitionName.replace(/"/g, '\\"');
+        svg.querySelectorAll(
+            '.g-transition-seg-handle[data-transition="' + safeName + '"][data-seg="' + segIdx + '"], ' +
+            '.g-transition-seg-handle-hit[data-transition="' + safeName + '"][data-seg="' + segIdx + '"]'
+        ).forEach(el => el.classList.add('active'));
+    }
+
     function computeRelated() {
         const selectedStates = PF.state.selectedStates;
         const selectedTransitions = PF.state.selectedTransitions;
@@ -72,6 +94,7 @@
     }
 
     function clearSelection() {
+        clearSegmentFocus();
         PF.state.selectedStates.clear();
         PF.state.selectedTransitions.clear();
         updateSelectionClasses();
@@ -158,6 +181,15 @@
         const selectedStates = PF.state.selectedStates;
         const selectedTransitions = PF.state.selectedTransitions;
 
+        // Валидация: если transition/segIdx больше не существуют — снимаем фокус.
+        if (PF.state.focusedSegment) {
+            const f = PF.state.focusedSegment;
+            const t = graphData.transitions.find(x => x.name === f.transitionName);
+            if (!t || !t.waypoints || f.segIdx < 0 || f.segIdx >= t.waypoints.length - 1) {
+                PF.state.focusedSegment = null;
+            }
+        }
+
         const defs = svgEl('defs');
         const marker = svgEl('marker', {
             id: 'arr', viewBox: '0 0 10 10',
@@ -197,6 +229,7 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     svg.focus();
+                    clearSegmentFocus();
 
                     if (ev.ctrlKey || ev.metaKey) {
                         if (selectedTransitions.has(t.name)) selectedTransitions.delete(t.name);
@@ -242,7 +275,7 @@
                 g.appendChild(hit);
             }
 
-                        if (t.label && PF.state.showTransitionLabels) {
+            if (t.label && PF.state.showTransitionLabels) {
                 const tTr = PF.i18n.tr({ trans: t.trans, ru: t.ru });
                 const labelText = t.name + (t.manual ? ' ✎' : '') +
                     (tTr ? ' (' + tTr + ')' : '');
@@ -369,6 +402,7 @@
             rect.addEventListener('mousedown', (ev) => {
                 ev.preventDefault();
                 svg.focus();
+                clearSegmentFocus();
 
                 if (ev.ctrlKey || ev.metaKey) {
                     if (selectedStates.has(s.name)) selectedStates.delete(s.name);
@@ -502,8 +536,8 @@
                 gHandles.appendChild(handle);
             }
 
-            // --- полоски средних сегментов ---
-            for (let si = 1; si < lastIdx - 1; si++) {
+            // --- полоски всех сегментов (включая крайние) ---
+            for (let si = 0; si < lastIdx; si++) {
                 const a = t.waypoints[si];
                 const b = t.waypoints[si + 1];
                 if (!a || !b) continue;
@@ -528,12 +562,17 @@
                 hit.addEventListener('mousedown', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
+                    setSegmentFocus(t.name, si);
                     PF.graphDrag.startSegmentDrag(ev, t.name, si);
                 });
                 gHandles.appendChild(hit);
 
+                const isFocused = PF.state.focusedSegment &&
+                    PF.state.focusedSegment.transitionName === t.name &&
+                    PF.state.focusedSegment.segIdx === si;
+
                 const vis = svgEl('line', {
-                    class: 'g-transition-seg-handle',
+                    class: 'g-transition-seg-handle' + (isFocused ? ' active' : ''),
                     x1, y1, x2, y2,
                     'data-transition': t.name,
                     'data-seg': String(si)
@@ -559,6 +598,8 @@
         updateSelectionToolbar,
         editSelected,
         deleteSelected,
-        renderGraph
+        renderGraph,
+        clearSegmentFocus,
+        setSegmentFocus
     };
 })();
