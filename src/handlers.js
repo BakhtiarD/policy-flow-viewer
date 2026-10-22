@@ -19,6 +19,7 @@ const {
 const {
     addAttachmentType, removeAttachmentType, loadAttachmentType
 } = require('./attachments');
+const { applyDiff } = require('./compare-apply');
 
 /* ---------- toggle isTerminal ---------- */
 async function handleToggleTerminal(ctx, panel, stateName, value) {
@@ -1699,6 +1700,59 @@ async function handleRenameActor(ctx, panel, payload) {
     );
 }
 
+async function handleApplyCompareDocuments(ctx, panel, payload) {
+    const { otherFlowPath, actions } = payload || {};
+    if (!otherFlowPath) throw new Error('Не передан путь к документу-образцу.');
+    if (!Array.isArray(actions) || !actions.length) {
+        throw new Error('Не выбраны действия для применения.');
+    }
+
+    const { loadDocumentForCompare } = require('./storage');
+    const otherDoc = loadDocumentForCompare(otherFlowPath);
+    if (!otherDoc) throw new Error('Не удалось прочитать образец: ' + otherFlowPath);
+
+    const result = applyDiff(ctx, otherDoc, actions);
+
+    writeAll(ctx);
+    writeUi(ctx);
+    if (result.touched.auth) writeAuth(ctx);
+
+    loadData(ctx);
+    pushRender(ctx, panel);
+
+    vscode.window.showInformationMessage(
+        'Применено действий: ' + result.applied +
+        (result.warnings.length ? ' (предупреждений: ' + result.warnings.length + ')' : '')
+    );
+
+    return result;
+}
+/* ---------- Сравнение документов ---------- */
+
+async function handleListDocumentsForCompare(ctx) {
+    const { listDocumentsForCompare } = require('./storage');
+    const docs = listDocumentsForCompare(ctx);
+    const currentDocName = path.basename(path.dirname(ctx.flowPath));
+    return docs.map(d => ({
+        docName: d.docName,
+        flowPath: d.flowPath,
+        pkgName: d.pkgName,
+        isCurrent: d.docName === currentDocName
+    }));
+}
+
+async function handleCompareDocuments(ctx, payload) {
+    const { otherFlowPath } = payload || {};
+    if (!otherFlowPath) throw new Error('Не передан путь к документу для сравнения.');
+
+    const { loadDocumentForCompare } = require('./storage');
+    const otherDoc = loadDocumentForCompare(otherFlowPath);
+    if (!otherDoc) throw new Error('Не удалось прочитать документ: ' + otherFlowPath);
+
+    const { buildDiff } = require('./compare');
+    return buildDiff(ctx, otherDoc);
+}
+
 module.exports = {
     handleToggleTerminal,
     handleDeleteState,
@@ -1730,5 +1784,8 @@ module.exports = {
     handleEditActorPerm,
     handleDuplicateActor,
     handleSaveActorAuth,
-    handleRenameActor
+    handleRenameActor,
+    handleListDocumentsForCompare,
+    handleCompareDocuments,
+    handleApplyCompareDocuments
 };

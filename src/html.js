@@ -25,6 +25,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsMatrixUri     = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'matrix.js'));
     const jsActorsUri     = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'actors.js'));
     const jsLegendUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'legend.js'));
+    const jsCompareUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'compare.js'));
 
     const dataJson = JSON.stringify({
         rows, meta, stateDetails, graph, hasUi,
@@ -57,6 +58,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_TABLE\}\}/g, () => jsTableUri.toString())
         .replace(/\{\{JS_MATRIX\}\}/g,    () => jsMatrixUri.toString())
         .replace(/\{\{JS_ACTORS\}\}/g,    () => jsActorsUri.toString())
+        .replace(/\{\{JS_COMPARE\}\}/g,   () => jsCompareUri.toString())
         .replace(/\{\{JS_URI\}\}/g, () => jsUri.toString())
         .replace(/\{\{DAGRE_URI\}\}/g, () => dagreUri.toString())
         .replace(/\{\{DATA_JSON\}\}/g, () => dataJson);

@@ -13,4 +13,5 @@
     PF.routing.rerouteAll();
     PF.app.applyViewMode();
     PF.render.updateSelectionToolbar();
+    PF.compare.init();
 })();

@@ -6,6 +6,99 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+# [0.6.0] - 2026-10-22
+
+## Добавлено
+
+- **Сравнение двух документов.** Новая кнопка `⇄` в главном тулбаре. Сравнивает текущий документ с любым другим документом проекта (или папкой, указанной вручную) по:
+  - состояниям (`isTerminal`, наличие/отсутствие, переводы);
+  - переходам (`from`, `to`, `actionToRunBefore`, `serverSideEvents`, `allowOnValidationErrors`, наличие/отсутствие);
+  - глобальным акторам (`documentFlow.actors`);
+  - акторам в каждом состоянии (членство);
+  - правам акторов (`allowComments`, операции, переходы, вложения);
+  - вложениям документа (`configuration.attachments`);
+  - `initialState`.
+
+- **Выбор документа для сравнения:**
+  - Список всех документов проекта (сканируются `configuration/@config-*` и `node_modules/@config-*`, дедуп по имени).
+  - Кнопка «📁 Выбрать папку другого документа…» — для документов вне проекта.
+  - Текущий документ помечен и исключён из списка выбора.
+
+- **Панель diff-а — плоский список атомарных действий.** Каждое отличие — одна строка с глаголом (`Добавить`, `Удалить`, `Изменить`, `Разрешить`, `Запретить`, `Включить`, `Отключить`) и контекстом в скобках (`(объект в documentFlow.states)`, `(членство)`, `(свойство актора)`, `(право актора)`, `(право на вложение)` и т.д.). Имена элементов показываются с переводом текущего языка (селектор 🌐).
+
+- **Применение изменений с образца на текущий.** Кнопка «Применить выбранное» + чекбоксы по каждому действию. Три режима выборки: «Выбрать всё кроме удаления», «Выбрать всё», «Снять все».
+
+- **Сортировка порядка применения** (чтобы каскадное удаление не ломало ссылки):
+  1. `change*` на свойствах документа/состояний/переходов;
+  2. `change*` на правах акторов;
+  3. `remove*` на правах акторов;
+  4. `removeActorFromState`;
+  5. `removeTransition`;
+  6. `removeState`;
+  7. `add*` акторов, состояний, членств, прав;
+  8. `addTransition`;
+  9. `removeDocAttachment` / `addDocAttachment`;
+  10. `removeGlobalActor` — в самом конце.
+
+- **Двойное подтверждение при удалении.** Клиентский `showConfirm` с разбивкой «добавить: X, удалить: Y, изменить: Z» + предупреждение «⚠ Удаление необратимо». Затем серверный `showWarningMessage` (modal) с явным «Продолжить / Отмена».
+
+- **Копирование файлов при добавлении переходов:**
+  - `flowRules/<transition>.js` — если в образце есть, копируется в текущий документ (если такого файла нет).
+  - `ClientAction/<action>.js` — если у перехода есть `actionToRunBefore`, копируется файл из `document/<SrcDoc>/UI/ClientAction/`. Если файла в образце нет — предупреждение в списке `warnings`, переход всё равно добавляется.
+
+- **Копирование авторизации.** Строки `Allow Actor` для второго документа копируются в текущий `authorization.csv` с заменой `CodeName` на имя текущего документа. Дубликаты (`role|actor|op`) пропускаются.
+
+- **Переводы для новых элементов** — копируются для всех **общих** языковых колонок (есть `Translation_<lang>` и в текущем, и в образце). `en-US` = код. Новые языковые колонки не создаются.
+
+## Исправлено
+
+- **Серверный diff не учитывал `[object Object]`-акторов** — не применимо к этой фиче, но затронутый `src/storage.js → normalizeSourceDocumentStates` используется теперь и здесь (через `loadDocumentForCompare`).
+
+## Изменено
+
+- `src/compare.js` — новый модуль, чистая функция `buildDiff(currentCtx, otherDoc)` без записи файлов. Возвращает структуру всех отличий.
+- `src/compare-apply.js` — новый модуль, `applyDiff(currentCtx, otherDoc, actions)`. Мутирует `ctx.flow` / `ctx.config` / `ctx.csv` / `ctx.auth` / `ctx.ui`. Файлы на диске пишет caller через `writeAll` / `writeUi` / `writeAuth`.
+- `src/storage.js`:
+  - `loadDocumentForCompare(flowPath)` — независимое чтение документа, не трогает `ctx`;
+  - `listDocumentsForCompare(ctx)` — список документов проекта с `flowPath`;
+  - обе функции в экспорте.
+- `src/handlers.js`:
+  - `handleListDocumentsForCompare(ctx)`;
+  - `handleCompareDocuments(ctx, payload)`;
+  - `handleApplyCompareDocuments(ctx, panel, payload)` — apply + запись + `reload`.
+- `extension.js`:
+  - новые dispatch-типы: `listDocumentsForCompare`, `compareDocuments`, `pickFolderForCompare`, `applyCompareDocuments`;
+  - pre-confirm на `remove*` через `vscode.window.showWarningMessage` с modal.
+- `media/index.html`:
+  - кнопка `compareBtn` с `data-icon="compare"` (классы `primary compare-btn`);
+  - шаблон `tpl-compare-picker` (селектор документа + file picker);
+  - шаблон `tpl-compare-diff` (панель результата с footer-ом);
+  - тег `<script src="{{JS_COMPARE}}">`.
+- `media/modules/icons.js` — новая иконка `compare`.
+- `media/modules/compare.js` — новый модуль: `openPicker`, `openDiff`, `init`, обработчик `window.message`.
+- `media/main.js` — вызов `PF.compare.init()` в конце.
+- `media/main.css` — стили `.compare-btn`, `.compare-picker-modal`, `.compare-diff-modal`, `.cmp-*` (header, body, sections, action-row, verb, detail, context, footer).
+- `src/html.js` — подключение `{{JS_COMPARE}}`.
+
+## Технические детали
+
+- `buildDiff` не пишет файлы — только читает `otherDoc` (независимая копия через `loadDocumentForCompare`) и `ctx` (текущий).
+- Порядок идемпотентен: повторный запуск `applyDiff` с теми же `actions` безопасен для `add*` (проверка на существование). Для `remove*` — повторное удаление даёт `warnings.push('уже отсутствует')`, `applied` не инкрементится.
+- `removeState` вызывает каскадное `removeTransitionCascade` для всех переходов, ссылающихся на состояние. Для каждого перехода удаляются: объект из `flow.transitions`, строка из `translation.csv`, запись из `ui`, `config.transitions[name]`, ссылки в `config.states[].actors[].transitions`, файл `flowRules/<tr>.js`.
+- `removeGlobalActor` дополнительно чистит `authorization.csv` — все `Allow Actor`-строки для этого актора в текущем документе.
+- `copyTranslationForNew` не создаёт новых языковых колонок — работает только по общим.
+
+## Известные компромиссы
+
+- **Сопоставление по кодам.** `Draft` в A и `New` в B — разные состояния, даже если семантически одно. Соответствие по переводам или ручной маппинг — отдельная задача.
+- **`change*` на переходах с `actionToRunBefore`** не копирует новый файл `ClientAction`. Если `A → B`, файл `B.js` не создаётся. Если нужно — отдельная итерация.
+- **Позиции `ui.json`.** При добавлении новых состояний `ui` не обновляется автоматически — при следующем открытии в граф-режиме новые состояния получат позиции по авто-раскладке (`buildGraph` в `src/transforms.js` уже это умеет). Старые позиции не трогаются.
+- **Справочник `AttachmentType`** (`masterEntity`) не синхронизируется. Он общий для всех документов — если в текущем проекте нет нужного типа, добавить его надо через кнопку `📎` вручную.
+- **`documentRelation/*`** не синхронизируются — это отдельный уровень связей документов, не свойство конкретного документа.
+- **Переводы новых элементов** — только для языков, которые есть в **обоих** `translation.csv`. Если в образце есть `mk-MK`, а в текущем — нет, значение не копируется (не создаём новую колонку автоматически).
+- **`initialState`** — показывается как отдельное действие. Применение меняет `initialState` в `documentFlow.json` (просто строка с именем состояния). Никаких гарантий, что новое значение существует в текущем документе — apply проверит только через runtime, если что-то пойдёт не так.
+- **`removeActorFromState`** удаляет актора из состояния, но не трогает `flow.actors` (глобальный список). Если у актора больше нет ни одного состояния — он останется в `flow.actors` до `removeGlobalActor`.
+
 # [0.5.3] - 2026-10-22
 
 ## Добавлено

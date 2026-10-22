@@ -657,11 +657,119 @@ function invalidateProjectCache(ctx) {
     if (ctx) ctx.projectCache = null;
 }
 
+/* ============================================================
+ * СРАВНЕНИЕ ДОКУМЕНТОВ
+ * ============================================================ */
+
+// Независимое чтение документа для сравнения.
+// Не трогает ctx — возвращает всё в отдельном объекте.
+// Возвращает null, если documentFlow.json отсутствует/битый.
+function loadDocumentForCompare(flowPath) {
+    const dir = path.dirname(flowPath);
+    const configPath = path.join(dir, 'configuration.json');
+    const transPath = path.join(dir, 'translation', 'translation.csv');
+    const uiPath = path.join(dir, 'documentFlow.ui.json');
+
+    const doc = {
+        flowPath,
+        configPath,
+        transPath,
+        uiPath,
+        dir,
+        docName: path.basename(dir),
+        flowName: path.basename(dir) + 'Flow',
+        flow: null,
+        config: null,
+        csv: null,
+        ui: [],
+        auth: null,
+        authPath: null
+    };
+
+    if (!fs.existsSync(flowPath)) return null;
+    try { doc.flow = JSON.parse(stripBom(fs.readFileSync(flowPath, 'utf8'))); }
+    catch { return null; }
+
+    if (fs.existsSync(configPath)) {
+        try { doc.config = JSON.parse(stripBom(fs.readFileSync(configPath, 'utf8'))); }
+        catch { doc.config = null; }
+    }
+    if (!doc.config) doc.config = { states: [], attachments: [] };
+
+    if (fs.existsSync(transPath)) {
+        try { doc.csv = parseCsv(stripBom(fs.readFileSync(transPath, 'utf8'))); }
+        catch { doc.csv = null; }
+    }
+    if (!doc.csv) doc.csv = { header: [], rows: [] };
+
+    if (fs.existsSync(uiPath)) {
+        try { doc.ui = JSON.parse(stripBom(fs.readFileSync(uiPath, 'utf8'))); }
+        catch { doc.ui = []; }
+    }
+
+    doc.authPath = findAuthorizationPath(flowPath);
+    if (doc.authPath) {
+        try { doc.auth = parseCsv(stripBom(fs.readFileSync(doc.authPath, 'utf8'))); }
+        catch { doc.auth = null; }
+    }
+
+    // flowName из csv → первая строка states@
+    try {
+        const idx = indexOf(doc.csv.header);
+        for (const row of doc.csv.rows) {
+            if (row[idx['ItemType']] === 'states' &&
+                String(row[idx['TranslationKey']] || '').startsWith('states@')) {
+                const name = row[idx['ConfigurationName']];
+                if (name) { doc.flowName = name; break; }
+            }
+        }
+    } catch { /* ignore */ }
+
+    return doc;
+}
+
+// Список документов проекта с путями к documentFlow.json.
+// Дедуп по имени: приоритет configuration/ (в listConfigPackages он идёт первым).
+function listDocumentsForCompare(ctx) {
+    if (!ctx || !ctx.projectRoot) return [];
+    const pkgs = listConfigPackages(ctx.projectRoot);
+    const seen = new Set();
+    const out = [];
+
+    for (const pkg of pkgs) {
+        const docRoot = path.join(pkg.dir, 'document');
+        if (!fs.existsSync(docRoot)) continue;
+        let entries;
+        try { entries = fs.readdirSync(docRoot, { withFileTypes: true }); }
+        catch { continue; }
+        for (const e of entries) {
+            if (!e.isDirectory()) continue;
+            const docName = e.name;
+            if (seen.has(docName)) continue;
+
+            const flowPath = path.join(docRoot, docName, 'documentFlow.json');
+            if (!fs.existsSync(flowPath)) continue;
+
+            seen.add(docName);
+            out.push({
+                docName,
+                flowPath,
+                pkgName: pkg.name,
+                pkgOrigin: pkg.origin
+            });
+        }
+    }
+
+    out.sort((a, b) => a.docName.localeCompare(b.docName));
+    return out;
+}
+
 module.exports = {
     resolveRoot, findFileByName, findAuthorizationPath, findProductLevel,
     loadData, writeAll, writeFlow, writeUi, writeAuth, writeConfig, pushRender,
     findProjectRoot, listConfigPackages, readPackageName,
     loadRelationsFromDir, loadAllRelations,
     loadAllDocumentNames, loadAllDocumentTitles,
-    invalidateProjectCache
+    invalidateProjectCache,
+    loadDocumentForCompare, listDocumentsForCompare
 };

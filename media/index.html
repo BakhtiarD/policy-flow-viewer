@@ -23,6 +23,7 @@
         <button id="validateBtn" data-icon="checklist" title="Проверка"></button>
         <button id="relationsBtn" data-icon="link" title="Связи"></button>
         <button id="attachmentsBtn" data-icon="paperclip" title="Вложения (AttachmentType)"></button>
+        <button id="compareBtn" class="primary compare-btn" data-icon="compare" title="Сравнить с другим документом"></button>
         <span class="toolbar-spacer"></span>
         <span class="hint" id="metaInfo"></span>
         <button id="toolbarSettingsBtn" data-icon="gear" title="Расположение тулбара" class="secondary"></button>
@@ -366,6 +367,69 @@
         </div>
     </template>
 
+    <!-- Сравнение документов: выбор второго документа -->
+    <template id="tpl-compare-picker">
+        <div class="modal-backdrop">
+            <div class="modal compare-picker-modal">
+                <h2>Сравнить с документом</h2>
+                <div class="hint">Текущий: <b class="cmp-current-name"></b></div>
+
+                <div class="form-row">
+                    <label>Документ проекта</label>
+                    <select class="cmp-doc-select"></select>
+                    <div class="hint">Выберите из списка или укажите папку вручную</div>
+                </div>
+
+                <div class="form-row">
+                    <button class="secondary" data-act="pick-folder">📁 Выбрать папку другого документа…</button>
+                </div>
+
+                <div class="cmp-selected-info" style="display:none">
+                    <div class="hint">Выбран: <b class="cmp-selected-name"></b></div>
+                    <div class="hint cmp-selected-path"></div>
+                </div>
+
+                <div class="actions">
+                    <button class="secondary" data-act="cancel">Отмена</button>
+                    <button data-act="compare" disabled>Сравнить</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Сравнение документов: панель diff -->
+    <template id="tpl-compare-diff">
+        <div class="modal-backdrop">
+            <div class="modal compare-diff-modal">
+                <h2>Сравнение документов</h2>
+
+                <div class="cmp-header">
+                    <div class="cmp-header-side">
+                        <div class="cmp-header-label">Текущий</div>
+                        <div class="cmp-header-name cmp-header-current"></div>
+                    </div>
+                    <div class="cmp-header-vs">⇄</div>
+                    <div class="cmp-header-side">
+                        <div class="cmp-header-label">Образец</div>
+                        <div class="cmp-header-name cmp-header-other"></div>
+                    </div>
+                </div>
+
+                <div class="cmp-body"></div>
+
+                <div class="cmp-footer">
+                    <span class="cmp-selected-count"></span>
+                    <span style="flex:1"></span>
+                    <button class="secondary" data-act="select-all-safe">Выбрать всё кроме удаления</button>
+                    <button class="secondary" data-act="select-all-add">Выбрать всё</button>
+                    <button class="secondary" data-act="deselect-all">Снять все</button>
+                    <button class="secondary" data-act="close">Закрыть</button>
+                    <button class="primary" data-act="apply" disabled>Применить выбранное</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <!-- Диалог-сообщение -->
     <template id="tpl-alert-modal">
         <div class="modal-backdrop dialog-backdrop">
@@ -595,6 +659,7 @@
     <script src="{{JS_TABLE}}"></script>
     <script src="{{JS_MATRIX}}"></script>
     <script src="{{JS_ACTORS}}"></script>
+    <script src="{{JS_COMPARE}}"></script>
     <script src="{{JS_URI}}"></script>
 </body>
 

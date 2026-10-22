@@ -34,7 +34,10 @@ const {
     handleEditActorPerm,
     handleDuplicateActor,
     handleSaveActorAuth,
-    handleRenameActor
+    handleRenameActor,
+    handleListDocumentsForCompare,
+    handleCompareDocuments,
+    handleApplyCompareDocuments
 } = require('./src/handlers');
 
 let currentPanel = null;
@@ -121,6 +124,85 @@ function activate(context) {
                         else if (msg.type === 'duplicateActor') await handleDuplicateActor(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'saveActorAuth') await handleSaveActorAuth(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'renameActor') await handleRenameActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'listDocumentsForCompare') {
+                            const docs = await handleListDocumentsForCompare(currentCtx);
+                            currentPanel.webview.postMessage({ type: 'documentsForCompare', docs });
+                        }
+                        else if (msg.type === 'compareDocuments') {
+                            try {
+                                const diff = await handleCompareDocuments(currentCtx, msg.payload);
+                                currentPanel.webview.postMessage({ type: 'compareResult', diff });
+                            } catch (err) {
+                                currentPanel.webview.postMessage({ type: 'compareError', error: err.message });
+                            }
+                        }
+                        else if (msg.type === 'applyCompareDocuments') {
+                            try {
+                                const actions = (msg.payload && msg.payload.actions) || [];
+                                const removeCount = actions.filter(a =>
+                                    String(a.kind || '').startsWith('remove')
+                                ).length;
+
+                                if (removeCount > 0) {
+                                    const answer = await vscode.window.showWarningMessage(
+                                        'Среди выбранных действий есть ' + removeCount +
+                                        ' удаляющих. Это необратимо в рамках применения.\n\n' +
+                                        'Продолжить?',
+                                        { modal: true },
+                                        'Продолжить',
+                                        'Отмена'
+                                    );
+                                    if (answer !== 'Продолжить') {
+                                        currentPanel.webview.postMessage({
+                                            type: 'applyCompareResult',
+                                            ok: false,
+                                            error: 'Отменено пользователем.'
+                                        });
+                                        return;
+                                    }
+                                }
+
+                                const result = await handleApplyCompareDocuments(
+                                    currentCtx, currentPanel, msg.payload
+                                );
+                                currentPanel.webview.postMessage({
+                                    type: 'applyCompareResult',
+                                    ok: true,
+                                    applied: result.applied,
+                                    warnings: result.warnings
+                                });
+                            } catch (err) {
+                                currentPanel.webview.postMessage({
+                                    type: 'applyCompareResult',
+                                    ok: false,
+                                    error: err.message
+                                });
+                            }
+                        }
+                        else if (msg.type === 'pickFolderForCompare') {
+                            const sel = await vscode.window.showOpenDialog({
+                                canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
+                                openLabel: 'Выбрать папку другого документа'
+                            });
+                            if (!sel || !sel.length) {
+                                currentPanel.webview.postMessage({ type: 'folderPicked', cancelled: true });
+                            } else {
+                                const folder = sel[0].fsPath;
+                                const fp = path.join(folder, 'documentFlow.json');
+                                if (!fs.existsSync(fp)) {
+                                    currentPanel.webview.postMessage({
+                                        type: 'folderPicked',
+                                        error: 'documentFlow.json не найден в выбранной папке'
+                                    });
+                                } else {
+                                    currentPanel.webview.postMessage({
+                                        type: 'folderPicked',
+                                        flowPath: fp,
+                                        docName: path.basename(folder)
+                                    });
+                                }
+                            }
+                        }
                     } catch (e) {
                         vscode.window.showErrorMessage('Ошибка: ' + e.message);
                         console.error(e);

@@ -1663,3 +1663,298 @@ body.vscode-high-contrast .perm-label.links { color: #d2a8ff; }
     opacity: 0.6;
     padding: 2px 0;
 }
+
+/* === Сравнение документов === */
+.primary {
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #fff);
+    border: 1px solid var(--vscode-button-border, transparent);
+}
+.primary:hover {
+    background: var(--vscode-button-hoverBackground, #1177bb);
+}
+.compare-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+}
+
+.compare-picker-modal {
+    max-width: 560px;
+}
+.cmp-current-name {
+    color: var(--vscode-textLink-foreground, #3794ff);
+}
+.cmp-selected-info {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: var(--vscode-editorWidget-background, rgba(128,128,128,0.08));
+    border-radius: 4px;
+}
+.cmp-selected-path {
+    font-family: monospace;
+    font-size: 11px;
+    opacity: 0.7;
+    word-break: break-all;
+}
+
+.compare-diff-modal {
+    max-width: 960px;
+    width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+.cmp-header {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    padding: 10px 12px;
+    background: var(--vscode-editorWidget-background, rgba(128,128,128,0.08));
+    border-radius: 6px;
+    margin: 6px 0 12px;
+}
+.cmp-header-side {
+    flex: 1;
+    min-width: 0;
+}
+.cmp-header-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    opacity: 0.65;
+    letter-spacing: 0.5px;
+}
+.cmp-header-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cmp-header-vs {
+    display: flex;
+    align-items: center;
+    font-size: 20px;
+    opacity: 0.6;
+    padding: 0 4px;
+}
+.cmp-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
+}
+.cmp-section {
+    margin-bottom: 14px;
+}
+.cmp-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.8;
+    letter-spacing: 0.4px;
+    margin: 0 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(128,128,128,0.2);
+}
+.cmp-section-empty {
+    font-size: 12px;
+    opacity: 0.5;
+    padding: 2px 0 6px;
+}
+.cmp-section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.cmp-item {
+    font-size: 12px;
+    padding: 3px 4px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.cmp-block {
+    padding: 6px 8px;
+    margin: 2px 0;
+    background: var(--vscode-editorWidget-background, rgba(128,128,128,0.06));
+    border-radius: 4px;
+    font-size: 12px;
+}
+.cmp-block-head {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.cmp-sub {
+    padding: 2px 0 2px 8px;
+    font-size: 12px;
+    opacity: 0.9;
+}
+.cmp-hint {
+    opacity: 0.6;
+    font-size: 11px;
+}
+.cmp-tr {
+    opacity: 0.7;
+}
+.cmp-badge {
+    display: inline-block;
+    min-width: 16px;
+    text-align: center;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    vertical-align: middle;
+}
+.cmp-badge-add {
+    background: rgba(46,160,67,0.2);
+    color: #2ea043;
+}
+.cmp-badge-remove {
+    background: rgba(207,34,46,0.2);
+    color: #cf222e;
+}
+.cmp-badge-change {
+    background: rgba(210,153,34,0.2);
+    color: #bf8700;
+}
+.cmp-badge-tag {
+    background: rgba(128,128,128,0.15);
+    color: inherit;
+    font-weight: 500;
+    font-size: 10px;
+    line-height: 14px;
+    text-transform: uppercase;
+}
+.cmp-add {
+    color: #2ea043;
+    font-weight: 600;
+}
+.cmp-remove {
+    color: #cf222e;
+    font-weight: 600;
+}
+
+/* Плоский список действий в diff-е */
+.cmp-action-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.cmp-action {
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 3px 6px;
+    border-radius: 3px;
+    background: rgba(128,128,128,0.04);
+    word-break: break-word;
+}
+.cmp-verb {
+    display: inline-block;
+    font-weight: 600;
+    padding: 0 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 16px;
+    margin-right: 2px;
+    vertical-align: middle;
+}
+.cmp-verb-add    { background: rgba(46,160,67,0.18);  color: #2ea043; }
+.cmp-verb-remove { background: rgba(207,34,46,0.18);  color: #cf222e; }
+.cmp-verb-change { background: rgba(210,153,34,0.20); color: #bf8700; }
+.cmp-detail {
+    opacity: 0.95;
+}
+.cmp-detail code {
+    font-size: 11px;
+}
+.cmp-context {
+    opacity: 0.5;
+    font-size: 11px;
+    font-style: italic;
+    white-space: nowrap;
+}
+.cmp-object-block {
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: var(--vscode-editorWidget-background, rgba(128,128,128,0.06));
+    border-radius: 4px;
+}
+.cmp-object-head {
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+.cmp-sub-head {
+    font-size: 11px;
+    opacity: 0.75;
+    margin: 8px 0 2px;
+    font-style: italic;
+    padding-left: 4px;
+}
+.cmp-tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(128,128,128,0.15);
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+/* Action-row с чекбоксом */
+.cmp-action-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 4px 6px;
+    border-radius: 3px;
+    background: rgba(128,128,128,0.04);
+    cursor: pointer;
+    word-break: break-word;
+}
+.cmp-action-row:hover {
+    background: rgba(128,128,128,0.08);
+}
+.cmp-action-row input[type="checkbox"] {
+    margin: 3px 0 0 0;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.cmp-action-row.cmp-action-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.cmp-action-row.cmp-action-disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+.cmp-action-body {
+    flex: 1;
+    min-width: 0;
+}
+.cmp-not-ready {
+    opacity: 0.55;
+    font-size: 10px;
+    font-style: italic;
+    white-space: nowrap;
+}
+
+.cmp-footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 8px;
+    margin-top: 8px;
+    border-top: 1px solid rgba(128,128,128,0.2);
+}
+.cmp-selected-count {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.cmp-footer button {
+    white-space: nowrap;
+}
