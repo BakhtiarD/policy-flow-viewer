@@ -153,4 +153,13 @@ module.exports = {
     'warn.applyError': 'Ошибка при применении {kind}: {message}',
     'warn.clientActionNotFound': 'ClientAction {name}.js не найден в образце — переход скопирован без файла',
 
+    // ============ ClientAction rename errors ============
+    'err.clientAction.noNames': 'Не переданы oldName/newName.',
+    'err.clientAction.invalidRename': 'Некорректное имя action.',
+    'err.clientAction.renameNotFound': 'Файл ClientAction/{name}.js не найден.',
+    'err.clientAction.renameExists': 'Файл ClientAction/{name}.js уже существует.',
+
+    // ============ FlowRule rename errors ============
+    'err.flowRule.renameExists': 'flowRules/{name}.js уже существует.',
+
 };

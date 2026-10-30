@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const uiI18n = require('./ui-i18n');
 
 function flowRulesDir(ctx) {
     return path.join(path.dirname(ctx.flowPath), 'flowRules');
@@ -34,7 +35,7 @@ function renameFlowRule(ctx, oldName, newName) {
     const to = flowRulePath(ctx, newName);
     if (!fs.existsSync(from)) return;
     if (fs.existsSync(to)) {
-        throw new Error('flowRules/' + newName + '.js уже существует.');
+        throw new Error(uiI18n.t('err.flowRule.renameExists', { name: newName }));
     }
     fs.renameSync(from, to);
 }

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const uiI18n = require('./ui-i18n');
 
 function docNameFromCtx(ctx) {
     return path.basename(path.dirname(ctx.flowPath));
@@ -59,17 +60,19 @@ function findClientActionInProject(ctx, actionName) {
 }
 
 function renameClientAction(ctx, oldName, newName) {
-    if (!oldName || !newName) throw new Error('Не переданы oldName/newName.');
+    if (!oldName || !newName) {
+        throw new Error(uiI18n.t('err.clientAction.noNames'));
+    }
     if (!/^[A-Za-z0-9_$\-]+$/.test(oldName) || !/^[A-Za-z0-9_$\-]+$/.test(newName)) {
-        throw new Error('Некорректное имя action.');
+        throw new Error(uiI18n.t('err.clientAction.invalidRename'));
     }
     const from = clientActionPath(ctx, oldName);
     const to = clientActionPath(ctx, newName);
     if (!fs.existsSync(from)) {
-        throw new Error('Файл ClientAction/' + oldName + '.js не найден.');
+        throw new Error(uiI18n.t('err.clientAction.renameNotFound', { name: oldName }));
     }
     if (fs.existsSync(to)) {
-        throw new Error('Файл ClientAction/' + newName + '.js уже существует.');
+        throw new Error(uiI18n.t('err.clientAction.renameExists', { name: newName }));
     }
     fs.renameSync(from, to);
 }

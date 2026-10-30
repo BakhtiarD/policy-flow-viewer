@@ -1717,7 +1717,7 @@ async function handleCompareDocuments(ctx, payload) {
     const otherDoc = loadDocumentForCompare(otherFlowPath);
     if (!otherDoc) throw new Error(uiI18n.t('err.compare.readFailed', { path: otherFlowPath }));
 
-    const { buildDiff } = require('./compare');
+    const { buildDiff } = require('./compare-diff');
     return buildDiff(ctx, otherDoc);
 }
 

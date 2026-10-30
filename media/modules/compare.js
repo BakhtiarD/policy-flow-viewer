@@ -725,9 +725,8 @@
 
             if (!msg.ok) {
                 // Отмену на сервере не считаем ошибкой — молча восстанавливаем.
-                // Сравнение с русской строкой — временно, до 3c, где сервер начнёт
-                // возвращать код причины, а не текст.
-                if (msg.error !== 'Отменено пользователем.') {
+                // Сервер присылает cancelled: true вместо error-строки.
+                if (!msg.cancelled) {
                     PF.utils.showAlert(
                         msg.error || PF.ui.t('compare.apply.error'),
                         PF.ui.t('compare.error.title')

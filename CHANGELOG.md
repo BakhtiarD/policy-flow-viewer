@@ -84,6 +84,9 @@
 - `src/extension.js` — `onDidChangeConfiguration` слушает
   `adinsureDocFlow.uiLanguage`, при изменении перезагружает данные и
   `pushRender`.
+- Переименован `src/compare.js` → `src/compare-diff.js` — чтобы не
+  путать с клиентским `media/modules/compare.js`. Функциональность не
+  затронута.
 
 # [0.6.0] - 2026-10-22
 

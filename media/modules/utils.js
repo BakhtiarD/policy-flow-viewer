@@ -76,9 +76,9 @@
             actions.className = 'actions';
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'secondary';
-            cancelBtn.textContent = 'Отмена';
+            cancelBtn.textContent = PF.ui.t('common.cancel');
             const okBtn = document.createElement('button');
-            okBtn.textContent = 'OK';
+            okBtn.textContent = PF.ui.t('common.ok');
             actions.appendChild(cancelBtn);
             actions.appendChild(okBtn);
             modal.appendChild(actions);

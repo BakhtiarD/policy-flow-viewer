@@ -147,4 +147,13 @@ module.exports = {
     'warn.unknownAction': 'Unknown action: {kind} (skipped)',
     'warn.applyError': 'Error applying {kind}: {message}',
     'warn.clientActionNotFound': 'ClientAction {name}.js not found in reference — transition copied without file',
+
+    // ============ ClientAction rename errors ============
+    'err.clientAction.noNames': 'oldName/newName not provided.',
+    'err.clientAction.invalidRename': 'Invalid action name.',
+    'err.clientAction.renameNotFound': 'File ClientAction/{name}.js not found.',
+    'err.clientAction.renameExists': 'File ClientAction/{name}.js already exists.',
+
+    // ============ FlowRule rename errors ============
+    'err.flowRule.renameExists': 'flowRules/{name}.js already exists.',
 };
