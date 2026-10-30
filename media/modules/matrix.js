@@ -66,7 +66,9 @@
         const transTransAll = trs.transTransAll || {};
 
         if (!states.length) {
-            grid.innerHTML = '<div class="matrix-empty">Нет состояний</div>';
+            grid.innerHTML = '<div class="matrix-empty">' +
+                escHtml(PF.ui.t('matrix.empty')) +
+                '</div>';
             return;
         }
 
@@ -102,7 +104,7 @@
             th.className = 'matrix-col-h';
             th.textContent = abbrs[col];
             th.dataset.state = col;
-            th.title = 'Клик — редактировать состояние\n' +
+            th.title = PF.ui.t('matrix.tooltip.editState') + '\n' +
                 PF.i18n.label(col, { trans: stateTransAll[col], ru: stateTrans[col] });
             grid.appendChild(th);
         }
@@ -116,7 +118,7 @@
             if (terminalSet.has(rowState)) rowTh.classList.add('terminal');
             rowTh.textContent = abbrs[rowState];
             rowTh.dataset.state = rowState;
-            rowTh.title = 'Клик — редактировать состояние\n' +
+            rowTh.title = PF.ui.t('matrix.tooltip.editState') + '\n' +
                 PF.i18n.label(rowState, { trans: stateTransAll[rowState], ru: stateTrans[rowState] });
             grid.appendChild(rowTh);
 
@@ -145,7 +147,10 @@
                         td.classList.add('empty');
                         td.dataset.from = rowState;
                         td.dataset.to = colState;
-                        td.title = 'Двойной клик — создать переход ' + rowState + ' → ' + colState;
+                        td.title = PF.ui.t('matrix.tooltip.createTransition', {
+                            from: rowState,
+                            to: colState
+                        });
                     }
                 }
 
@@ -193,11 +198,8 @@
                 const name = th.dataset.state;
                 if (!name) return;
                 const ok = await PF.utils.showConfirm(
-                    'Удалить состояние «' + name + '» со всеми отсылками?\n\n' +
-                    'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
-                    ' documentFlow.ui.json.\n' +
-                    'Файлы flowRules/*.js всех переходов этого состояния будут удалены.',
-                    'Удаление состояния'
+                    PF.ui.t('matrix.deleteState.confirm', { name }),
+                    PF.ui.t('matrix.deleteState.title')
                 );
                 if (!ok) return;
                 PF.vscode.postMessage({ type: 'deleteState', state: name });
@@ -211,11 +213,8 @@
             const tName = td.dataset.transition;
             if (!tName) return;
             const ok = await PF.utils.showConfirm(
-                'Удалить переход «' + tName + '»?\n\n' +
-                'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
-                ' documentFlow.ui.json.\n' +
-                'Файл flowRules/' + tName + '.js также будет удалён.',
-                'Удаление перехода'
+                PF.ui.t('matrix.deleteTransition.confirm', { name: tName }),
+                PF.ui.t('matrix.deleteTransition.title')
             );
             if (!ok) return;
             PF.vscode.postMessage({ type: 'deleteTransitions', names: [tName] });

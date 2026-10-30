@@ -26,10 +26,10 @@
                 : cur === 'matrix' ? 'actors'
                     : 'table';
         const titleByNext = {
-            table: 'Показать таблицу',
-            graph: 'Показать граф',
-            matrix: 'Показать матрицу переходов',
-            actors: 'Показать таблицу акторов'
+            table: PF.ui.t('viewToggle.toTable'),
+            graph: PF.ui.t('viewToggle.toGraph'),
+            matrix: PF.ui.t('viewToggle.toMatrix'),
+            actors: PF.ui.t('viewToggle.toActors')
         };
         const iconByNext = {
             table: 'table',
@@ -83,13 +83,14 @@
         menu.id = 'toolbarSettingsMenu';
 
         const positions = [
-            { value: 'top', label: 'Сверху', icon: 'layout-top' },
-            { value: 'right', label: 'Справа', icon: 'layout-right' },
-            { value: 'bottom', label: 'Снизу', icon: 'layout-bottom' },
-            { value: 'left', label: 'Слева', icon: 'layout-left' }
+            { value: 'top', label: PF.ui.t('toolbarMenu.top'), icon: 'layout-top' },
+            { value: 'right', label: PF.ui.t('toolbarMenu.right'), icon: 'layout-right' },
+            { value: 'bottom', label: PF.ui.t('toolbarMenu.bottom'), icon: 'layout-bottom' },
+            { value: 'left', label: PF.ui.t('toolbarMenu.left'), icon: 'layout-left' }
         ];
 
-        let html = '<div class="menu-header">Расположение тулбара</div>';
+        let html = '<div class="menu-header">' + PF.ui.t('toolbarMenu.title') + '</div>';
+
         for (const p of positions) {
             const checked = PF.state.toolbarPosition === p.value ? '✓' : '';
             html += '<div class="menu-item" data-pos="' + p.value + '">' +
@@ -138,8 +139,8 @@
         const key = PF.state.layoutRankDir === 'TB' ? 'arrows-v' : 'arrows-h';
         layoutDirBtn.setAttribute('data-icon', key);
         layoutDirBtn.title = PF.state.layoutRankDir === 'TB'
-            ? 'Сверху вниз (клик — слева направо)'
-            : 'Слева направо (клик — сверху вниз)';
+            ? PF.ui.t('layoutDir.tb')
+            : PF.ui.t('layoutDir.lr');
         layoutDirBtn.innerHTML = ICONS[key];
     }
 
@@ -148,8 +149,8 @@
         if (!labelsToggleBtn) return;
         labelsToggleBtn.style.opacity = PF.state.showTransitionLabels ? '1' : '0.55';
         labelsToggleBtn.title = PF.state.showTransitionLabels
-            ? 'Скрыть подписи переходов'
-            : 'Показать подписи переходов';
+            ? PF.ui.t('labelsToggle.hide')
+            : PF.ui.t('labelsToggle.show');
     }
 
     /* ============================================================
@@ -164,16 +165,14 @@
             (graphData.states || []).some(s => s._fromUi);
         if (hasExisting) {
             const ok = await showConfirm(
-                'В документе уже есть сохранённые позиции.\n\n' +
-                'Авто-раскладка перезапишет позиции состояний и сбросит\n' +
-                'ручные маршруты переходов. Продолжить?',
-                'Авто-раскладка'
+                PF.ui.t('autoLayout.confirm'),
+                PF.ui.t('autoLayout.title')
             );
             if (!ok) return;
         }
 
         if (typeof dagre === 'undefined' || !dagre || !dagre.graphlib) {
-            showAlert('Модуль раскладки (dagre) не загружен. Проверьте файл media/vendor/dagre.min.js.', 'Ошибка');
+            showAlert(PF.ui.t('autoLayout.dagreMissing'), PF.ui.t('autoLayout.error'));
             return;
         }
 
@@ -235,10 +234,9 @@
         if (av) av.classList.toggle('active', mode === 'actors');
 
         if (mode === 'graph') {
-            document.getElementById('graphHint').textContent =
-                PF.state.DATA.hasUi
-                    ? 'Позиции из documentFlow.ui.json'
-                    : 'documentFlow.ui.json не найден — авто-раскладка';
+            document.getElementById('graphHint').textContent = PF.ui.t(
+                PF.state.DATA.hasUi ? 'graphHint.fromUi' : 'graphHint.auto'
+            );
             try {
                 requestAnimationFrame(() => {
                     PF.routing.rerouteAll();
@@ -361,8 +359,8 @@
         if (optimizeTransitionsBtn) {
             optimizeTransitionsBtn.addEventListener('click', async () => {
                 const ok = await showConfirm(
-                    'Сбросить ручные маршруты и пересчитать все переходы заново?',
-                    'Авто-раскладка переходов'
+                    PF.ui.t('optimize.confirm'),
+                    PF.ui.t('optimize.title')
                 );
                 if (!ok) return;
 
@@ -458,15 +456,12 @@
 
             const h = document.createElement('h2');
             h.className = 'dlg-title';
-            h.textContent = 'Авто-раскладка переходов';
+            h.textContent = PF.ui.t('optimize.title');
             modal.appendChild(h);
 
             const info = document.createElement('div');
             info.className = 'hint';
-            info.innerHTML =
-                'Что делать с ручными маршрутами?<br><br>' +
-                '<b>Только автоматические</b> — пересчитать переходы без ручной разметки.<br>' +
-                '<b>Сбросить все</b> — ручные маршруты будут потеряны, всё пересчитано.';
+            info.innerHTML = PF.ui.t('optimizeMode.info');
             modal.appendChild(info);
 
             const actions = document.createElement('div');
@@ -474,14 +469,14 @@
 
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'secondary';
-            cancelBtn.textContent = 'Отмена';
+            cancelBtn.textContent = PF.ui.t('common.cancel');
 
             const keepBtn = document.createElement('button');
             keepBtn.className = 'secondary';
-            keepBtn.textContent = 'Только автоматические';
+            keepBtn.textContent = PF.ui.t('optimizeMode.autoOnly');
 
             const resetBtn = document.createElement('button');
-            resetBtn.textContent = 'Сбросить все';
+            resetBtn.textContent = PF.ui.t('optimizeMode.resetAll');
 
             actions.appendChild(cancelBtn);
             actions.appendChild(keepBtn);

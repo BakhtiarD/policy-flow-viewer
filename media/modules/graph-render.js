@@ -117,9 +117,17 @@
         deleteBtn.disabled = total === 0;
 
         const parts = [];
-        if (selectedStates.size) parts.push('состояний: ' + selectedStates.size);
-        if (selectedTransitions.size) parts.push('переходов: ' + selectedTransitions.size);
-        if (hint) hint.textContent = parts.length ? 'выделено ' + parts.join(', ') : '';
+        if (selectedStates.size) {
+            parts.push(PF.ui.t('selection.states', { n: String(selectedStates.size) }));
+        }
+        if (selectedTransitions.size) {
+            parts.push(PF.ui.t('selection.transitions', { n: String(selectedTransitions.size) }));
+        }
+        if (hint) {
+            hint.textContent = parts.length
+                ? PF.ui.t('selection.hint', { parts: parts.join(', ') })
+                : '';
+        }
     }
 
     function editSelected() {
@@ -146,14 +154,20 @@
         if (!stCount && !trCount) return;
 
         const lines = [];
-        if (stCount) lines.push('состояний: ' + stCount + (stCount === 1 ? ' (' + [...selectedStates][0] + ')' : ''));
-        if (trCount) lines.push('переходов: ' + trCount + (trCount === 1 ? ' (' + [...selectedTransitions][0] + ')' : ''));
+        if (stCount) {
+            let line = PF.ui.t('selection.states', { n: String(stCount) });
+            if (stCount === 1) line += ' (' + [...selectedStates][0] + ')';
+            lines.push(line);
+        }
+        if (trCount) {
+            let line = PF.ui.t('selection.transitions', { n: String(trCount) });
+            if (trCount === 1) line += ' (' + [...selectedTransitions][0] + ')';
+            lines.push(line);
+        }
 
         const ok = await showConfirm(
-            'Удалить выделенное?\n\n' + lines.join('\n') + '\n\n' +
-            'Будут изменены: documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json.\n' +
-            'Файлы flowRules/<код>.js удаляемых переходов будут удалены.',
-            'Удаление выделенного'
+            PF.ui.t('delete.confirm', { lines: lines.join('\n') }),
+            PF.ui.t('delete.title')
         );
         if (!ok) return;
 

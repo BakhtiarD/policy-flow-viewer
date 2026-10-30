@@ -8,11 +8,12 @@
     /* ============================================================
      * ОБЩИЕ ХЕЛПЕРЫ ФОРМ
      * ============================================================ */
+
     function applyLangToModal(root) {
         if (!root) return;
         const lang = (PF.state && PF.state.selectedLang) || 'ru-RU';
         const isEn = (lang === 'en-US');
-        const labelText = isEn ? 'Перевод en-US' : ('Перевод ' + lang);
+        const labelText = PF.ui.t('field.translation', { lang });
         root.querySelectorAll('[data-tr-label]').forEach(el => {
             el.textContent = labelText;
         });
@@ -29,7 +30,7 @@
 
         const ph = document.createElement('option');
         ph.value = '';
-        ph.textContent = '— выберите —';
+        ph.textContent = PF.ui.t('common.select');
         selectEl.appendChild(ph);
 
         for (const a of actors) {
@@ -44,7 +45,7 @@
         }
         const nw = document.createElement('option');
         nw.value = '__NEW__';
-        nw.textContent = '➕ Новый актор…';
+        nw.textContent = PF.ui.t('common.newActorOption');
         selectEl.appendChild(nw);
     }
 
@@ -78,11 +79,15 @@
             actorsForSelect.unshift(currentActor);
         }
 
+        const cardTitle = card.querySelector('.item-card-title');
+        if (cardTitle) cardTitle.textContent = PF.ui.t('actor.card.title');
+
         const sel = card.querySelector('.f-actor');
         buildActorOptions(sel, actorsForSelect, currentActor);
 
         const isCustom = currentActor && !meta.actors.includes(currentActor);
         const newInp = card.querySelector('.f-actor-new');
+        if (newInp) newInp.placeholder = PF.ui.t('actor.placeholder.new');
         if (isCustom) {
             sel.value = '__NEW__';
             newInp.value = currentActor;
@@ -138,7 +143,7 @@
             if (!outList.length) {
                 const hint = document.createElement('div');
                 hint.className = 'hint';
-                hint.textContent = 'Нет исходящих переходов';
+                hint.textContent = PF.ui.t('actor.noOutgoing');
                 transCont.appendChild(hint);
             } else {
                 for (const t of outList) {
@@ -171,7 +176,7 @@
             if (orphans.length) {
                 const sep = document.createElement('div');
                 sep.className = 'f-transition-orphan-title';
-                sep.textContent = 'Больше не исходящие (при сохранении будут удалены):';
+                sep.textContent = PF.ui.t('actor.orphans.title');
                 transCont.appendChild(sep);
                 for (const n of orphans) {
                     const row = document.createElement('div');
@@ -201,7 +206,7 @@
         if (!meta.attachments || !meta.attachments.length) {
             const empty = document.createElement('div');
             empty.className = 'perm-empty';
-            empty.textContent = 'В документе нет вложений';
+            empty.textContent = PF.ui.t('attachments.empty');
             attCont.appendChild(empty);
         } else {
             attCont.appendChild(cloneTemplate('tpl-attach-header'));
@@ -220,7 +225,6 @@
         }
 
         card.querySelector('[data-remove]').addEventListener('click', () => card.remove());
-        applyLangToModal(card);
         return card;
     }
 
@@ -231,7 +235,7 @@
         if (orig) card.setAttribute('data-original-name', orig);
 
         const title = card.querySelector('.item-card-title');
-        title.textContent = 'Исходящий переход' + (orig ? '' : ' (новый)');
+        title.textContent = PF.ui.t(orig ? 'outgoing.title' : 'outgoing.title.new');
 
         const toSel = card.querySelector('.f-to');
         buildStateOptions(toSel, PF.state.meta.states, t.to || (PF.state.meta.states[0] || ''));
@@ -273,6 +277,7 @@
         }
 
         card.querySelector('[data-remove]').addEventListener('click', () => card.remove());
+        applyLangToModal(card);
         return card;
     }
 
@@ -347,14 +352,14 @@
     function validateOutgoing(outgoing) {
         for (const x of outgoing) {
             if (!x.name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(x.name)) {
-                showAlert('Некорректный код перехода: "' + (x.name || '') + '"');
+                showAlert(PF.ui.t('validate.outgoing.invalid', { name: x.name || '' }));
                 return false;
             }
         }
         const seen = new Set();
         for (const x of outgoing) {
             if (seen.has(x.name)) {
-                showAlert('Дублирующийся код перехода: ' + x.name);
+                showAlert(PF.ui.t('validate.outgoing.duplicate', { name: x.name }));
                 return false;
             }
             seen.add(x.name);
@@ -379,17 +384,9 @@
             '• ' + x.actor + '  →  ' + x.transition
         ).join('\n');
 
-        const msg =
-            'У состояния «' + stateName + '» есть ссылки на переходы, которых нет ' +
-            'среди его исходящих переходов:\n\n' +
-            lines + '\n\n' +
-            'Возможные причины:\n' +
-            '  – переход был удалён или переименован;\n' +
-            '  – ссылка в configuration.json осталась от старой версии.\n\n' +
-            'OK — убрать эти ссылки и сохранить.\n' +
-            'Отмена — вернуться в форму и поправить вручную.';
+        const msg = PF.ui.t('validate.perms.problem', { state: stateName, lines });
 
-        const clean = await showConfirm(msg, 'Проверка прав');
+        const clean = await showConfirm(msg, PF.ui.t('validate.perms.title'));
         if (!clean) return false;
 
         for (const p of perms) {
@@ -495,7 +492,7 @@
             const ru = backdrop.querySelector('.f-new-ru').value.trim();
             const isTerminal = backdrop.querySelector('.f-new-term').checked;
             if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
-                showAlert('Введите корректный код состояния');
+                showAlert(PF.ui.t('state.alert.invalidCode'));
                 return;
             }
             const outgoing = collectOutgoing(transList);
@@ -505,12 +502,13 @@
             if (!await validatePermissions(perms, outgoing, name)) return;
 
             const ok = await showConfirm(
-                'Добавить состояние "' + name + '"?\n\n' +
-                'Конечное: ' + (isTerminal ? 'да' : 'нет') + '\n' +
-                'Исходящих переходов: ' + outgoing.length + '\n' +
-                'Блоков прав: ' + perms.length + '\n\n' +
-                'Будут изменены: documentFlow.json, configuration.json, translation.csv',
-                'Добавление состояния'
+                PF.ui.t('state.confirm.add', {
+                    name,
+                    terminal: PF.ui.t(isTerminal ? 'common.yes' : 'common.no'),
+                    outCount: String(outgoing.length),
+                    permCount: String(perms.length)
+                }),
+                PF.ui.t('state.confirm.add.title')
             );
             if (!ok) return;
 
@@ -542,6 +540,7 @@
 
         const editNameInput = backdrop.querySelector('.f-edit-name');
         editNameInput.value = stateName;
+
         {
             const f = backdrop.querySelector('.f-edit-ru');
             if (f) {
@@ -551,6 +550,7 @@
                     : ((det.trans && det.trans[curLang]) || '');
             }
         }
+
         backdrop.querySelector('.f-edit-term').checked = !!det.isTerminal;
 
         const getFromState = () => editNameInput.value.trim();
@@ -568,7 +568,7 @@
         } else {
             const hint = document.createElement('div');
             hint.className = 'hint';
-            hint.textContent = 'Нет входящих переходов';
+            hint.textContent = PF.ui.t('state.incoming.none');
             incCont.appendChild(hint);
         }
 
@@ -653,7 +653,7 @@
             const newRu = backdrop.querySelector('.f-edit-ru').value.trim();
             const isTerminal = backdrop.querySelector('.f-edit-term').checked;
             if (!newName || !/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
-                showAlert('Введите корректный код состояния');
+                showAlert(PF.ui.t('state.alert.invalidCode'));
                 return;
             }
             const outgoing = collectOutgoing(transList);
@@ -679,20 +679,31 @@
             }
 
             const lines = [];
-            if (stateRenamed) lines.push('• Код состояния: ' + stateName + ' → ' + newName);
-            lines.push('• Конечное: ' + (isTerminal ? 'да' : 'нет'));
+            if (stateRenamed) {
+                lines.push(PF.ui.t('state.confirm.line.rename', { old: stateName, new: newName }));
+            }
+            lines.push(PF.ui.t('state.confirm.line.terminal', {
+                value: PF.ui.t(isTerminal ? 'common.yes' : 'common.no')
+            }));
             if (renamedTransitions.length) {
-                lines.push('• Переименовано переходов (' + renamedTransitions.length + '):');
+                lines.push(PF.ui.t('state.confirm.line.renamedTrs', { n: String(renamedTransitions.length) }));
                 for (const r of renamedTransitions) lines.push('    ' + r);
             }
-            if (addedTransitions.length) lines.push('• Добавлено переходов: ' + addedTransitions.join(', '));
-            if (removedTransitions.length) lines.push('• Удалено переходов: ' + removedTransitions.join(', '));
-            lines.push('• Блоков прав: ' + perms.length);
+            if (addedTransitions.length) {
+                lines.push(PF.ui.t('state.confirm.line.addedTrs', { names: addedTransitions.join(', ') }));
+            }
+            if (removedTransitions.length) {
+                lines.push(PF.ui.t('state.confirm.line.removedTrs', { names: removedTransitions.join(', ') }));
+            }
+            lines.push(PF.ui.t('state.confirm.line.permBlocks', { n: String(perms.length) }));
             lines.push('');
-            lines.push('Будут обновлены файлы:');
-            lines.push('  documentFlow.json, configuration.json, translation.csv, documentFlow.ui.json');
+            lines.push(PF.ui.t('state.confirm.line.filesUpdate'));
+            lines.push('  ' + PF.ui.t('state.confirm.line.filesList'));
 
-            const ok = await showConfirm(lines.join('\n'), 'Сохранение состояния «' + stateName + '»');
+            const ok = await showConfirm(
+                lines.join('\n'),
+                PF.ui.t('state.confirm.edit.title', { name: stateName })
+            );
             if (!ok) return;
 
             PF.vscode.postMessage({
@@ -729,9 +740,12 @@
         applyLangToModal(backdrop);
 
         const titleEl = backdrop.querySelector('h2');
-        if (titleEl) titleEl.textContent = isNew ? 'Создание перехода' : 'Редактирование перехода';
+        if (titleEl) titleEl.textContent = PF.ui.t(
+            isNew ? 'transition.title.create' : 'transition.title.edit'
+        );
 
         backdrop.querySelector('.f-tr-name').value = t.name;
+
         {
             const f = backdrop.querySelector('.f-tr-ru');
             if (f) {
@@ -741,6 +755,7 @@
                     : ((t.trans && t.trans[curLang]) || '');
             }
         }
+
         backdrop.querySelector('.f-tr-from').value = t.from;
 
         // Кнопка «flowRules» — только для существующих переходов.
@@ -758,8 +773,8 @@
             const frBtn = document.createElement('button');
             frBtn.type = 'button';
             frBtn.className = 'secondary small';
-            frBtn.title = 'Открыть/создать flowRules/<код>.js';
-            frBtn.textContent = '📄 flowRules';
+            frBtn.title = PF.ui.t('transition.btn.flowRules.title');
+            frBtn.textContent = PF.ui.t('transition.btn.flowRules');
             frBtn.style.whiteSpace = 'nowrap';
             frBtn.addEventListener('click', (ev) => {
                 ev.preventDefault();
@@ -794,26 +809,26 @@
             const createBtn = document.createElement('button');
             createBtn.type = 'button';
             createBtn.className = 'secondary small';
-            createBtn.textContent = '＋ Создать';
-            createBtn.title = 'Создать (или привязать существующий) ClientAction';
+            createBtn.textContent = PF.ui.t('clientAction.create');
+            createBtn.title = PF.ui.t('clientAction.create.title');
 
             const openBtn = document.createElement('button');
             openBtn.type = 'button';
             openBtn.className = 'secondary small';
             openBtn.textContent = '📄';
-            openBtn.title = 'Открыть файл в редакторе';
+            openBtn.title = PF.ui.t('clientAction.open.title');
 
             const renameBtn = document.createElement('button');
             renameBtn.type = 'button';
             renameBtn.className = 'secondary small';
             renameBtn.textContent = '✎';
-            renameBtn.title = 'Переименовать файл';
+            renameBtn.title = PF.ui.t('clientAction.rename.title');
 
             const delBtn = document.createElement('button');
             delBtn.type = 'button';
             delBtn.className = 'danger small';
             delBtn.textContent = '🗑';
-            delBtn.title = 'Удалить файл';
+            delBtn.title = PF.ui.t('clientAction.delete.title');
 
             actWrap.appendChild(createBtn);
             actWrap.appendChild(openBtn);
@@ -843,17 +858,15 @@
                 ev.preventDefault();
                 const toState = toSel.value || '';
                 const defaultName = toState ? ('before' + toState) : '';
-                const name = await PF.utils.showPrompt('Имя ClientAction', defaultName);
+                const name = await PF.utils.showPrompt(PF.ui.t('clientAction.prompt.name'), defaultName);
                 if (!name) return;
                 if (!/^[A-Za-z0-9_$\-]+$/.test(name)) {
-                    showAlert('Некорректное имя: ' + name);
+                    showAlert(PF.ui.t('clientAction.invalidName', { name }));
                     return;
                 }
                 const ok = await showConfirm(
-                    'ClientAction «' + name + '»?\n\n' +
-                    'Если файла нет — будет создан по шаблону. Если файл уже существует — просто привяжется.\n\n' +
-                    'Путь: <пакет>/document/<Документ>/UI/ClientAction/' + name + '.js',
-                    'ClientAction'
+                    PF.ui.t('clientAction.confirmCreate', { name }),
+                    PF.ui.t('clientAction.confirmCreate.title')
                 );
                 if (!ok) return;
                 currentAction = name;
@@ -865,17 +878,15 @@
                 ev.preventDefault();
                 const oldName = currentAction;
                 if (!oldName) return;
-                const name = await PF.utils.showPrompt('Новое имя ClientAction', oldName);
+                const name = await PF.utils.showPrompt(PF.ui.t('clientAction.prompt.name'), oldName);
                 if (!name || name === oldName) return;
                 if (!/^[A-Za-z0-9_$\-]+$/.test(name)) {
-                    showAlert('Некорректное имя: ' + name);
+                    showAlert(PF.ui.t('clientAction.invalidName', { name }));
                     return;
                 }
                 const ok = await showConfirm(
-                    'Переименовать ClientAction/' + oldName + '.js → ' + name + '.js?\n\n' +
-                    'Файл будет переименован на диске. Значение actionToRunBefore в форме станет «' + name + '» ' +
-                    '(запишется в documentFlow.json при сохранении перехода).',
-                    'Переименование ClientAction'
+                    PF.ui.t('clientAction.confirmRename', { old: oldName, new: name }),
+                    PF.ui.t('clientAction.confirmRename.title')
                 );
                 if (!ok) return;
                 currentAction = name;
@@ -901,9 +912,8 @@
                 ev.preventDefault();
                 if (!currentAction) return;
                 const ok = await showConfirm(
-                    'Удалить файл ClientAction/' + currentAction + '.js?\n\n' +
-                    'Значение actionToRunBefore в форме будет очищено.',
-                    'Удаление ClientAction'
+                    PF.ui.t('clientAction.confirmDelete', { name: currentAction }),
+                    PF.ui.t('clientAction.confirmDelete.title')
                 );
                 if (!ok) return;
                 PF.vscode.postMessage({ type: 'deleteClientAction', actionName: currentAction });
@@ -943,9 +953,8 @@
             resetBtn.style.display = '';
             resetBtn.addEventListener('click', async () => {
                 const ok = await showConfirm(
-                    'Сбросить ручной маршрут перехода «' + name + '»?\n\n' +
-                    'Маршрут вернётся к авто-расчёту. Изменение сохранится в documentFlow.ui.json.',
-                    'Сброс маршрута'
+                    PF.ui.t('transition.confirm.resetRoute', { name }),
+                    PF.ui.t('transition.confirm.resetRoute.title')
                 );
                 if (!ok) return;
 
@@ -988,10 +997,10 @@
             const m = modeSelect.value;
 
             if (!newName || !/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
-                showAlert('Некорректный код перехода');
+                showAlert(PF.ui.t('transition.alert.invalidCode'));
                 return;
             }
-            if (!newTo) { showAlert('Выберите целевое состояние'); return; }
+            if (!newTo) { showAlert(PF.ui.t('transition.alert.noTarget')); return; }
 
             let allow = null;
             if (m === 'all-true') allow = { mode: 'all-true' };
@@ -1003,16 +1012,29 @@
 
             const lines = [];
             if (isNew) {
-                lines.push('Новый переход: ' + t.from + ' → ' + newTo);
+                lines.push(PF.ui.t('transition.confirm.newLine', { from: t.from, to: newTo }));
             } else {
-                if (newName !== name) lines.push('Код: ' + name + ' → ' + newName);
-                if (newTo !== t.to) lines.push('To: ' + t.to + ' → ' + newTo);
+                if (newName !== name) {
+                    lines.push(PF.ui.t('transition.confirm.codeLine', { old: name, new: newName }));
+                }
+                if (newTo !== t.to) {
+                    lines.push(PF.ui.t('transition.confirm.toLine', { old: t.to, new: newTo }));
+                }
             }
-            lines.push('actionToRunBefore: ' + (action || '—'));
-            lines.push('serverSideEvents: ' + (sse ? 'да' : 'нет'));
-            lines.push('allowOnValidationErrors: ' + (allow ? allow.mode : '—'));
+            lines.push(PF.ui.t('transition.confirm.actionLine', {
+                value: action || PF.ui.t('common.none')
+            }));
+            lines.push(PF.ui.t('transition.confirm.serverLine', {
+                value: PF.ui.t(sse ? 'common.yes' : 'common.no')
+            }));
+            lines.push(PF.ui.t('transition.confirm.aoveLine', {
+                value: allow ? allow.mode : PF.ui.t('common.none')
+            }));
 
-            const ok = await showConfirm(lines.join('\n'), isNew ? 'Создание перехода' : 'Сохранение перехода');
+            const ok = await showConfirm(
+                lines.join('\n'),
+                PF.ui.t(isNew ? 'transition.confirm.create.title' : 'transition.confirm.save.title')
+            );
             if (!ok) return;
 
             if (isNew) {
@@ -1050,6 +1072,7 @@
 
     PF.forms = {
         // Экспорт хелперов (используются в других формах и graph-render)
+        applyLangToModal,
         buildActorOptions,
         buildStateOptions,
         buildPermissionCard,

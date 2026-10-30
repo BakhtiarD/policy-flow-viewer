@@ -14,7 +14,9 @@
     function cloneTemplate(id) {
         const tpl = document.getElementById(id);
         if (!tpl) throw new Error('Template not found: ' + id);
-        return tpl.content.firstElementChild.cloneNode(true);
+        const clone = tpl.content.firstElementChild.cloneNode(true);
+        if (PF.ui && PF.ui.apply) PF.ui.apply(clone);
+        return clone;
     }
 
     function showAlert(text, title) {

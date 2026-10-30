@@ -13,21 +13,25 @@
 
 <body>
     <div class="toolbar" id="mainToolbar">
-        <button id="addBtn" data-icon="add" title="Добавить состояние"></button>
-        <button id="reloadBtn" data-icon="refresh" title="Перезагрузить из файлов" class="secondary"></button>
-        <button id="collapseAllBtn" data-icon="collapse" title="Свернуть все блоки прав" class="secondary"></button>
-        <button id="expandAllBtn" data-icon="expand" title="Развернуть все блоки прав" class="secondary"></button>
-        <button id="viewToggle" data-icon="graph" title="Переключить таблица/граф" class="secondary"></button>
-        <button id="generateFlowBtn" data-icon="package" title="Каркас докфлоу"></button>
-        <button id="authBtn" data-icon="key" title="Авторизация"></button>
-        <button id="validateBtn" data-icon="checklist" title="Проверка"></button>
-        <button id="relationsBtn" data-icon="link" title="Связи"></button>
-        <button id="attachmentsBtn" data-icon="paperclip" title="Вложения (AttachmentType)"></button>
-        <button id="compareBtn" class="primary compare-btn" data-icon="compare" title="Сравнить с другим документом"></button>
+        <button id="addBtn" data-icon="add" data-i18n-title="btn.add.title"></button>
+        <button id="reloadBtn" data-icon="refresh" data-i18n-title="btn.reload.title" class="secondary"></button>
+        <button id="collapseAllBtn" data-icon="collapse" data-i18n-title="btn.collapseAll.title" class="secondary"></button>
+        <button id="expandAllBtn" data-icon="expand" data-i18n-title="btn.expandAll.title" class="secondary"></button>
+        <button id="viewToggle" data-icon="graph" data-i18n-title="btn.viewToggle.title" class="secondary"></button>
+        <button id="generateFlowBtn" data-icon="package" data-i18n-title="btn.generateFlow.title"></button>
+        <button id="authBtn" data-icon="key" data-i18n-title="btn.auth.title"></button>
+        <button id="validateBtn" data-icon="checklist" data-i18n-title="btn.validate.title"></button>
+        <button id="relationsBtn" data-icon="link" data-i18n-title="btn.relations.title"></button>
+        <button id="attachmentsBtn" data-icon="paperclip" data-i18n-title="btn.attachments.title"></button>
+        <button id="compareBtn" class="primary compare-btn" data-icon="compare" data-i18n-title="btn.compare.title"></button>
         <span class="toolbar-spacer"></span>
         <span class="hint" id="metaInfo"></span>
-        <button id="toolbarSettingsBtn" data-icon="gear" title="Расположение тулбара" class="secondary"></button>
-        <div id="langSelectHost"></div>
+        <button id="toolbarSettingsBtn" data-icon="gear" data-i18n-title="btn.toolbarSettings.title" class="secondary"></button>
+        <div id="langPanel" class="lang-panel">
+            <div id="langSelectHost"></div>
+            <span class="lang-divider"></span>
+            <div id="uiLangSelectHost"></div>
+        </div>
     </div>
 
     <div id="tableView">
@@ -41,12 +45,14 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th class="sortable" id="thState" title="Сортировать по состоянию">Состояние <span class="sort-ind"
-                            id="sortInd">⇅</span></th>
-                    <th title="Конечное состояние (isTerminal)">Конечное</th>
-                    <th>Входящие переходы</th>
-                    <th>Исходящие переходы</th>
-                    <th>Права доступа</th>
+                    <th class="sortable" id="thState" data-i18n-title="table.th.state.title">
+                        <span data-i18n="table.th.state">Состояние</span>
+                        <span class="sort-ind" id="sortInd">⇅</span>
+                    </th>
+                    <th data-i18n-title="table.th.terminal.title" data-i18n="table.th.terminal">Конечное</th>
+                    <th data-i18n="table.th.incoming">Входящие переходы</th>
+                    <th data-i18n="table.th.outgoing">Исходящие переходы</th>
+                    <th data-i18n="table.th.perms">Права доступа</th>
                 </tr>
             </thead>
             <tbody id="tbody"></tbody>
@@ -55,21 +61,21 @@
 
     <div id="graphView">
         <div class="graph-toolbar" id="graphToolbar">
-            <button id="editSelectedBtn" data-icon="edit" title="Редактировать выделенное" class="secondary"
+            <button id="editSelectedBtn" data-icon="edit" data-i18n-title="graph.edit.title" class="secondary"
                 disabled></button>
-            <button id="deleteSelectedBtn" data-icon="trash" title="Удалить выделенное (Delete)" class="danger"
+            <button id="deleteSelectedBtn" data-icon="trash" data-i18n-title="graph.delete.title" class="danger"
                 disabled></button>
             <span class="toolbar-sep"></span>
-            <button id="saveGraphBtn" data-icon="save" title="Сохранить позиции"></button>
-            <button id="fitGraphBtn" data-icon="fullscreen" title="Вписать в экран" class="secondary"></button>
-            <button id="autoLayoutBtn" data-icon="layout" title="Авто-раскладка (Dagre)" class="secondary"></button>
-            <button id="optimizeTransitionsBtn" data-icon="optimize" title="Авто-раскладка переходов (минимизация пересечений)" class="secondary"></button>
-            <button id="alignTransitionsBtn" data-icon="align" title="Выровнять переходы (сделать почти-прямые строго осевыми)" class="secondary"></button>
-            <button id="layoutDirBtn" data-icon="arrows-v" title="Сверху вниз (клик — слева направо)"
+            <button id="saveGraphBtn" data-icon="save" data-i18n-title="graph.save.title"></button>
+            <button id="fitGraphBtn" data-icon="fullscreen" data-i18n-title="graph.fit.title" class="secondary"></button>
+            <button id="autoLayoutBtn" data-icon="layout" data-i18n-title="graph.autoLayout.title" class="secondary"></button>
+            <button id="optimizeTransitionsBtn" data-icon="optimize" data-i18n-title="graph.optimize.title" class="secondary"></button>
+            <button id="alignTransitionsBtn" data-icon="align" data-i18n-title="graph.align.title" class="secondary"></button>
+            <button id="layoutDirBtn" data-icon="arrows-v" data-i18n-title="graph.layoutDir.title"
                 class="secondary"></button>
-            <button id="labelsToggleBtn" data-icon="tag" title="Показать/скрыть подписи переходов"
+            <button id="labelsToggleBtn" data-icon="tag" data-i18n-title="graph.labels.title"
                 class="secondary"></button>
-            <button id="legendBtn" data-icon="book" title="Легенда действий (подсказки)" class="secondary"></button>
+            <button id="legendBtn" data-icon="book" data-i18n-title="graph.legend.title" class="secondary"></button>
             <label class="zoom-label">
                 <input type="number" id="zoomInput" min="10" max="400" step="10" value="100"> %
             </label>
@@ -81,8 +87,8 @@
         </div>
         <div id="graphLegend" class="graph-legend" style="display:none">
             <div class="legend-header" data-drag-handle>
-                <span class="legend-title">Легенда действий</span>
-                <button class="legend-close secondary small" title="Скрыть">×</button>
+                <span class="legend-title" data-i18n="legend.title">Легенда действий</span>
+                <button class="legend-close secondary small" data-i18n-title="legend.close.title">×</button>
             </div>
             <div class="legend-body"></div>
         </div>
@@ -100,9 +106,9 @@
             <table class="actors-table">
                 <thead>
                     <tr>
-                        <th class="actors-th-actor">Актор</th>
-                        <th class="actors-th-states">Состояния</th>
-                        <th class="actors-th-transitions">Переходы</th>
+                        <th class="actors-th-actor" data-i18n="actors.th.actor">Актор</th>
+                        <th class="actors-th-states" data-i18n="actors.th.states">Состояния</th>
+                        <th class="actors-th-transitions" data-i18n="actors.th.transitions">Переходы</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -120,27 +126,27 @@
     <template id="tpl-permission-card">
         <div class="item-card">
             <div class="item-card-header">
-                <span class="item-card-title">Актор</span>
+                <span class="item-card-title" data-i18n="actor.card.title">Актор</span>
                 <button class="danger small" data-remove>×</button>
             </div>
             <div class="form-row">
-                <label>Актор</label>
+                <label data-i18n="actor.field.label">Актор</label>
                 <select class="f-actor"></select>
-                <input type="text" class="f-actor-new" placeholder="Имя нового актора"
+                <input type="text" class="f-actor-new" data-i18n-placeholder="actor.placeholder.new"
                     style="display:none;margin-top:4px">
-                <div class="hint">Выбери из списка или добавь нового</div>
+                <div class="hint" data-i18n="actor.hint.selectOrNew">Выбери из списка или добавь нового</div>
             </div>
             <div class="form-row">
-                <label><input type="checkbox" class="f-allow-comments"> Разрешить комментарии</label>
+                <label><input type="checkbox" class="f-allow-comments"> <span data-i18n="actor.checkbox.allowComments">Разрешить комментарии</span></label>
             </div>
             <div class="form-row">
                 <label>Operations</label>
                 <div class="f-operations checkbox-group"></div>
             </div>
             <div class="form-row">
-                <label>Переходы</label>
+                <label data-i18n="actor.section.transitions">Переходы</label>
                 <div class="f-transitions-table"></div>
-                <div class="hint">Отметьте исходящие переходы этого состояния</div>
+                <div class="hint" data-i18n="actor.section.transitionsHint">Отметьте исходящие переходы этого состояния</div>
             </div>
             <div class="form-row">
                 <label>Attachments</label>
@@ -154,7 +160,7 @@
         <label class="op-item">
             <input type="checkbox" data-op>
             <span class="op-name"></span>
-            <span class="op-exclusive" title="exclusiveToAssignedUser — доступно только назначенному пользователю">
+            <span class="op-exclusive" data-i18n-title="actor.op.exclusive.tooltip">
                 <input type="checkbox" data-op-exclusive> 🔒
             </span>
         </label>
@@ -163,7 +169,7 @@
     <!-- Шапка таблицы прав на вложения -->
     <template id="tpl-attach-header">
         <div class="perm-attach-header">
-            <span>Тип вложения</span>
+            <span data-i18n="attachments.header.type">Тип вложения</span>
             <span>Create</span>
             <span>Read</span>
             <span>Update</span>
@@ -186,17 +192,17 @@
     <template id="tpl-outgoing-card">
         <div class="item-card">
             <div class="item-card-header">
-                <span class="item-card-title">Исходящий переход</span>
+                <span class="item-card-title" data-i18n="outgoing.title">Исходящий переход</span>
                 <button class="danger small" data-remove>×</button>
             </div>
             <div class="form-row">
-                <label>To (целевое состояние)</label>
+                <label data-i18n="outgoing.field.to">To (целевое состояние)</label>
                 <select class="f-to"></select>
             </div>
             <div class="grid-2">
                 <div>
-                    <label>Код перехода</label>
-                    <input type="text" class="f-name" placeholder="Draft_UnderReview">
+                    <label data-i18n="outgoing.field.name">Код перехода</label>
+                    <input type="text" class="f-name" data-i18n-placeholder="outgoing.field.name.placeholder">
                 </div>
                 <div data-tr-field>
                     <label data-tr-label>Перевод</label>
@@ -210,12 +216,12 @@
     <template id="tpl-add-modal">
         <div class="modal-backdrop">
             <div class="modal">
-                <h2>Добавить состояние</h2>
+                <h2 data-i18n="state.add.title">Добавить состояние</h2>
                 <div class="grid-2">
                     <div class="form-row">
-                        <label>Код состояния (латиница)</label>
-                        <input type="text" class="f-new-name" placeholder="UnderReview">
-                        <div class="hint">Этот же код будет записан как EN-перевод</div>
+                        <label data-i18n="state.field.code.add">Код состояния (латиница)</label>
+                        <input type="text" class="f-new-name" data-i18n-placeholder="state.field.code.placeholder">
+                        <div class="hint" data-i18n="state.field.code.hint.add">Этот же код будет записан как EN-перевод</div>
                     </div>
                     <div class="form-row" data-tr-field>
                         <label data-tr-label>Перевод</label>
@@ -223,28 +229,33 @@
                     </div>
                 </div>
                 <div class="form-row">
-                    <label><input type="checkbox" class="f-new-term"> Конечное состояние (isTerminal)</label>
+                    <label><input type="checkbox" class="f-new-term"> <span data-i18n="state.field.terminal">Конечное состояние (isTerminal)</span></label>
                 </div>
 
                 <div class="tabs">
-                    <div class="tab active" data-tab="trans">Исходящие переходы (<span class="tab-trans-count">0</span>)
+                    <div class="tab active" data-tab="trans">
+                        <span data-i18n="state.tab.outgoing">Исходящие переходы</span>
+                        (<span class="tab-trans-count">0</span>)
                     </div>
-                    <div class="tab" data-tab="perms">Права (<span class="tab-perms-count">0</span>)</div>
+                    <div class="tab" data-tab="perms">
+                        <span data-i18n="state.tab.perms">Права</span>
+                        (<span class="tab-perms-count">0</span>)
+                    </div>
                 </div>
 
                 <div class="tab-content active" data-tab="trans">
                     <div class="f-trans-list"></div>
-                    <button class="secondary" data-act="add-trans">+ Добавить исходящий переход</button>
+                    <button class="secondary" data-act="add-trans" data-i18n="state.btn.addOutgoing">+ Добавить исходящий переход</button>
                 </div>
 
                 <div class="tab-content" data-tab="perms">
                     <div class="f-perms-list"></div>
-                    <button class="secondary" data-act="add-perm">+ Добавить актора</button>
+                    <button class="secondary" data-act="add-perm" data-i18n="state.btn.addActor">+ Добавить актора</button>
                 </div>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">Добавить</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="common.add">Добавить</button>
                 </div>
             </div>
         </div>
@@ -254,12 +265,12 @@
     <template id="tpl-edit-modal">
         <div class="modal-backdrop">
             <div class="modal">
-                <h2>Редактировать состояние</h2>
+                <h2 data-i18n="state.edit.title">Редактировать состояние</h2>
                 <div class="grid-2">
                     <div class="form-row">
-                        <label>Код состояния</label>
+                        <label data-i18n="state.field.code">Код состояния</label>
                         <input type="text" class="f-edit-name">
-                        <div class="hint">Переименование обновит все ссылки в 3 файлах</div>
+                        <div class="hint" data-i18n="state.field.code.hint.rename">Переименование обновит все ссылки в 3 файлах</div>
                     </div>
                     <div class="form-row" data-tr-field>
                         <label data-tr-label>Перевод</label>
@@ -267,33 +278,38 @@
                     </div>
                 </div>
                 <div class="form-row">
-                    <label><input type="checkbox" class="f-edit-term"> Конечное состояние (isTerminal)</label>
+                    <label><input type="checkbox" class="f-edit-term"> <span data-i18n="state.field.terminal">Конечное состояние (isTerminal)</span></label>
                 </div>
 
                 <div class="readonly-section">
-                    <div class="ro-title">Входящие переходы (только для справки):</div>
+                    <div class="ro-title" data-i18n="state.incoming.title">Входящие переходы (только для справки):</div>
                     <div class="f-incoming"></div>
                 </div>
 
                 <div class="tabs">
-                    <div class="tab active" data-tab="trans">Исходящие переходы (<span class="tab-trans-count">0</span>)
+                    <div class="tab active" data-tab="trans">
+                        <span data-i18n="state.tab.outgoing">Исходящие переходы</span>
+                        (<span class="tab-trans-count">0</span>)
                     </div>
-                    <div class="tab" data-tab="perms">Права (<span class="tab-perms-count">0</span>)</div>
+                    <div class="tab" data-tab="perms">
+                        <span data-i18n="state.tab.perms">Права</span>
+                        (<span class="tab-perms-count">0</span>)
+                    </div>
                 </div>
 
                 <div class="tab-content active" data-tab="trans">
                     <div class="f-trans-list"></div>
-                    <button class="secondary" data-act="add-trans">+ Добавить исходящий переход</button>
+                    <button class="secondary" data-act="add-trans" data-i18n="state.btn.addOutgoing">+ Добавить исходящий переход</button>
                 </div>
 
                 <div class="tab-content" data-tab="perms">
                     <div class="f-perms-list"></div>
-                    <button class="secondary" data-act="add-perm">+ Добавить актора</button>
+                    <button class="secondary" data-act="add-perm" data-i18n="state.btn.addActor">+ Добавить актора</button>
                 </div>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">Сохранить</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="common.save">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -302,11 +318,11 @@
     <template id="tpl-transition-modal">
         <div class="modal-backdrop">
             <div class="modal">
-                <h2>Редактирование перехода</h2>
+                <h2 data-i18n="transition.title.edit">Редактирование перехода</h2>
 
                 <div class="grid-2">
                     <div class="form-row">
-                        <label>Код перехода</label>
+                        <label data-i18n="transition.field.code">Код перехода</label>
                         <input type="text" class="f-tr-name">
                     </div>
                     <div class="form-row" data-tr-field>
@@ -317,51 +333,51 @@
 
                 <div class="grid-2">
                     <div class="form-row">
-                        <label>From</label>
+                        <label data-i18n="transition.field.from">From</label>
                         <input type="text" class="f-tr-from" disabled>
                     </div>
                     <div class="form-row">
-                        <label>To (целевое состояние)</label>
+                        <label data-i18n="transition.field.to">To (целевое состояние)</label>
                         <select class="f-tr-to"></select>
                     </div>
                 </div>
 
                 <fieldset class="form-fieldset">
-                    <legend>Дополнительные свойства</legend>
+                    <legend data-i18n="transition.fieldset.additional">Дополнительные свойства</legend>
 
                     <div class="form-row">
                         <label>actionToRunBefore</label>
                         <div class="f-tr-action-wrap"></div>
-                        <div class="hint">Пусто — свойство не записывается</div>
+                        <div class="hint" data-i18n="transition.hint.action">Пусто — свойство не записывается</div>
                     </div>
 
                     <div class="form-row">
-                        <label><input type="checkbox" class="f-tr-sse"> serverSideEvents (broadcastEvent)</label>
+                        <label><input type="checkbox" class="f-tr-sse"> <span data-i18n="transition.field.serverSide">serverSideEvents (broadcastEvent)</span></label>
                     </div>
 
                     <div class="form-row">
                         <label>allowOnValidationErrors</label>
                         <select class="f-tr-aove-mode">
-                            <option value="none">— не задано —</option>
-                            <option value="all-true">all = true</option>
-                            <option value="all-false">all = false</option>
-                            <option value="codes">codes (список кодов)</option>
-                            <option value="exceptForCodes">exceptForCodes (список кодов)</option>
+                            <option value="none" data-i18n="transition.aove.none">— не задано —</option>
+                            <option value="all-true" data-i18n="transition.aove.allTrue">all = true</option>
+                            <option value="all-false" data-i18n="transition.aove.allFalse">all = false</option>
+                            <option value="codes" data-i18n="transition.aove.codes">codes (список кодов)</option>
+                            <option value="exceptForCodes" data-i18n="transition.aove.except">exceptForCodes (список кодов)</option>
                         </select>
                     </div>
 
                     <div class="form-row f-tr-codes-row" style="display:none">
-                        <label>Коды ошибок (через запятую или с новой строки)</label>
+                        <label data-i18n="transition.field.codes">Коды ошибок (через запятую или с новой строки)</label>
                         <textarea class="f-tr-codes" rows="3"
-                            placeholder="validation@fieldA, validation@fieldB"></textarea>
+                            data-i18n-placeholder="transition.field.codes.placeholder"></textarea>
                     </div>
                 </fieldset>
 
                 <div class="actions">
-                    <button class="secondary" data-act="reset-route" style="display:none">↺ Сбросить маршрут</button>
+                    <button class="secondary" data-act="reset-route" style="display:none" data-i18n="transition.btn.resetRoute">↺ Сбросить маршрут</button>
                     <span style="flex:1"></span>
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">Сохранить</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="common.save">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -371,27 +387,33 @@
     <template id="tpl-compare-picker">
         <div class="modal-backdrop">
             <div class="modal compare-picker-modal">
-                <h2>Сравнить с документом</h2>
-                <div class="hint">Текущий: <b class="cmp-current-name"></b></div>
-
-                <div class="form-row">
-                    <label>Документ проекта</label>
-                    <select class="cmp-doc-select"></select>
-                    <div class="hint">Выберите из списка или укажите папку вручную</div>
+                <h2 data-i18n="compare.picker.title">Сравнить с документом</h2>
+                <div class="hint">
+                    <span data-i18n="compare.picker.current">Текущий</span>:
+                    <b class="cmp-current-name"></b>
                 </div>
 
                 <div class="form-row">
-                    <button class="secondary" data-act="pick-folder">📁 Выбрать папку другого документа…</button>
+                    <label data-i18n="compare.picker.docLabel">Документ проекта</label>
+                    <select class="cmp-doc-select"></select>
+                    <div class="hint" data-i18n="compare.picker.hint">Выберите из списка или укажите папку вручную</div>
+                </div>
+
+                <div class="form-row">
+                    <button class="secondary" data-act="pick-folder" data-i18n="compare.picker.pickFolder">📁 Выбрать папку другого документа…</button>
                 </div>
 
                 <div class="cmp-selected-info" style="display:none">
-                    <div class="hint">Выбран: <b class="cmp-selected-name"></b></div>
+                    <div class="hint">
+                        <span data-i18n="compare.picker.selected">Выбран</span>:
+                        <b class="cmp-selected-name"></b>
+                    </div>
                     <div class="hint cmp-selected-path"></div>
                 </div>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="compare" disabled>Сравнить</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="compare" disabled data-i18n="compare.picker.compare">Сравнить</button>
                 </div>
             </div>
         </div>
@@ -401,16 +423,16 @@
     <template id="tpl-compare-diff">
         <div class="modal-backdrop">
             <div class="modal compare-diff-modal">
-                <h2>Сравнение документов</h2>
+                <h2 data-i18n="compare.diff.title">Сравнение документов</h2>
 
                 <div class="cmp-header">
                     <div class="cmp-header-side">
-                        <div class="cmp-header-label">Текущий</div>
+                        <div class="cmp-header-label" data-i18n="compare.diff.current">Текущий</div>
                         <div class="cmp-header-name cmp-header-current"></div>
                     </div>
                     <div class="cmp-header-vs">⇄</div>
                     <div class="cmp-header-side">
-                        <div class="cmp-header-label">Образец</div>
+                        <div class="cmp-header-label" data-i18n="compare.diff.other">Образец</div>
                         <div class="cmp-header-name cmp-header-other"></div>
                     </div>
                 </div>
@@ -420,11 +442,11 @@
                 <div class="cmp-footer">
                     <span class="cmp-selected-count"></span>
                     <span style="flex:1"></span>
-                    <button class="secondary" data-act="select-all-safe">Выбрать всё кроме удаления</button>
-                    <button class="secondary" data-act="select-all-add">Выбрать всё</button>
-                    <button class="secondary" data-act="deselect-all">Снять все</button>
-                    <button class="secondary" data-act="close">Закрыть</button>
-                    <button class="primary" data-act="apply" disabled>Применить выбранное</button>
+                    <button class="secondary" data-act="select-all-safe" data-i18n="compare.diff.selectSafe">Выбрать всё кроме удаления</button>
+                    <button class="secondary" data-act="select-all-add" data-i18n="compare.diff.selectAll">Выбрать всё</button>
+                    <button class="secondary" data-act="deselect-all" data-i18n="compare.diff.deselectAll">Снять все</button>
+                    <button class="secondary" data-act="close" data-i18n="compare.diff.close">Закрыть</button>
+                    <button class="primary" data-act="apply" disabled data-i18n="compare.diff.apply">Применить выбранное</button>
                 </div>
             </div>
         </div>
@@ -434,10 +456,10 @@
     <template id="tpl-alert-modal">
         <div class="modal-backdrop dialog-backdrop">
             <div class="modal dialog">
-                <h2 class="dlg-title">Сообщение</h2>
+                <h2 class="dlg-title" data-i18n="dlg.message">Сообщение</h2>
                 <div class="dlg-text"></div>
                 <div class="actions">
-                    <button data-act="ok">OK</button>
+                    <button data-act="ok" data-i18n="common.ok">OK</button>
                 </div>
             </div>
         </div>
@@ -447,11 +469,11 @@
     <template id="tpl-confirm-modal">
         <div class="modal-backdrop dialog-backdrop">
             <div class="modal dialog">
-                <h2 class="dlg-title">Подтверждение</h2>
+                <h2 class="dlg-title" data-i18n="dlg.confirm">Подтверждение</h2>
                 <div class="dlg-text"></div>
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="ok">OK</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="ok" data-i18n="common.ok">OK</button>
                 </div>
             </div>
         </div>
@@ -461,22 +483,17 @@
     <template id="tpl-generate-flow-modal">
         <div class="modal-backdrop">
             <div class="modal gen-flow-modal">
-                <h2>Каркас докфлоу</h2>
-                <p class="hint">
-                    На пустой папке создаст configuration.json, documentFlow.json и
-                    translation/translation.csv. Если файлы уже есть — существующие
-                    состояния и переходы появятся в таблицах, а удаление строки
-                    уберёт объект из файлов со всеми зависимостями.
-                </p>
+                <h2 data-i18n="genFlow.title">Каркас докфлоу</h2>
+                <p class="hint" data-i18n="genFlow.hint"></p>
 
                 <section class="gen-section">
-                    <h3>1. Состояния</h3>
+                    <h3 data-i18n="genFlow.section.states">1. Состояния</h3>
                     <div class="gen-table-wrap">
                         <table class="gen-table">
                             <thead>
                                 <tr>
-                                    <th style="width:40px">№</th>
-                                    <th>Код</th>
+                                    <th style="width:40px" data-i18n="genFlow.col.num">№</th>
+                                    <th data-i18n="genFlow.col.code">Код</th>
                                     <th data-tr-col>Перевод</th>
                                     <th style="width:40px"></th>
                                 </tr>
@@ -485,22 +502,22 @@
                         </table>
                     </div>
                     <div class="form-row">
-                        <label>Введите коды состояний (по одному на строке; можно «Код | Перевод»)</label>
+                        <label data-i18n="genFlow.statesInput.label">Введите коды состояний</label>
                         <textarea class="f-gen-states-input" rows="4"
-                            placeholder="Draft | Новый&#10;Issued | Выпущен&#10;Active"></textarea>
+                            data-i18n-placeholder="genFlow.statesInput.placeholder"></textarea>
                     </div>
-                    <button class="secondary" data-act="add-states">Добавить состояния</button>
+                    <button class="secondary" data-act="add-states" data-i18n="genFlow.btn.addStates">Добавить состояния</button>
                 </section>
 
                 <section class="gen-section">
-                    <h3>2. Переходы</h3>
+                    <h3 data-i18n="genFlow.section.transitions">2. Переходы</h3>
                     <div class="gen-table-wrap">
                         <table class="gen-table">
                             <thead>
                                 <tr>
-                                    <th>Код</th>
-                                    <th>From</th>
-                                    <th>To</th>
+                                    <th data-i18n="genFlow.col.code">Код</th>
+                                    <th data-i18n="genFlow.col.from">From</th>
+                                    <th data-i18n="genFlow.col.to">To</th>
                                     <th data-tr-col>Перевод</th>
                                     <th style="width:40px"></th>
                                 </tr>
@@ -509,15 +526,16 @@
                         </table>
                     </div>
                     <div class="form-row">
-                        <label>Матрица переходов через запятую: «1-3, 3-5, 5-1» или «Draft-Issued»</label>
-                        <textarea class="f-gen-transitions-input" rows="3" placeholder="1-3, 3-5, 5-1"></textarea>
+                        <label data-i18n="genFlow.transitionsInput.label">Матрица переходов</label>
+                        <textarea class="f-gen-transitions-input" rows="3"
+                            data-i18n-placeholder="genFlow.transitionsInput.placeholder"></textarea>
                     </div>
-                    <button class="secondary" data-act="add-transitions">Добавить переходы</button>
+                    <button class="secondary" data-act="add-transitions" data-i18n="genFlow.btn.addTransitions">Добавить переходы</button>
                 </section>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">🏗️ Сгенерировать</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="genFlow.btn.submit">🏗️ Сгенерировать</button>
                 </div>
             </div>
         </div>
@@ -526,7 +544,7 @@
     <template id="tpl-auth-modal">
         <div class="modal-backdrop">
             <div class="modal auth-modal">
-                <h2>Авторизация ролей</h2>
+                <h2 data-i18n="auth.title">Авторизация ролей</h2>
                 <div class="hint auth-doc-hint"></div>
                 <div class="hint auth-path-hint" title=""></div>
 
@@ -543,11 +561,11 @@
                         <tbody class="f-auth-rows"></tbody>
                     </table>
                 </div>
-                <button class="secondary" data-act="add-row">+ Добавить строку</button>
+                <button class="secondary" data-act="add-row" data-i18n="auth.addRow">+ Добавить строку</button>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">Сохранить</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="common.save">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -556,24 +574,23 @@
     <template id="tpl-copy-actor-modal">
         <div class="modal-backdrop">
             <div class="modal copy-actor-modal">
-                <h2>Копировать актора</h2>
+                <h2 data-i18n="copyActor.title">Копировать актора</h2>
                 <div class="hint">Источник: <b class="f-copy-source"></b></div>
 
                 <div class="form-row">
-                    <label>Имя актора в целевых состояниях</label>
+                    <label data-i18n="copyActor.nameLabel">Имя актора в целевых состояниях</label>
                     <input type="text" class="f-copy-name">
-                    <div class="hint">Оставьте прежним, чтобы просто продублировать актора в других состояниях. Измените
-                        — чтобы создать нового актора с тем же набором прав.</div>
+                    <div class="hint" data-i18n="copyActor.nameHint">Оставьте прежним...</div>
                 </div>
 
                 <div class="form-row">
-                    <label>Состояния для копирования</label>
+                    <label data-i18n="copyActor.statesLabel">Состояния для копирования</label>
                     <div class="f-copy-states"></div>
                 </div>
 
                 <div class="actions">
-                    <button class="secondary" data-act="cancel">Отмена</button>
-                    <button data-act="submit">Копировать</button>
+                    <button class="secondary" data-act="cancel" data-i18n="common.cancel">Отмена</button>
+                    <button data-act="submit" data-i18n="copyActor.btn.copy">Копировать</button>
                 </div>
             </div>
         </div>
@@ -582,12 +599,12 @@
     <template id="tpl-validate-modal">
         <div class="modal-backdrop">
             <div class="modal validate-modal">
-                <h2>Проверка докфлоу</h2>
+                <h2 data-i18n="validate.title">Проверка докфлоу</h2>
                 <div class="validate-summary"></div>
                 <div class="validate-body"></div>
                 <div class="actions">
-                    <button class="secondary" data-act="refresh">Пересчитать</button>
-                    <button data-act="close">Закрыть</button>
+                    <button class="secondary" data-act="refresh" data-i18n="validate.btn.refresh">Пересчитать</button>
+                    <button data-act="close" data-i18n="validate.btn.close">Закрыть</button>
                 </div>
             </div>
         </div>
@@ -596,12 +613,12 @@
     <template id="tpl-relations-modal">
         <div class="modal-backdrop">
             <div class="modal relations-modal">
-                <h2>Связи документов</h2>
+                <h2 data-i18n="relations.title">Связи документов</h2>
                 <div class="hint relations-doc-hint"></div>
                 <div class="hint relations-path-hint" title=""></div>
                 <div class="relations-body"></div>
                 <div class="actions">
-                    <button data-act="close">Закрыть</button>
+                    <button data-act="close" data-i18n="common.close">Закрыть</button>
                 </div>
             </div>
         </div>
@@ -610,32 +627,30 @@
     <template id="tpl-attachments-modal">
         <div class="modal-backdrop">
             <div class="modal attachments-modal">
-                <h2>Вложения — AttachmentType</h2>
+                <h2 data-i18n="attachmentsForm.title">Вложения — AttachmentType</h2>
                 <div class="hint attachments-path-hint" title=""></div>
 
                 <section class="att-section">
-                    <h3>Справочник (masterEntity/AttachmentType)</h3>
-                    <div class="hint">Все доступные типы вложений в проекте. Используются в configuration.json →
-                        attachments[].</div>
+                    <h3 data-i18n="attachmentsForm.section.catalog">Справочник (masterEntity/AttachmentType)</h3>
+                    <div class="hint" data-i18n="attachmentsForm.section.catalogHint"></div>
                     <div class="att-catalog-toolbar">
-                        <button class="secondary small" data-act="add-type">＋ Добавить тип в справочник</button>
+                        <button class="secondary small" data-act="add-type" data-i18n="attachmentsForm.btn.addType">＋ Добавить тип в справочник</button>
                         <span class="hint att-pending-hint" style="display:none"></span>
                     </div>
                     <div class="att-catalog-list"></div>
                 </section>
 
                 <section class="att-section">
-                    <h3>Вложения документа</h3>
-                    <div class="hint">Перечислены в configuration.json → attachments[]. По ним строятся формы прав для
-                        акторов.</div>
+                    <h3 data-i18n="attachmentsForm.section.doc">Вложения документа</h3>
+                    <div class="hint" data-i18n="attachmentsForm.section.docHint"></div>
                     <div class="att-doc-toolbar">
-                        <button class="secondary small" data-act="add-doc">＋ Добавить в документ</button>
+                        <button class="secondary small" data-act="add-doc" data-i18n="attachmentsForm.btn.addDoc">＋ Добавить в документ</button>
                     </div>
                     <div class="att-doc-list"></div>
                 </section>
 
                 <div class="actions">
-                    <button data-act="close">Закрыть</button>
+                    <button data-act="close" data-i18n="common.close">Закрыть</button>
                 </div>
             </div>
         </div>
@@ -660,6 +675,9 @@
     <script src="{{JS_MATRIX}}"></script>
     <script src="{{JS_ACTORS}}"></script>
     <script src="{{JS_COMPARE}}"></script>
+    <script src="{{JS_UI_LOCALE_RU}}"></script>
+    <script src="{{JS_UI_LOCALE_EN}}"></script>
+    <script src="{{JS_UI_I18N}}"></script>
     <script src="{{JS_URI}}"></script>
 </body>
 

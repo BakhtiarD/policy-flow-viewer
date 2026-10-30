@@ -1,0 +1,156 @@
+module.exports = {
+    'common.cancel': 'Отмена',
+    // ============ Plural (состояния/переходы/акторы) ============
+    'plural.states.one': '{n} состояние',
+    'plural.states.few': '{n} состояния',
+    'plural.states.many': '{n} состояний',
+    'plural.transitions.one': '{n} переход',
+    'plural.transitions.few': '{n} перехода',
+    'plural.transitions.many': '{n} переходов',
+    'plural.actors.one': '{n} актор',
+    'plural.actors.few': '{n} актора',
+    'plural.actors.many': '{n} акторов',
+    'plural.rows.one': '{n} строка',
+    'plural.rows.few': '{n} строки',
+    'plural.rows.many': '{n} строк',
+    'plural.roles.one': '{n} роль',
+    'plural.roles.few': '{n} роли',
+    'plural.roles.many': '{n} ролей',
+
+    // ============ State ============
+    'msg.state.deleted': 'Состояние «{name}» удалено.',
+    'msg.state.added': 'Состояние «{name}» добавлено.',
+    'msg.state.saved': 'Состояние «{name}» сохранено.',
+    'err.state.notFound': 'Состояние «{name}» не найдено.',
+    'err.state.existsInFlow': 'Состояние «{name}» уже существует в documentFlow.json.',
+    'err.state.existsRename': 'Состояние «{name}» уже существует — переименование невозможно.',
+    'err.state.invalidCode': 'Код состояния должен быть идентификатором (буквы/цифры/_, начиная с буквы).',
+
+    // ============ Transition ============
+    'msg.transition.saved': 'Переход «{name}» сохранён.',
+    'msg.transition.created': 'Переход «{name}» создан.',
+    'msg.transition.deleted': 'Переход «{name}» удалён.',
+    'msg.transitions.deleted': 'Удалено переходов: {n}.',
+    'msg.transition.flowRuleRenameFailed': 'flowRules не переименован: {message}',
+    'err.transition.invalidCode': 'Некорректный код перехода: «{name}».',
+    'err.transition.exists': 'Переход «{name}» уже существует.',
+    'err.transition.existsInOther': 'Переход «{name}» уже существует в другом состоянии.',
+    'err.transition.notFound': 'Переход «{name}» не найден.',
+    'err.transition.notFoundByOriginal': 'Переход «{original}» не найден.',
+    'err.transition.duplicateInForm': 'Дублирующийся код перехода в форме: «{name}».',
+    'err.transition.noTo': 'У перехода «{name}» не указано состояние To.',
+    'err.transition.noFrom': 'Не указано исходное состояние.',
+    'err.transition.noToTarget': 'Не указано целевое состояние.',
+    'err.transition.fromNotFound': 'Состояние-источник не найдено: {from}.',
+    'err.transition.toNotFound': 'Целевое состояние не найдено: {to}.',
+    'err.transition.noSourceFrom': 'У перехода нет состояния-источника.',
+
+    // ============ Graph ============
+    'msg.graph.saved': 'Позиции сохранены в documentFlow.ui.json',
+
+    // ============ Flow generation ============
+    'msg.flow.generated': 'Каркас сохранён: {states}, {transitions}.',
+
+    // ============ Auth ============
+    'msg.auth.saved': 'Авторизация сохранена: {rows} для {doc}.',
+    'msg.auth.actorSaved': 'Авторизация актора «{name}» сохранена ({roles}).',
+    'err.auth.noFile': 'Файл authorization.csv не найден.',
+    'err.auth.rolesNotArray': 'roles должен быть массивом.',
+    'err.auth.emptyRow': 'У каждой строки должны быть заполнены ApplicationRole и Actor.',
+    'err.auth.duplicateRow': 'Дубликат строки: {role} / {actor} / {op}',
+
+    // ============ Actor ============
+    'msg.actor.added': 'Актор «{name}» добавлен.',
+    'msg.actor.deleted': 'Актор «{name}» удалён из всех состояний и авторизации.',
+    'msg.actor.nowhereFound': 'Актор «{name}» нигде не найден.',
+    'msg.actor.removedFromState': 'Актор «{actor}» удалён из «{state}».',
+    'msg.actor.copied': 'Актор «{name}» скопирован в {states}{skipped}.',
+    'msg.actor.copiedSkipped': ', пропущено: {n}',
+    'msg.actor.copyNothing': 'Ничего не добавлено: во всех выбранных состояниях актор «{name}» уже есть.',
+    'msg.actor.created': 'Актор «{new}» создан как копия «{old}»{details}.',
+    'msg.actor.createdDetails': ' ({states})',
+    'msg.actor.renamed': 'Актор «{old}» переименован в «{new}».',
+    'msg.actor.permSaved': 'Права актора «{actor}» в состоянии «{state}» сохранены.',
+    'msg.actor.transitionExists': 'У актора «{actor}» уже есть переход «{transition}».',
+    'msg.actor.transitionNotExists': 'У актора «{actor}» нет перехода «{transition}».',
+    'err.actor.invalidName': 'Некорректное имя актора: {name}.',
+    'err.actor.exists': 'Актор «{name}» уже существует.',
+    'err.actor.existsInFlow': 'Актор «{name}» уже есть в documentFlow.json.',
+    'err.actor.notFound': 'Актор «{name}» не найден.',
+    'err.actor.notFoundInState': 'Актор «{actor}» не найден в состоянии «{state}».',
+    'err.actor.sameName': 'Имя совпадает с исходным.',
+    'err.actor.noName': 'Не передано имя актора.',
+    'err.actor.noOldNew': 'Не переданы oldName/newName.',
+    'err.actor.copyParams': 'Не переданы обязательные параметры копирования.',
+    'err.actor.sourceStateNotFound': 'Состояние-источник не найдено: {from}.',
+    'err.actor.sourceActorNotFound': 'Актор не найден в состоянии-источнике.',
+    'err.actor.alreadyInState': 'Актор «{actor}» уже есть в состоянии «{state}».',
+    'err.actor.permParams': 'Не переданы stateName/actorName/perm.',
+    'err.actor.stateActorParams': 'Не переданы actor/state.',
+    'err.actor.stateTransitionParams': 'Не переданы actor/transition.',
+    'err.actor.noState': 'Не передано имя состояния.',
+
+    // ============ Attachment ============
+    'msg.attachment.addedToDoc': 'Вложение «{code}» добавлено в документ.',
+    'msg.attachment.removedFromDoc': 'Вложение «{code}» удалено из документа.',
+    'err.attachment.noCode': 'Не передан код вложения.',
+    'err.attachment.dirNotFound': 'Справочник AttachmentType не найден (configuration/@config-*/infrastructure/masterEntity/AttachmentType).',
+    'err.attachment.dirNotConfigured': 'Справочник AttachmentType не найден.',
+    'err.attachment.projectNotFound': 'AttachmentType не найден в проекте.',
+    'err.attachment.invalidCode': 'Некорректный код вложения.',
+    'err.attachment.invalidCodeWithName': 'Некорректный код вложения: {code}.',
+    'err.attachment.existsInDoc': 'Вложение «{code}» уже есть в документе.',
+    'err.attachment.existsInCatalog': 'Код «{code}» уже существует в справочнике.',
+    'err.attachment.unknownMode': 'Неизвестный режим прав: {mode}.',
+
+    // ============ ClientAction ============
+    'msg.clientAction.deleted': 'Удалён ClientAction/{name}.js',
+    'msg.clientAction.created': 'Создан ClientAction/{name}.js',
+    'msg.clientAction.renamed': 'ClientAction/{old}.js → {new}.js',
+    'msg.clientAction.notFound': 'Файл ClientAction/{name}.js не найден.',
+    'msg.clientAction.willCreate': 'Файл ClientAction/{name}.js не найден. Создать в текущем документе?',
+    'msg.clientAction.createBtn': 'Создать',
+    'err.clientAction.noAction': 'Не задано значение actionToRunBefore.',
+    'err.clientAction.invalidName': 'Некорректное имя action: {name}.',
+    'confirm.clientAction.delete': 'Удалить файл ClientAction/{name}.js?',
+    'confirm.clientAction.deleteOk': 'Удалить',
+
+    // ============ FlowRule ============
+    'err.flowRule.invalidCode': 'Некорректный код перехода: {name}.',
+    'msg.flowRule.willCreate': 'Файл flowRules/{name}.js не найден. Создать?',
+    'msg.flowRule.createBtn': 'Создать',
+
+    // ============ Compare ============
+    'msg.compare.applied': 'Применено действий: {n}{warnings}.',
+    'msg.compare.warnings': ' (предупреждений: {n})',
+    'err.compare.cancelled': 'Отменено пользователем.',
+    'err.compare.noOtherPath': 'Не передан путь к документу-образцу.',
+    'err.compare.noActions': 'Не выбраны действия для применения.',
+    'err.compare.readFailed': 'Не удалось прочитать образец: {path}.',
+    'err.compare.folderInvalid': 'documentFlow.json не найден в выбранной папке',
+    'confirm.compare.remove': 'Среди выбранных действий есть {n} удаляющих. Это необратимо в рамках применения.\n\nПродолжить?',
+    'confirm.compare.remove.ok': 'Продолжить',
+    'confirm.compare.pickFolder': 'Выбрать папку другого документа',
+
+    // ============ Extension ============
+    'msg.extension.configNotFound': 'Файлы конфигурации не найдены — доступен режим создания каркаса.',
+    'err.extension.prefix': 'Ошибка: {message}',
+
+    // ============ Relations (transforms.js) ============
+    'rel.issue.sourceNotFound': 'sourceDocument «{name}» не найден ни в одном @config-*/document/',
+    'rel.issue.targetNotFound': 'targetDocument «{name}» не найден ни в одном @config-*/document/',
+    'rel.issue.stateMissing': 'Состояние «{state}» отсутствует в {doc}',
+    'rel.issue.actorMissing': 'Актор «{actor}» отсутствует в {doc}',
+    'rel.issue.duplicate': 'Дублируется в пакетах: {list}',
+
+    // ============ compare-apply warnings ============
+    'warn.stateNotFound': 'Состояние не найдено: {name}',
+    'warn.transitionNotFound': 'Переход не найден: {name}',
+    'warn.actorNotFoundInState': 'Актор не найден: {state} / {actor}',
+    'warn.stateAlreadyAbsent': 'Состояние уже отсутствует: {name}',
+    'warn.transitionAlreadyAbsent': 'Переход уже отсутствует: {name}',
+    'warn.unknownAction': 'Неизвестное действие: {kind} (пропущено)',
+    'warn.applyError': 'Ошибка при применении {kind}: {message}',
+    'warn.clientActionNotFound': 'ClientAction {name}.js не найден в образце — переход скопирован без файла',
+
+};

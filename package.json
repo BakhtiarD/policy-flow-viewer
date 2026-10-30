@@ -1,41 +1,65 @@
 {
-  "name": "adinsure-document-flow-viewer",
-  "displayName": "Adinsure Document Flow Viewer",
-  "description": "Визуализация и редактирование жизненного цикла Document по configuration.json / documentFlow.json / translation.csv",
-  "version": "0.6.0",
-  "publisher": "BakhtiarD",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/BakhtiarD/policy-flow-viewer.git"
-  },
-  "engines": { "vscode": "^1.75.0" },
-  "categories": ["Other"],
-  "main": "./extension.js",
-  "files": [
-    "extension.js",
-    "src/**",
-    "media/**",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "package.json"
-  ],
-  "contributes": {
-    "commands": [
-      {
-        "command": "policyFlow.showTable",
-        "title": "Adinsure: Показать таблицу состояний (Document Flow)"
-      }
+    "name": "adinsure-document-flow-viewer",
+    "displayName": "Adinsure Document Flow Viewer",
+    "description": "Визуализация и редактирование жизненного цикла Document по configuration.json / documentFlow.json / translation.csv",
+    "version": "0.6.1",
+    "publisher": "BakhtiarD",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/BakhtiarD/policy-flow-viewer.git"
+    },
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Other"
     ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "policyFlow.showTable",
-          "when": "explorerResourceIsFolder",
-          "group": "navigation@100"
+    "main": "./extension.js",
+    "files": [
+        "extension.js",
+        "src/**",
+        "media/**",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "package.json"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "command": "policyFlow.showTable",
+                "title": "Adinsure: Показать таблицу состояний (Document Flow)"
+            }
+        ],
+        "menus": {
+            "explorer/context": [
+                {
+                    "command": "policyFlow.showTable",
+                    "when": "explorerResourceIsFolder",
+                    "group": "navigation@100"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "Adinsure Document Flow Viewer",
+            "properties": {
+                "adinsureDocFlow.uiLanguage": {
+                    "type": "string",
+                    "enum": [
+                        "auto",
+                        "ru-RU",
+                        "en-US"
+                    ],
+                    "enumDescriptions": [
+                        "Как в VS Code (vscode.env.language)",
+                        "Русский",
+                        "English"
+                    ],
+                    "default": "auto",
+                    "description": "Язык интерфейса расширения (кнопки, диалоги, подсказки). Не влияет на язык данных — переводы состояний/переходов выбираются отдельно через селектор 🌐 в тулбаре."
+                }
+            }
         }
-      ]
     }
-  }
 }

@@ -70,7 +70,7 @@
             const td = document.createElement('td');
             td.colSpan = 3;
             td.className = 'actors-empty';
-            td.textContent = 'Нет акторов';
+            td.textContent = PF.ui.t('actors.empty');
             tr.appendChild(td);
             tbody.appendChild(tr);
             return;
@@ -102,7 +102,7 @@
             const renActor = document.createElement('button');
             renActor.className = 'secondary small';
             renActor.textContent = '✎';
-            renActor.title = 'Переименовать актора';
+            renActor.title = PF.ui.t('actors.btn.rename.tooltip');
             renActor.dataset.act = 'rename-actor';
             renActor.dataset.actor = actor;
             tdActor.appendChild(renActor);
@@ -110,7 +110,7 @@
             const authActor = document.createElement('button');
             authActor.className = 'secondary small';
             authActor.textContent = '🔑';
-            authActor.title = 'Авторизация актора (роли)';
+            authActor.title = PF.ui.t('actors.btn.auth.tooltip');
             authActor.dataset.act = 'edit-actor-auth';
             authActor.dataset.actor = actor;
             tdActor.appendChild(authActor);
@@ -118,7 +118,7 @@
             const dupActor = document.createElement('button');
             dupActor.className = 'secondary small';
             dupActor.textContent = '⧉';
-            dupActor.title = 'Скопировать актора (новая строка с тем же набором прав)';
+            dupActor.title = PF.ui.t('actors.btn.dup.tooltip');
             dupActor.dataset.act = 'dup-actor';
             dupActor.dataset.actor = actor;
             tdActor.appendChild(dupActor);
@@ -126,7 +126,7 @@
             const delActor = document.createElement('button');
             delActor.className = 'danger small';
             delActor.textContent = '×';
-            delActor.title = 'Удалить актора из всех состояний';
+            delActor.title = PF.ui.t('actors.btn.del.tooltip');
             delActor.dataset.act = 'del-actor';
             delActor.dataset.actor = actor;
             tdActor.appendChild(delActor);
@@ -145,7 +145,7 @@
                 chip.dataset.act = 'edit-state-perm';
                 chip.dataset.actor = actor;
                 chip.dataset.state = st;
-                chip.title = 'Редактировать права актора в этом состоянии';
+                chip.title = PF.ui.t('actors.chip.state.tooltip');
 
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'actors-chip-label';
@@ -158,7 +158,7 @@
                 const chipDel = document.createElement('span');
                 chipDel.className = 'actors-chip-del';
                 chipDel.textContent = '×';
-                chipDel.title = 'Убрать актора из этого состояния';
+                chipDel.title = PF.ui.t('actors.chip.state.delete.tooltip');
                 chipDel.dataset.act = 'del-state-from-actor';
                 chipDel.dataset.actor = actor;
                 chipDel.dataset.state = st;
@@ -169,7 +169,7 @@
 
             const addStateBtn = document.createElement('button');
             addStateBtn.className = 'secondary small actors-add';
-            addStateBtn.textContent = '＋ Состояние';
+            addStateBtn.textContent = PF.ui.t('actors.btn.addState');
             addStateBtn.dataset.act = 'add-state-to-actor';
             addStateBtn.dataset.actor = actor;
             addStateBtn.disabled = statesList.length >= allStates.length;
@@ -196,7 +196,7 @@
                 chip.className = 'actors-chip';
                 chip.dataset.act = 'open-transition';
                 chip.dataset.transition = tName;
-                chip.title = 'Открыть переход — ' + tLabel;
+                chip.title = PF.ui.t('actors.chip.transition.tooltipWithRu', { ru: tLabel });
 
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'actors-chip-label';
@@ -206,7 +206,7 @@
                 const chipDel = document.createElement('span');
                 chipDel.className = 'actors-chip-del';
                 chipDel.textContent = '×';
-                chipDel.title = 'Убрать переход у актора';
+                chipDel.title = PF.ui.t('actors.chip.transition.delete.tooltip');
                 chipDel.dataset.act = 'del-transition-from-actor';
                 chipDel.dataset.actor = actor;
                 chipDel.dataset.transition = tName;
@@ -217,7 +217,7 @@
 
             const addTransBtn = document.createElement('button');
             addTransBtn.className = 'secondary small actors-add';
-            addTransBtn.textContent = '＋ Переход';
+            addTransBtn.textContent = PF.ui.t('actors.btn.addTransition');
             addTransBtn.dataset.act = 'add-transition-to-actor';
             addTransBtn.dataset.actor = actor;
             transWrap.appendChild(addTransBtn);
@@ -235,7 +235,7 @@
         tdAdd.colSpan = 3;
         const addActorBtn = document.createElement('button');
         addActorBtn.className = 'secondary small';
-        addActorBtn.textContent = '＋ Добавить актора';
+        addActorBtn.textContent = PF.ui.t('actors.btn.addActor');
         addActorBtn.dataset.act = 'add-actor';
         tdAdd.appendChild(addActorBtn);
         trAdd.appendChild(tdAdd);
@@ -274,9 +274,9 @@
             actions.className = 'actions';
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'secondary';
-            cancelBtn.textContent = 'Отмена';
+            cancelBtn.textContent = PF.ui.t('common.cancel');
             const okBtn = document.createElement('button');
-            okBtn.textContent = 'OK';
+            okBtn.textContent = PF.ui.t('common.ok');
             actions.appendChild(cancelBtn);
             actions.appendChild(okBtn);
             modal.appendChild(actions);
@@ -290,31 +290,26 @@
     }
 
     async function onAddActor() {
-        const name = await PF.utils.showPrompt('Имя нового актора', '');
+        const name = await PF.utils.showPrompt(PF.ui.t('actors.add.prompt'), '');
         if (!name) return;
         if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
-            PF.utils.showAlert('Некорректное имя актора: ' + name);
+            PF.utils.showAlert(PF.ui.t('actors.add.invalid', { name }));
             return;
         }
         PF.vscode.postMessage({ type: 'addActor', payload: { name } });
     }
 
     async function onRenameActor(oldName) {
-        const newName = await PF.utils.showPrompt('Новое имя актора', oldName);
+        const newName = await PF.utils.showPrompt(PF.ui.t('actors.rename.prompt'), oldName);
         if (!newName) return;
         if (newName === oldName) return;
         if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
-            PF.utils.showAlert('Некорректное имя актора: ' + newName);
+            PF.utils.showAlert(PF.ui.t('actors.add.invalid', { name: newName }));
             return;
         }
         const ok = await PF.utils.showConfirm(
-            'Переименовать актора «' + oldName + '» в «' + newName + '»?\n\n' +
-            'Будут обновлены:\n' +
-            '  • documentFlow.json → actors[]\n' +
-            '  • configuration.json → states[].actors[].actor\n' +
-            '  • translation.csv (ItemType=actors)\n' +
-            '  • authorization.csv (AssignedPermission)',
-            'Переименование актора'
+            PF.ui.t('actors.rename.confirm', { old: oldName, new: newName }),
+            PF.ui.t('actors.rename.title')
         );
         if (!ok) return;
         PF.vscode.postMessage({
@@ -325,23 +320,21 @@
 
     async function onDupActor(oldName) {
         const newName = await PF.utils.showPrompt(
-            'Новое имя актора (копия «' + oldName + '»)',
+            PF.ui.t('actors.dup.prompt', { old: oldName }),
             oldName + 'Copy'
         );
         if (!newName) return;
         if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(newName)) {
-            PF.utils.showAlert('Некорректное имя актора: ' + newName);
+            PF.utils.showAlert(PF.ui.t('actors.add.invalid', { name: newName }));
             return;
         }
         if (newName === oldName) {
-            PF.utils.showAlert('Имя совпадает с исходным.');
+            PF.utils.showAlert(PF.ui.t('actors.dup.same'));
             return;
         }
         const ok = await PF.utils.showConfirm(
-            'Создать актора «' + newName + '» как копию «' + oldName + '»?\n\n' +
-            'Новый актор получит те же записи во всех состояниях, где был ' + oldName + '.\n' +
-            'Будут изменены configuration.json и documentFlow.json.',
-            'Копирование актора'
+            PF.ui.t('actors.dup.confirm', { old: oldName, new: newName }),
+            PF.ui.t('actors.dup.title')
         );
         if (!ok) return;
         PF.vscode.postMessage({
@@ -352,8 +345,8 @@
 
     async function onDelActor(actor) {
         const ok = await PF.utils.showConfirm(
-            'Удалить актора «' + actor + '» из всех состояний и из documentFlow.json?',
-            'Удаление актора'
+            PF.ui.t('actors.del.confirm', { name: actor }),
+            PF.ui.t('actors.del.title')
         );
         if (!ok) return;
         PF.vscode.postMessage({ type: 'deleteActor', payload: { name: actor } });
@@ -373,19 +366,18 @@
                 label: PF.i18n.label(s, { trans: stateTransAll[s], ru: stateTrans[s] })
             }));
         if (!options.length) {
-            PF.utils.showAlert('Не осталось состояний, куда можно добавить актора.');
+            PF.utils.showAlert(PF.ui.t('actors.addState.empty'));
             return;
         }
-        const picked = await pickFromList('Добавить актора в состояние', options);
+        const picked = await pickFromList(PF.ui.t('actors.addState.title'), options);
         if (!picked) return;
         PF.vscode.postMessage({ type: 'addStateToActor', payload: { actor, state: picked } });
     }
 
     async function onDelStateFromActor(actor, state) {
         const ok = await PF.utils.showConfirm(
-            'Убрать актора «' + actor + '» из состояния «' + state + '»?\n\n' +
-            'Будут удалены все его права в этом состоянии.',
-            'Удаление'
+            PF.ui.t('actors.delState.confirm', { actor, state }),
+            PF.ui.t('actors.delState.title')
         );
         if (!ok) return;
         PF.vscode.postMessage({ type: 'deleteStateFromActor', payload: { actor, state } });
@@ -406,10 +398,10 @@
                 };
             });
         if (!options.length) {
-            PF.utils.showAlert('Не осталось переходов, которые можно добавить.');
+            PF.utils.showAlert(PF.ui.t('actors.addTransition.empty'));
             return;
         }
-        const picked = await pickFromList('Добавить переход актору', options);
+        const picked = await pickFromList(PF.ui.t('actors.addTransition.title'), options);
         if (!picked) return;
         PF.vscode.postMessage({
             type: 'addTransitionToActor',
@@ -419,8 +411,8 @@
 
     async function onDelTransitionFromActor(actor, transition) {
         const ok = await PF.utils.showConfirm(
-            'Убрать переход «' + transition + '» у актора «' + actor + '»?',
-            'Удаление перехода'
+            PF.ui.t('actors.delTransition.confirm', { actor, transition }),
+            PF.ui.t('actors.delTransition.title')
         );
         if (!ok) return;
         PF.vscode.postMessage({
@@ -460,7 +452,7 @@
         });
 
         const h = document.createElement('h2');
-        h.textContent = 'Права «' + actorLabel + '» в «' + stateName + '»';
+        h.textContent = PF.ui.t('actors.perm.title', { actor, state: stateName });
         modal.appendChild(h);
 
         const card = PF.forms.buildPermissionCard(perm, () => outgoing);
@@ -493,7 +485,7 @@
 
             const perms = PF.forms.collectPermissions(list);
             if (!perms.length) {
-                PF.utils.showAlert('Права не заполнены.');
+                PF.utils.showAlert(PF.ui.t('actors.perm.empty'));
                 return;
             }
             const p = perms[0];
@@ -502,9 +494,8 @@
             p.actor = actor;
 
             const ok = await PF.utils.showConfirm(
-                'Сохранить права «' + actor + '» в состоянии «' + stateName + '»?\n\n' +
-                'Будет изменён configuration.json.',
-                'Сохранение прав'
+                PF.ui.t('actors.perm.confirm', { actor, state: stateName }),
+                PF.ui.t('actors.perm.confirm.title')
             );
             if (!ok) return;
 
@@ -542,7 +533,7 @@
         modal.className = 'modal actor-auth-modal';
 
         const h = document.createElement('h2');
-        h.textContent = 'Авторизация «' + actor + '»';
+        h.textContent = PF.ui.t('actors.auth.title', { actor });
         modal.appendChild(h);
 
         const docHint = document.createElement('div');
@@ -579,7 +570,7 @@
 
                 const emptyOpt = document.createElement('option');
                 emptyOpt.value = '';
-                emptyOpt.textContent = '— не выбрано —';
+                emptyOpt.textContent = PF.ui.t('actors.auth.notSelected');
                 sel.appendChild(emptyOpt);
 
                 // Уже выбранные в других строках — не даём выбрать повторно
@@ -606,7 +597,7 @@
                 del.type = 'button';
                 del.className = 'danger small';
                 del.textContent = '×';
-                del.title = 'Убрать роль';
+                del.title = PF.ui.t('actors.auth.removeRole');
                 del.addEventListener('click', () => {
                     localRoles.splice(i, 1);
                     renderList();
@@ -620,7 +611,7 @@
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
             addBtn.className = 'secondary small';
-            addBtn.textContent = '＋ Добавить роль';
+            addBtn.textContent = PF.ui.t('actors.auth.addRole');
             addBtn.style.marginTop = '6px';
             addBtn.disabled = allRoles.length === 0 ||
                 localRoles.filter(Boolean).length >= allRoles.length;
@@ -637,9 +628,9 @@
         actions.className = 'actions';
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'secondary';
-        cancelBtn.textContent = 'Отмена';
+        cancelBtn.textContent = PF.ui.t('common.cancel');
         const saveBtn = document.createElement('button');
-        saveBtn.textContent = 'Сохранить';
+        saveBtn.textContent = PF.ui.t('common.save');
         actions.appendChild(cancelBtn);
         actions.appendChild(saveBtn);
         modal.appendChild(actions);
@@ -659,12 +650,16 @@
                 return;
             }
 
-            const lines = ['Актор: ' + actor, '', 'Будет изменён authorization.csv:', ''];
-            if (added.length) lines.push('  + ' + added.join(', '));
-            if (removed.length) lines.push('  − ' + removed.join(', '));
-            if (!added.length && !removed.length) lines.push('  (без изменений)');
+            const changes = [];
+            if (added.length) changes.push(PF.ui.t('actors.auth.confirm.added', { list: added.join(', ') }));
+            if (removed.length) changes.push(PF.ui.t('actors.auth.confirm.removed', { list: removed.join(', ') }));
+            if (!added.length && !removed.length) changes.push(PF.ui.t('actors.auth.confirm.noChanges'));
 
-            const ok = await PF.utils.showConfirm(lines.join('\n'), 'Сохранение авторизации');
+            const ok = await PF.utils.showConfirm(
+                PF.ui.t('actors.auth.confirm', { actor, changes: changes.join('\n') }),
+                PF.ui.t('actors.auth.confirm.title')
+            );
+
             if (!ok) return;
 
             PF.vscode.postMessage({

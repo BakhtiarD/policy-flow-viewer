@@ -4,6 +4,7 @@ const path = require('path');
 const { stripBom, indexOf } = require('./utils');
 const { parseCsv, serializeCsv } = require('./csv');
 const { findProductLevel } = require('./storage');
+const uiI18n = require('./ui-i18n');
 const { flowRulePath, deleteFlowRule } = require('./flow-rules');
 const { clientActionPath } = require('./client-actions');
 
@@ -217,25 +218,37 @@ function applyDiff(currentCtx, otherDoc, actions) {
             }
             else if (a.kind === 'changeStateTerminal') {
                 const s = flow.states.find(x => x.name === a.payload.name);
-                if (!s) { result.warnings.push('Состояние не найдено: ' + a.payload.name); continue; }
+                if (!s) {
+                    result.warnings.push(uiI18n.t('warn.stateNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 if (a.payload.value) s.isTerminal = true; else delete s.isTerminal;
                 result.applied++;
             }
             else if (a.kind === 'changeTransitionFrom') {
                 const t = flow.transitions.find(x => x.name === a.payload.name);
-                if (!t) { result.warnings.push('Переход не найден: ' + a.payload.name); continue; }
+                if (!t) {
+                    result.warnings.push(uiI18n.t('warn.transitionNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 t.from = a.payload.value;
                 result.applied++;
             }
             else if (a.kind === 'changeTransitionTo') {
                 const t = flow.transitions.find(x => x.name === a.payload.name);
-                if (!t) { result.warnings.push('Переход не найден: ' + a.payload.name); continue; }
+                if (!t) {
+                    result.warnings.push(uiI18n.t('warn.transitionNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 t.to = a.payload.value;
                 result.applied++;
             }
             else if (a.kind === 'changeTransitionAction') {
                 const t = flow.transitions.find(x => x.name === a.payload.name);
-                if (!t) { result.warnings.push('Переход не найден: ' + a.payload.name); continue; }
+                if (!t) {
+                    result.warnings.push(uiI18n.t('warn.transitionNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 const v = a.payload.value;
                 if (v && String(v).trim()) t.actionToRunBefore = String(v).trim();
                 else delete t.actionToRunBefore;
@@ -243,14 +256,20 @@ function applyDiff(currentCtx, otherDoc, actions) {
             }
             else if (a.kind === 'changeTransitionServerSide') {
                 const t = flow.transitions.find(x => x.name === a.payload.name);
-                if (!t) { result.warnings.push('Переход не найден: ' + a.payload.name); continue; }
+                if (!t) {
+                    result.warnings.push(uiI18n.t('warn.transitionNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 if (a.payload.value) t.broadcastEvent = { serverSideEvents: true };
                 else delete t.broadcastEvent;
                 result.applied++;
             }
             else if (a.kind === 'changeTransitionAOVE') {
                 const t = flow.transitions.find(x => x.name === a.payload.name);
-                if (!t) { result.warnings.push('Переход не найден: ' + a.payload.name); continue; }
+                if (!t) {
+                    result.warnings.push(uiI18n.t('warn.transitionNotFound', { name: a.payload.name }));
+                    continue;
+                }
                 if (a.payload.value == null) delete t.allowOnValidationErrors;
                 else t.allowOnValidationErrors = JSON.parse(JSON.stringify(a.payload.value));
                 result.applied++;
@@ -259,7 +278,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 const { stateName, actorName, value } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
                 const rec = cs && (cs.actors || []).find(x => x.actor === actorName);
-                if (!rec) { result.warnings.push('Актор не найден: ' + stateName + '/' + actorName); continue; }
+                if (!rec) {
+                    result.warnings.push(uiI18n.t('warn.actorNotFoundInState', { state: stateName, actor: actorName }));
+                    continue;
+                }
                 if (value) rec.allowComments = true; else delete rec.allowComments;
                 result.applied++;
             }
@@ -267,7 +289,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 const { stateName, actorName, attachmentType, permissions } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
                 const rec = cs && (cs.actors || []).find(x => x.actor === actorName);
-                if (!rec) { result.warnings.push('Актор не найден: ' + stateName + '/' + actorName); continue; }
+                if (!rec) {
+                    result.warnings.push(uiI18n.t('warn.actorNotFoundInState', { state: stateName, actor: actorName }));
+                    continue;
+                }
                 rec.attachmentsRestrictions = rec.attachmentsRestrictions || [];
                 let r = rec.attachmentsRestrictions.find(x => x.attachmentType === attachmentType);
                 if (!r) { r = { attachmentType, permissions: [] }; rec.attachmentsRestrictions.push(r); }
@@ -281,7 +306,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 const { stateName, actorName, opName } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
                 const rec = cs && (cs.actors || []).find(x => x.actor === actorName);
-                if (!rec) { result.warnings.push('Актор не найден: ' + stateName + '/' + actorName); continue; }
+                if (!rec) {
+                    result.warnings.push(uiI18n.t('warn.actorNotFoundInState', { state: stateName, actor: actorName }));
+                    continue;
+                }
                 rec.operations = (rec.operations || []).filter(o => {
                     const n = (typeof o === 'string') ? o : (o && o.name);
                     return n !== opName;
@@ -292,7 +320,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 const { stateName, actorName, transitionName } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
                 const rec = cs && (cs.actors || []).find(x => x.actor === actorName);
-                if (!rec) { result.warnings.push('Актор не найден: ' + stateName + '/' + actorName); continue; }
+                if (!rec) {
+                    result.warnings.push(uiI18n.t('warn.actorNotFoundInState', { state: stateName, actor: actorName }));
+                    continue;
+                }
                 rec.transitions = (rec.transitions || []).filter(t => {
                     const n = (typeof t === 'string') ? t : (t && t.name);
                     return n !== transitionName;
@@ -303,7 +334,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 const { stateName, actorName, attachmentType } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
                 const rec = cs && (cs.actors || []).find(x => x.actor === actorName);
-                if (!rec) { result.warnings.push('Актор не найден: ' + stateName + '/' + actorName); continue; }
+                if (!rec) {
+                    result.warnings.push(uiI18n.t('warn.actorNotFoundInState', { state: stateName, actor: actorName }));
+                    continue;
+                }
                 rec.attachmentsRestrictions = (rec.attachmentsRestrictions || [])
                     .filter(r => r.attachmentType !== attachmentType);
                 result.applied++;
@@ -311,14 +345,17 @@ function applyDiff(currentCtx, otherDoc, actions) {
             else if (a.kind === 'removeActorFromState') {
                 const { stateName, actorName } = a.payload;
                 const cs = (config.states || []).find(s => s.name === stateName);
-                if (!cs) { result.warnings.push('Состояние не найдено: ' + stateName); continue; }
+                if (!cs) {
+                    result.warnings.push(uiI18n.t('warn.stateNotFound', { name: stateName }));
+                    continue;
+                }
                 cs.actors = (cs.actors || []).filter(x => x.actor !== actorName);
                 result.applied++;
             }
             else if (a.kind === 'removeTransition') {
                 const name = a.payload.name;
                 if (!(flow.transitions || []).some(t => t.name === name)) {
-                    result.warnings.push('Переход уже отсутствует: ' + name);
+                    result.warnings.push(uiI18n.t('warn.transitionAlreadyAbsent', { name }));
                     continue;
                 }
                 removeTransitionCascade(name);
@@ -328,7 +365,7 @@ function applyDiff(currentCtx, otherDoc, actions) {
             else if (a.kind === 'removeState') {
                 const name = a.payload.name;
                 if (!(flow.states || []).some(s => s.name === name)) {
-                    result.warnings.push('Состояние уже отсутствует: ' + name);
+                    result.warnings.push(uiI18n.t('warn.stateAlreadyAbsent', { name }));
                     continue;
                 }
                 // Каскад: удалить все переходы с этим состоянием
@@ -523,7 +560,7 @@ function applyDiff(currentCtx, otherDoc, actions) {
                         if (s === 'copied') result.touched.clientActions.push(action);
                         else if (s === 'missing-source') {
                             result.warnings.push(
-                                'ClientAction ' + action + '.js не найден в образце — переход скопирован без файла'
+                                uiI18n.t('warn.clientActionNotFound', { name: action })
                             );
                         }
                     }
@@ -540,10 +577,10 @@ function applyDiff(currentCtx, otherDoc, actions) {
                 }
             }
             else {
-                result.warnings.push('Неизвестное действие: ' + a.kind + ' (пропущено)');
+                result.warnings.push(uiI18n.t('warn.unknownAction', { kind: a.kind }));
             }
         } catch (e) {
-            result.warnings.push('Ошибка при применении ' + a.kind + ': ' + e.message);
+            result.warnings.push(uiI18n.t('warn.applyError', { kind: a.kind, message: e.message }));
         }
     }
 

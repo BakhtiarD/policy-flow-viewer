@@ -75,11 +75,12 @@
         const gl = document.createElement('span');
         gl.style.cssText = 'font-size:11px;opacity:.7;';
         gl.textContent = '🌐';
+        gl.title = PF.ui.t('dataLang.tooltip');
         wrap.appendChild(gl);
 
         const sel = document.createElement('select');
         sel.id = 'langSelect';
-        sel.title = 'Язык переводов';
+        sel.title = PF.ui.t('dataLang.tooltip');
         sel.style.cssText = 'font-size:12px;padding:2px 4px;min-width:70px;';
 
         // не-EN в порядке следования, EN всегда последний

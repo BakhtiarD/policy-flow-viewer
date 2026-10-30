@@ -19,15 +19,11 @@
         const lang = currentLang();
         const key = bucket === 'state' ? 'stateTransAll'
             : bucket === 'transition' ? 'transTransAll'
-                : 'actorTransAll';
+            : 'actorTransAll';
         const m = (tr[key] && tr[key][name]) || {};
         const v = m[lang];
         if (!v || v === name) return escHtml(name);
         return escHtml(name) + ' <span class="cmp-tr">(' + escHtml(v) + ')</span>';
-    }
-
-    function badge(kind, text) {
-        return '<span class="cmp-badge cmp-badge-' + kind + '">' + escHtml(text) + '</span>';
     }
 
     /* ---------- picker ---------- */
@@ -39,7 +35,7 @@
 
         const sel = backdrop.querySelector('.cmp-doc-select');
         sel.disabled = true;
-        sel.innerHTML = '<option>— загрузка… —</option>';
+        sel.innerHTML = '<option>' + escHtml(PF.ui.t('compare.picker.loading')) + '</option>';
 
         const compareBtn = backdrop.querySelector('[data-act="compare"]');
         compareBtn.disabled = true;
@@ -91,7 +87,7 @@
         sel.innerHTML = '';
         const ph = document.createElement('option');
         ph.value = '';
-        ph.textContent = '— выберите —';
+        ph.textContent = PF.ui.t('common.select');
         sel.appendChild(ph);
 
         let count = 0;
@@ -109,7 +105,7 @@
         if (!count) {
             const opt = document.createElement('option');
             opt.value = '';
-            opt.textContent = '(документы не найдены — укажите папку)';
+            opt.textContent = PF.ui.t('compare.picker.noDocs');
             sel.appendChild(opt);
         }
     }
@@ -118,7 +114,7 @@
         if (!activePicker) return;
         if (msg.cancelled) return;
         if (msg.error) {
-            PF.utils.showAlert(msg.error, 'Сравнение');
+            PF.utils.showAlert(msg.error, PF.ui.t('compare.error.title'));
             return;
         }
         activePicker.flowPath = msg.flowPath;
@@ -144,8 +140,6 @@
 
         const otherFlowPath = diff.other.flowPath || null;
 
-        // Список всех действий на экране.
-        // { id, kind, payload, enabled, selected }
         const actions = [];
 
         function actionId(kind, payload) {
@@ -164,12 +158,13 @@
         function refreshFooter() {
             const enabledChecked = actions.filter(a => a.enabled && a.selected).length;
             const enabledTotal = actions.filter(a => a.enabled).length;
-            countEl.textContent = 'выбрано: ' + enabledChecked + ' / ' + enabledTotal;
+            countEl.textContent = PF.ui.t('compare.footer.selected', {
+                checked: String(enabledChecked),
+                total: String(enabledTotal)
+            });
             applyBtn.disabled = !enabledChecked || !otherFlowPath;
         }
 
-        // Универсальная строка действия с чекбоксом.
-        // opts = { kind, payload, enabled, verbKind, verbLabel, objHtml, detailHtml, contextHtml }
         function renderAction(opts) {
             const a = registerAction(opts.kind, opts.payload, opts.enabled);
 
@@ -194,9 +189,6 @@
                 opts.objHtml +
                 (opts.detailHtml ? ' <span class="cmp-detail">' + opts.detailHtml + '</span>' : '') +
                 (opts.contextHtml ? ' <span class="cmp-context">' + opts.contextHtml + '</span>' : '');
-            if (!a.enabled) {
-                body_.innerHTML += ' <span class="cmp-not-ready">(на этапе 3)</span>';
-            }
             row.appendChild(body_);
 
             return row;
@@ -212,7 +204,7 @@
             if (!count) {
                 const empty = document.createElement('div');
                 empty.className = 'cmp-section-empty';
-                empty.textContent = emptyText || 'нет отличий';
+                empty.textContent = emptyText || '—';
                 sec.appendChild(empty);
             } else {
                 const list = document.createElement('div');
@@ -223,7 +215,7 @@
             body.appendChild(sec);
         }
 
-        // === initialState (только изменение, этап 3) ===
+        // === initialState ===
         if (diff.initialState) {
             addSection('initialState', 1, '', (list) => {
                 list.appendChild(renderAction({
@@ -231,11 +223,11 @@
                     payload: { value: diff.initialState.other },
                     enabled: true,
                     verbKind: 'change',
-                    verbLabel: 'Изменить',
+                    verbLabel: PF.ui.t('compare.verb.change'),
                     objHtml: 'initialState',
-                    detailHtml: '<code>' + escHtml(diff.initialState.current || '(пусто)') +
-                        '</code> → <code>' + escHtml(diff.initialState.other || '(пусто)') + '</code>',
-                    contextHtml: '(свойство документа)'
+                    detailHtml: '<code>' + escHtml(diff.initialState.current || '(—)') +
+                        '</code> → <code>' + escHtml(diff.initialState.other || '(—)') + '</code>',
+                    contextHtml: PF.ui.t('compare.context.docProperty')
                 }));
             });
         }
@@ -245,16 +237,18 @@
             const gaO = diff.globalActors.onlyInOther || [];
             const gaC = diff.globalActors.onlyInCurrent || [];
             if (gaO.length || gaC.length) {
-                addSection('Глобальные акторы', gaO.length + gaC.length, '', (list) => {
+                addSection(PF.ui.t('compare.section.globalActors'), gaO.length + gaC.length, '', (list) => {
                     for (const name of gaO) {
                         list.appendChild(renderAction({
                             kind: 'addGlobalActor',
                             payload: { name },
                             enabled: true,
                             verbKind: 'add',
-                            verbLabel: 'Добавить',
-                            objHtml: 'актора ' + labelFor(name, 'actor'),
-                            contextHtml: '(в documentFlow.actors)'
+                            verbLabel: PF.ui.t('compare.verb.add'),
+                            objHtml: PF.ui.t('compare.object.actor', {
+                                label: labelFor(name, 'actor')
+                            }),
+                            contextHtml: PF.ui.t('compare.context.globalActorsIn')
                         }));
                     }
                     for (const name of gaC) {
@@ -263,9 +257,11 @@
                             payload: { name },
                             enabled: true,
                             verbKind: 'remove',
-                            verbLabel: 'Удалить',
-                            objHtml: 'актора ' + labelFor(name, 'actor'),
-                            contextHtml: '(из documentFlow.actors)'
+                            verbLabel: PF.ui.t('compare.verb.remove'),
+                            objHtml: PF.ui.t('compare.object.actor', {
+                                label: labelFor(name, 'actor')
+                            }),
+                            contextHtml: PF.ui.t('compare.context.globalActorsOut')
                         }));
                     }
                 });
@@ -277,16 +273,16 @@
             const atO = diff.docAttachments.onlyInOther || [];
             const atC = diff.docAttachments.onlyInCurrent || [];
             if (atO.length || atC.length) {
-                addSection('Вложения документа', atO.length + atC.length, '', (list) => {
+                addSection(PF.ui.t('compare.section.docAttachments'), atO.length + atC.length, '', (list) => {
                     for (const code of atO) {
                         list.appendChild(renderAction({
                             kind: 'addDocAttachment',
                             payload: { code },
                             enabled: true,
                             verbKind: 'add',
-                            verbLabel: 'Добавить',
-                            objHtml: 'вложение <code>' + escHtml(code) + '</code>',
-                            contextHtml: '(в configuration.attachments)'
+                            verbLabel: PF.ui.t('compare.verb.add'),
+                            objHtml: PF.ui.t('compare.object.attachment', { code: escHtml(code) }),
+                            contextHtml: PF.ui.t('compare.context.docAttachmentsIn')
                         }));
                     }
                     for (const code of atC) {
@@ -295,9 +291,9 @@
                             payload: { code },
                             enabled: true,
                             verbKind: 'remove',
-                            verbLabel: 'Удалить',
-                            objHtml: 'вложение <code>' + escHtml(code) + '</code>',
-                            contextHtml: '(из configuration.attachments)'
+                            verbLabel: PF.ui.t('compare.verb.remove'),
+                            objHtml: PF.ui.t('compare.object.attachment', { code: escHtml(code) }),
+                            contextHtml: PF.ui.t('compare.context.docAttachmentsOut')
                         }));
                     }
                 });
@@ -305,34 +301,38 @@
         }
 
         // === Состояния только в образце ===
-        addSection('Состояния — только в образце (добавить в текущий)',
-            diff.states.onlyInOther.length, 'таких нет', (list) => {
+        addSection(PF.ui.t('compare.section.statesOnlyInOther'),
+            diff.states.onlyInOther.length, '—', (list) => {
                 for (const s of diff.states.onlyInOther) {
                     list.appendChild(renderAction({
                         kind: 'addState',
                         payload: { name: s.name },
                         enabled: true,
                         verbKind: 'add',
-                        verbLabel: 'Добавить',
-                        objHtml: 'состояние ' + labelFor(s.name, 'state'),
+                        verbLabel: PF.ui.t('compare.verb.add'),
+                        objHtml: PF.ui.t('compare.object.state', {
+                            label: labelFor(s.name, 'state')
+                        }),
                         detailHtml: s.isTerminal ? '<span class="cmp-tag">terminal</span>' : '',
-                        contextHtml: '(объект в documentFlow.states)'
+                        contextHtml: PF.ui.t('compare.context.stateObject')
                     }));
                 }
             });
 
         // === Состояния только в текущем ===
-        addSection('Состояния — только в текущем (удалить из текущего)',
-            diff.states.onlyInCurrent.length, 'таких нет', (list) => {
+        addSection(PF.ui.t('compare.section.statesOnlyInCurrent'),
+            diff.states.onlyInCurrent.length, '—', (list) => {
                 for (const s of diff.states.onlyInCurrent) {
                     list.appendChild(renderAction({
                         kind: 'removeState',
                         payload: { name: s.name },
                         enabled: true,
                         verbKind: 'remove',
-                        verbLabel: 'Удалить',
-                        objHtml: 'состояние ' + labelFor(s.name, 'state'),
-                        contextHtml: '(объект в documentFlow.states)'
+                        verbLabel: PF.ui.t('compare.verb.remove'),
+                        objHtml: PF.ui.t('compare.object.state', {
+                            label: labelFor(s.name, 'state')
+                        }),
+                        contextHtml: PF.ui.t('compare.context.stateObject')
                     }));
                 }
             });
@@ -343,7 +343,7 @@
             sec.className = 'cmp-section';
             const h = document.createElement('h3');
             h.className = 'cmp-section-title';
-            h.textContent = 'Состояния — различия (' + diff.states.differing.length + ')';
+            h.textContent = PF.ui.t('compare.section.statesDiffering') + ' (' + diff.states.differing.length + ')';
             sec.appendChild(h);
 
             for (const s of diff.states.differing) {
@@ -352,7 +352,9 @@
 
                 const objHead = document.createElement('div');
                 objHead.className = 'cmp-object-head';
-                objHead.innerHTML = 'Состояние ' + labelFor(s.name, 'state');
+                objHead.innerHTML = PF.ui.t('compare.object.state', {
+                    label: labelFor(s.name, 'state')
+                });
                 block.appendChild(objHead);
 
                 const list = document.createElement('div');
@@ -364,11 +366,11 @@
                         payload: { name: s.name, value: s.isTerminal.other },
                         enabled: true,
                         verbKind: 'change',
-                        verbLabel: 'Изменить',
+                        verbLabel: PF.ui.t(s.isTerminal.other ? 'compare.verb.enable' : 'compare.verb.disable'),
                         objHtml: 'isTerminal',
                         detailHtml: '<code>' + escHtml(String(s.isTerminal.current)) +
                             '</code> → <code>' + escHtml(String(s.isTerminal.other)) + '</code>',
-                        contextHtml: '(свойство состояния)'
+                        contextHtml: PF.ui.t('compare.context.stateProperty')
                     }));
                 }
 
@@ -378,9 +380,11 @@
                         payload: { stateName: s.name, actorName },
                         enabled: true,
                         verbKind: 'add',
-                        verbLabel: 'Добавить',
-                        objHtml: 'актора ' + labelFor(actorName, 'actor') + ' в это состояние',
-                        contextHtml: '(членство)'
+                        verbLabel: PF.ui.t('compare.verb.add'),
+                        objHtml: PF.ui.t('compare.object.actorIntoState', {
+                            label: labelFor(actorName, 'actor')
+                        }),
+                        contextHtml: PF.ui.t('compare.context.membership')
                     }));
                 }
                 for (const actorName of (s.actorsOnlyInCurrent || [])) {
@@ -389,16 +393,18 @@
                         payload: { stateName: s.name, actorName },
                         enabled: true,
                         verbKind: 'remove',
-                        verbLabel: 'Удалить',
-                        objHtml: 'актора ' + labelFor(actorName, 'actor') + ' из этого состояния',
-                        contextHtml: '(членство)'
+                        verbLabel: PF.ui.t('compare.verb.remove'),
+                        objHtml: PF.ui.t('compare.object.actorFromState', {
+                            label: labelFor(actorName, 'actor')
+                        }),
+                        contextHtml: PF.ui.t('compare.context.membership')
                     }));
                 }
 
                 for (const p of (s.actorPermDiffs || [])) {
                     const sub = document.createElement('div');
                     sub.className = 'cmp-sub-head';
-                    sub.innerHTML = 'Актор ' + labelFor(p.actor, 'actor');
+                    sub.innerHTML = PF.ui.t('compare.object.actor', { label: labelFor(p.actor, 'actor') });
                     list.appendChild(sub);
 
                     if (p.allowComments) {
@@ -407,11 +413,11 @@
                             payload: { stateName: s.name, actorName: p.actor, value: !!p.allowComments.other },
                             enabled: true,
                             verbKind: p.allowComments.other ? 'add' : 'remove',
-                            verbLabel: p.allowComments.other ? 'Разрешить' : 'Запретить',
-                            objHtml: 'комментарии',
+                            verbLabel: PF.ui.t(p.allowComments.other ? 'compare.verb.allow' : 'compare.verb.deny'),
+                            objHtml: PF.ui.t('compare.object.comments'),
                             detailHtml: '<code>' + escHtml(String(p.allowComments.current)) +
                                 '</code> → <code>' + escHtml(String(p.allowComments.other)) + '</code>',
-                            contextHtml: '(свойство актора)'
+                            contextHtml: PF.ui.t('compare.context.actorProperty')
                         }));
                     }
                     for (const opName of p.operations.added) {
@@ -420,9 +426,9 @@
                             payload: { stateName: s.name, actorName: p.actor, opName },
                             enabled: true,
                             verbKind: 'add',
-                            verbLabel: 'Разрешить',
-                            objHtml: 'операцию <code>' + escHtml(opName) + '</code>',
-                            contextHtml: '(право актора)'
+                            verbLabel: PF.ui.t('compare.verb.allow'),
+                            objHtml: PF.ui.t('compare.object.operation', { op: escHtml(opName) }),
+                            contextHtml: PF.ui.t('compare.context.actorRight')
                         }));
                     }
                     for (const opName of p.operations.removed) {
@@ -431,9 +437,9 @@
                             payload: { stateName: s.name, actorName: p.actor, opName },
                             enabled: true,
                             verbKind: 'remove',
-                            verbLabel: 'Запретить',
-                            objHtml: 'операцию <code>' + escHtml(opName) + '</code>',
-                            contextHtml: '(право актора)'
+                            verbLabel: PF.ui.t('compare.verb.deny'),
+                            objHtml: PF.ui.t('compare.object.operation', { op: escHtml(opName) }),
+                            contextHtml: PF.ui.t('compare.context.actorRight')
                         }));
                     }
                     for (const trName of p.transitions.added) {
@@ -442,9 +448,11 @@
                             payload: { stateName: s.name, actorName: p.actor, transitionName: trName },
                             enabled: true,
                             verbKind: 'add',
-                            verbLabel: 'Разрешить',
-                            objHtml: 'переход ' + labelFor(trName, 'transition'),
-                            contextHtml: '(право актора)'
+                            verbLabel: PF.ui.t('compare.verb.allow'),
+                            objHtml: PF.ui.t('compare.object.transition', {
+                                label: labelFor(trName, 'transition')
+                            }),
+                            contextHtml: PF.ui.t('compare.context.actorRight')
                         }));
                     }
                     for (const trName of p.transitions.removed) {
@@ -453,9 +461,11 @@
                             payload: { stateName: s.name, actorName: p.actor, transitionName: trName },
                             enabled: true,
                             verbKind: 'remove',
-                            verbLabel: 'Запретить',
-                            objHtml: 'переход ' + labelFor(trName, 'transition'),
-                            contextHtml: '(право актора)'
+                            verbLabel: PF.ui.t('compare.verb.deny'),
+                            objHtml: PF.ui.t('compare.object.transition', {
+                                label: labelFor(trName, 'transition')
+                            }),
+                            contextHtml: PF.ui.t('compare.context.actorRight')
                         }));
                     }
                     for (const code of p.attachments.added) {
@@ -464,9 +474,9 @@
                             payload: { stateName: s.name, actorName: p.actor, attachmentType: code },
                             enabled: true,
                             verbKind: 'add',
-                            verbLabel: 'Добавить',
-                            objHtml: 'вложение <code>' + escHtml(code) + '</code>',
-                            contextHtml: '(право на вложение)'
+                            verbLabel: PF.ui.t('compare.verb.add'),
+                            objHtml: PF.ui.t('compare.object.attachment', { code: escHtml(code) }),
+                            contextHtml: PF.ui.t('compare.context.attachmentRight')
                         }));
                     }
                     for (const code of p.attachments.removed) {
@@ -475,9 +485,9 @@
                             payload: { stateName: s.name, actorName: p.actor, attachmentType: code },
                             enabled: true,
                             verbKind: 'remove',
-                            verbLabel: 'Удалить',
-                            objHtml: 'вложение <code>' + escHtml(code) + '</code>',
-                            contextHtml: '(право на вложение)'
+                            verbLabel: PF.ui.t('compare.verb.remove'),
+                            objHtml: PF.ui.t('compare.object.attachment', { code: escHtml(code) }),
+                            contextHtml: PF.ui.t('compare.context.attachmentRight')
                         }));
                     }
                     for (const ch of p.attachments.changed) {
@@ -486,11 +496,11 @@
                             payload: { stateName: s.name, actorName: p.actor, attachmentType: ch.type, permissions: ch.other.slice() },
                             enabled: true,
                             verbKind: 'change',
-                            verbLabel: 'Изменить',
-                            objHtml: 'права на вложение <code>' + escHtml(ch.type) + '</code>',
+                            verbLabel: PF.ui.t('compare.verb.change'),
+                            objHtml: PF.ui.t('compare.object.attachmentRights', { code: escHtml(ch.type) }),
                             detailHtml: '<code>[' + escHtml(ch.current.join(', ')) + ']</code> → <code>[' +
                                 escHtml(ch.other.join(', ')) + ']</code>',
-                            contextHtml: '(право на вложение)'
+                            contextHtml: PF.ui.t('compare.context.attachmentRight')
                         }));
                     }
                 }
@@ -502,35 +512,39 @@
         }
 
         // === Переходы только в образце ===
-        addSection('Переходы — только в образце (добавить в текущий)',
-            diff.transitions.onlyInOther.length, 'таких нет', (list) => {
+        addSection(PF.ui.t('compare.section.transitionsOnlyInOther'),
+            diff.transitions.onlyInOther.length, '—', (list) => {
                 for (const t of diff.transitions.onlyInOther) {
                     list.appendChild(renderAction({
                         kind: 'addTransition',
                         payload: { name: t.name },
                         enabled: true,
                         verbKind: 'add',
-                        verbLabel: 'Добавить',
-                        objHtml: 'переход ' + labelFor(t.name, 'transition'),
+                        verbLabel: PF.ui.t('compare.verb.add'),
+                        objHtml: PF.ui.t('compare.object.transition', {
+                            label: labelFor(t.name, 'transition')
+                        }),
                         detailHtml: '<span class="cmp-hint">(' + escHtml(t.from) + ' → ' + escHtml(t.to) + ')</span>',
-                        contextHtml: '(объект в documentFlow.transitions)'
+                        contextHtml: PF.ui.t('compare.context.transitionObject')
                     }));
                 }
             });
 
         // === Переходы только в текущем ===
-        addSection('Переходы — только в текущем (удалить из текущего)',
-            diff.transitions.onlyInCurrent.length, 'таких нет', (list) => {
+        addSection(PF.ui.t('compare.section.transitionsOnlyInCurrent'),
+            diff.transitions.onlyInCurrent.length, '—', (list) => {
                 for (const t of diff.transitions.onlyInCurrent) {
                     list.appendChild(renderAction({
                         kind: 'removeTransition',
                         payload: { name: t.name },
                         enabled: true,
                         verbKind: 'remove',
-                        verbLabel: 'Удалить',
-                        objHtml: 'переход ' + labelFor(t.name, 'transition'),
+                        verbLabel: PF.ui.t('compare.verb.remove'),
+                        objHtml: PF.ui.t('compare.object.transition', {
+                            label: labelFor(t.name, 'transition')
+                        }),
                         detailHtml: '<span class="cmp-hint">(' + escHtml(t.from) + ' → ' + escHtml(t.to) + ')</span>',
-                        contextHtml: '(объект в documentFlow.transitions)'
+                        contextHtml: PF.ui.t('compare.context.transitionObject')
                     }));
                 }
             });
@@ -541,7 +555,7 @@
             sec.className = 'cmp-section';
             const h = document.createElement('h3');
             h.className = 'cmp-section-title';
-            h.textContent = 'Переходы — различия (' + diff.transitions.differing.length + ')';
+            h.textContent = PF.ui.t('compare.section.transitionsDiffering') + ' (' + diff.transitions.differing.length + ')';
             sec.appendChild(h);
 
             for (const t of diff.transitions.differing) {
@@ -550,7 +564,9 @@
 
                 const objHead = document.createElement('div');
                 objHead.className = 'cmp-object-head';
-                objHead.innerHTML = 'Переход ' + labelFor(t.name, 'transition');
+                objHead.innerHTML = PF.ui.t('compare.object.transition', {
+                    label: labelFor(t.name, 'transition')
+                });
                 block.appendChild(objHead);
 
                 const list = document.createElement('div');
@@ -561,9 +577,9 @@
                         kind: 'changeTransitionFrom',
                         payload: { name: t.name, value: t.from.other },
                         enabled: true,
-                        verbKind: 'change', verbLabel: 'Изменить', objHtml: 'from',
+                        verbKind: 'change', verbLabel: PF.ui.t('compare.verb.change'), objHtml: 'from',
                         detailHtml: '<code>' + escHtml(t.from.current) + '</code> → <code>' + escHtml(t.from.other) + '</code>',
-                        contextHtml: '(свойство перехода)'
+                        contextHtml: PF.ui.t('compare.context.transitionProperty')
                     }));
                 }
                 if (t.to) {
@@ -571,9 +587,9 @@
                         kind: 'changeTransitionTo',
                         payload: { name: t.name, value: t.to.other },
                         enabled: true,
-                        verbKind: 'change', verbLabel: 'Изменить', objHtml: 'to',
+                        verbKind: 'change', verbLabel: PF.ui.t('compare.verb.change'), objHtml: 'to',
                         detailHtml: '<code>' + escHtml(t.to.current) + '</code> → <code>' + escHtml(t.to.other) + '</code>',
-                        contextHtml: '(свойство перехода)'
+                        contextHtml: PF.ui.t('compare.context.transitionProperty')
                     }));
                 }
                 if (t.actionToRunBefore) {
@@ -581,10 +597,10 @@
                         kind: 'changeTransitionAction',
                         payload: { name: t.name, value: t.actionToRunBefore.other },
                         enabled: true,
-                        verbKind: 'change', verbLabel: 'Изменить', objHtml: 'actionToRunBefore',
+                        verbKind: 'change', verbLabel: PF.ui.t('compare.verb.change'), objHtml: 'actionToRunBefore',
                         detailHtml: '<code>' + escHtml(t.actionToRunBefore.current || '—') +
                             '</code> → <code>' + escHtml(t.actionToRunBefore.other || '—') + '</code>',
-                        contextHtml: '(свойство перехода)'
+                        contextHtml: PF.ui.t('compare.context.transitionProperty')
                     }));
                 }
                 if (t.serverSideEvents) {
@@ -593,11 +609,11 @@
                         payload: { name: t.name, value: !!t.serverSideEvents.other },
                         enabled: true,
                         verbKind: t.serverSideEvents.other ? 'add' : 'remove',
-                        verbLabel: t.serverSideEvents.other ? 'Включить' : 'Отключить',
+                        verbLabel: PF.ui.t(t.serverSideEvents.other ? 'compare.verb.enable' : 'compare.verb.disable'),
                         objHtml: 'serverSideEvents',
                         detailHtml: '<code>' + escHtml(String(t.serverSideEvents.current)) +
                             '</code> → <code>' + escHtml(String(t.serverSideEvents.other)) + '</code>',
-                        contextHtml: '(свойство перехода)'
+                        contextHtml: PF.ui.t('compare.context.transitionProperty')
                     }));
                 }
                 if (t.allowOnValidationErrors) {
@@ -605,10 +621,10 @@
                         kind: 'changeTransitionAOVE',
                         payload: { name: t.name, value: t.allowOnValidationErrors.other },
                         enabled: true,
-                        verbKind: 'change', verbLabel: 'Изменить', objHtml: 'allowOnValidationErrors',
+                        verbKind: 'change', verbLabel: PF.ui.t('compare.verb.change'), objHtml: 'allowOnValidationErrors',
                         detailHtml: '<code>' + escHtml(JSON.stringify(t.allowOnValidationErrors.current)) +
                             '</code> → <code>' + escHtml(JSON.stringify(t.allowOnValidationErrors.other)) + '</code>',
-                        contextHtml: '(свойство перехода)'
+                        contextHtml: PF.ui.t('compare.context.transitionProperty')
                     }));
                 }
 
@@ -632,7 +648,6 @@
         });
 
         backdrop.querySelector('[data-act="select-all-safe"]').addEventListener('click', () => {
-            // Отметить всё, КРОМЕ remove*
             for (const a of actions) {
                 if (a.enabled && !a.kind.startsWith('remove')) a.selected = true;
             }
@@ -661,21 +676,22 @@
             const changeCount = selectedActions.filter(a => a.kind.startsWith('change')).length;
 
             const lines = [];
-            if (addCount) lines.push('добавить: ' + addCount);
-            if (removeCount) lines.push('удалить: ' + removeCount);
-            if (changeCount) lines.push('изменить: ' + changeCount);
+            if (addCount) lines.push(PF.ui.t('compare.apply.line.add', { n: String(addCount) }));
+            if (removeCount) lines.push(PF.ui.t('compare.apply.line.remove', { n: String(removeCount) }));
+            if (changeCount) lines.push(PF.ui.t('compare.apply.line.change', { n: String(changeCount) }));
 
-            const warn = removeCount > 0 ? '\n\n⚠ Удаление необратимо.' : '';
+            const warn = removeCount > 0 ? PF.ui.t('compare.apply.warnRemove') : '';
+
             const ok = await PF.utils.showConfirm(
-                'Применить к текущему документу?\n\n' + lines.join('\n') + warn,
-                'Применение изменений'
+                PF.ui.t('compare.apply.confirm', { lines: lines.join('\n'), warn }),
+                PF.ui.t('compare.apply.title')
             );
             if (!ok) return;
 
             const selected = selectedActions.map(a => ({ kind: a.kind, payload: a.payload }));
 
             applyBtn.disabled = true;
-            applyBtn.textContent = 'Применение…';
+            applyBtn.textContent = PF.ui.t('compare.btn.applying');
             PF.vscode.postMessage({
                 type: 'applyCompareDocuments',
                 payload: { otherFlowPath, actions: selected }
@@ -687,6 +703,7 @@
         refreshFooter();
         document.getElementById('modalContainer').appendChild(backdrop);
     }
+
     /* ---------- init ---------- */
 
     function onMessage(ev) {
@@ -698,7 +715,7 @@
         if (msg.type === 'compareResult') { openDiff(msg.diff); return; }
 
         if (msg.type === 'compareError') {
-            PF.utils.showAlert(msg.error || 'Ошибка сравнения', 'Сравнение');
+            PF.utils.showAlert(msg.error || PF.ui.t('compare.error.generic'), PF.ui.t('compare.error.title'));
             return;
         }
 
@@ -708,29 +725,38 @@
 
             if (!msg.ok) {
                 // Отмену на сервере не считаем ошибкой — молча восстанавливаем.
+                // Сравнение с русской строкой — временно, до 3c, где сервер начнёт
+                // возвращать код причины, а не текст.
                 if (msg.error !== 'Отменено пользователем.') {
-                    PF.utils.showAlert(msg.error || 'Ошибка применения', 'Сравнение');
+                    PF.utils.showAlert(
+                        msg.error || PF.ui.t('compare.apply.error'),
+                        PF.ui.t('compare.error.title')
+                    );
                 }
                 if (backdrop) {
                     const btn = backdrop.querySelector('[data-act="apply"]');
                     if (btn) {
                         btn.disabled = false;
-                        btn.textContent = 'Применить выбранное';
+                        btn.textContent = PF.ui.t('compare.diff.apply');
                     }
                 }
                 return;
             }
 
             const warnings = msg.warnings || [];
-            const text =
-                'Применено действий: ' + msg.applied + '.' +
-                (warnings.length
-                    ? '\n\nПредупреждения:\n' + warnings.map(w => '• ' + w).join('\n')
-                    : '');
+            const warningsText = warnings.length
+                ? PF.ui.t('compare.apply.done.warnings', {
+                    list: warnings.map(w => '• ' + w).join('\n')
+                })
+                : '';
 
-            PF.utils.showAlert(text, 'Сравнение — применено').then(() => {
+            const text = PF.ui.t('compare.apply.done', {
+                n: String(msg.applied),
+                warnings: warningsText
+            });
+
+            PF.utils.showAlert(text, PF.ui.t('compare.apply.done.title')).then(() => {
                 if (parent) parent.remove();
-                // Перезагрузка данных — перерисует весь webview.
                 PF.vscode.postMessage({ type: 'reload' });
             });
             return;

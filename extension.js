@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const { findFileByName, resolveRoot, loadData, pushRender } = require('./src/storage');
+const uiI18n = require('./src/ui-i18n');
 const {
     handleDeleteState,
     handleAddState,
@@ -35,6 +36,7 @@ const {
     handleDuplicateActor,
     handleSaveActorAuth,
     handleRenameActor,
+    handleSetUiLanguage,
     handleListDocumentsForCompare,
     handleCompareDocuments,
     handleApplyCompareDocuments
@@ -43,8 +45,29 @@ const {
 let currentPanel = null;
 let currentCtx = null;
 
+function resolveUiLanguage() {
+    const cfg = vscode.workspace.getConfiguration('adinsureDocFlow');
+    const setting = cfg.get('uiLanguage') || 'auto';
+    const vscodeLang = (vscode.env && vscode.env.language) || 'en';
+    uiI18n.init(setting, vscodeLang);
+    return uiI18n.getLang();
+}
+
 function activate(context) {
     const extensionUri = context.extensionUri;
+
+    resolveUiLanguage();
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (!e.affectsConfiguration('adinsureDocFlow.uiLanguage')) return;
+            const lang = resolveUiLanguage();
+            if (currentCtx) currentCtx.uiLanguage = lang;
+            if (currentPanel) {
+                currentPanel.webview.postMessage({ type: 'uiLanguageChanged', lang });
+            }
+        })
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('policyFlow.showTable', async (uri) => {
@@ -57,20 +80,17 @@ function activate(context) {
                 let transPath = findFileByName(root, 'translation.csv');
 
                 if (!configPath || !flowPath || !transPath) {
-                    // Файлов нет — работаем на пустой папке. Пути по умолчанию:
-                    //   <root>/configuration.json
-                    //   <root>/documentFlow.json
-                    //   <root>/translation/translation.csv
                     configPath = configPath || path.join(root, 'configuration.json');
                     flowPath = flowPath || path.join(root, 'documentFlow.json');
                     transPath = transPath || path.join(root, 'translation', 'translation.csv');
-                    vscode.window.showInformationMessage(
-                        'Файлы конфигурации не найдены — доступен режим создания каркаса.'
-                    );
+                    vscode.window.showInformationMessage(uiI18n.t('msg.extension.configNotFound'));
                 }
 
                 if (currentPanel) currentPanel.dispose();
-                currentCtx = { flowPath, configPath, transPath, extensionUri };
+                currentCtx = {
+                    flowPath, configPath, transPath, extensionUri,
+                    uiLanguage: uiI18n.getLang()
+                };
                 loadData(currentCtx);
 
                 const panel = vscode.window.createWebviewPanel(
@@ -124,6 +144,7 @@ function activate(context) {
                         else if (msg.type === 'duplicateActor') await handleDuplicateActor(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'saveActorAuth') await handleSaveActorAuth(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'renameActor') await handleRenameActor(currentCtx, currentPanel, msg.payload);
+                        else if (msg.type === 'setUiLanguage') await handleSetUiLanguage(msg.payload);
                         else if (msg.type === 'listDocumentsForCompare') {
                             const docs = await handleListDocumentsForCompare(currentCtx);
                             currentPanel.webview.postMessage({ type: 'documentsForCompare', docs });
@@ -145,18 +166,16 @@ function activate(context) {
 
                                 if (removeCount > 0) {
                                     const answer = await vscode.window.showWarningMessage(
-                                        'Среди выбранных действий есть ' + removeCount +
-                                        ' удаляющих. Это необратимо в рамках применения.\n\n' +
-                                        'Продолжить?',
+                                        uiI18n.t('confirm.compare.remove', { n: String(removeCount) }),
                                         { modal: true },
-                                        'Продолжить',
-                                        'Отмена'
+                                        uiI18n.t('confirm.compare.remove.ok'),
+                                        uiI18n.t('common.cancel')
                                     );
-                                    if (answer !== 'Продолжить') {
+                                    if (answer !== uiI18n.t('confirm.compare.remove.ok')) {
                                         currentPanel.webview.postMessage({
                                             type: 'applyCompareResult',
                                             ok: false,
-                                            error: 'Отменено пользователем.'
+                                            cancelled: true
                                         });
                                         return;
                                     }
@@ -182,7 +201,7 @@ function activate(context) {
                         else if (msg.type === 'pickFolderForCompare') {
                             const sel = await vscode.window.showOpenDialog({
                                 canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
-                                openLabel: 'Выбрать папку другого документа'
+                                openLabel: uiI18n.t('confirm.compare.pickFolder')
                             });
                             if (!sel || !sel.length) {
                                 currentPanel.webview.postMessage({ type: 'folderPicked', cancelled: true });
@@ -192,7 +211,7 @@ function activate(context) {
                                 if (!fs.existsSync(fp)) {
                                     currentPanel.webview.postMessage({
                                         type: 'folderPicked',
-                                        error: 'documentFlow.json не найден в выбранной папке'
+                                        error: uiI18n.t('err.compare.folderInvalid')
                                     });
                                 } else {
                                     currentPanel.webview.postMessage({
@@ -204,7 +223,7 @@ function activate(context) {
                             }
                         }
                     } catch (e) {
-                        vscode.window.showErrorMessage('Ошибка: ' + e.message);
+                        vscode.window.showErrorMessage(uiI18n.t('err.extension.prefix', { message: e.message }));
                         console.error(e);
                     }
                 });
@@ -215,7 +234,7 @@ function activate(context) {
 
                 pushRender(currentCtx, currentPanel);
             } catch (e) {
-                vscode.window.showErrorMessage('Ошибка: ' + e.message);
+                vscode.window.showErrorMessage(uiI18n.t('err.extension.prefix', { message: e.message }));
                 console.error(e);
             }
         })

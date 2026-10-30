@@ -1,4 +1,5 @@
 const { indexOf } = require('./utils');
+const uiI18n = require('./ui-i18n');
 
 /* Размер прямоугольника состояния (текст внутри). */
 const SVG_STATE_W = 160;
@@ -264,25 +265,27 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
         // Проверяем только исходящие — они «наши», мы за них отвечаем.
         if (isOutgoing) {
             if (r.sourceDocument && !knownDocs.includes(r.sourceDocument)) {
-                issues.push('sourceDocument «' + r.sourceDocument + '» не найден ни в одном @config-*/document/');
+                issues.push(uiI18n.t('rel.issue.sourceNotFound', { name: r.sourceDocument }));
             }
             if (r.targetDocument && !knownDocs.includes(r.targetDocument)) {
-                issues.push('targetDocument «' + r.targetDocument + '» не найден ни в одном @config-*/document/');
+                issues.push(uiI18n.t('rel.issue.targetNotFound', { name: r.targetDocument }));
             }
             for (const st of (r.sourceDocumentStates || [])) {
                 if (!docStates.includes(st.name)) {
-                    issues.push('Состояние «' + st.name + '» отсутствует в ' + docName);
+                    issues.push(uiI18n.t('rel.issue.stateMissing', { state: st.name, doc: docName }));
                 }
                 for (const a of (st.actors || [])) {
                     if (!docActors.includes(a)) {
-                        issues.push('Актор «' + a + '» отсутствует в ' + docName);
+                        issues.push(uiI18n.t('rel.issue.actorMissing', { actor: a, doc: docName }));
                     }
                 }
             }
         }
 
         if (r.duplicateAcrossPackages && r.duplicateAcrossPackages.length > 1) {
-            issues.push('Дублируется в пакетах: ' + r.duplicateAcrossPackages.join(', '));
+            issues.push(uiI18n.t('rel.issue.duplicate', {
+                list: r.duplicateAcrossPackages.join(', ')
+            }));
         }
 
         const titleEntry = titles[r.targetDocument];

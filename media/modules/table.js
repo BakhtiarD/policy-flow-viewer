@@ -54,7 +54,7 @@
                 const tn = document.createElement('span');
                 tn.className = 'trans-name clickable';
                 tn.dataset.transition = t.name;
-                tn.title = 'Открыть переход для редактирования';
+                tn.title = PF.ui.t('table.transition.tooltip');
                 tn.textContent = t.name;
                 li.appendChild(tn);
                 const tTr = PF.i18n.tr({ trans: t.trans, ru: t.ru });
@@ -165,7 +165,7 @@
             const copyBtn = document.createElement('button');
             copyBtn.className = 'secondary small';
             copyBtn.textContent = '⧉';
-            copyBtn.title = 'Копировать актора';
+            copyBtn.title = PF.ui.t('perm.actor.copy.tooltip');
             copyBtn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
                 PF.formsOther.openCopyActorForm(stateName, p.actor);
@@ -175,13 +175,12 @@
             const delBtn = document.createElement('button');
             delBtn.className = 'danger small';
             delBtn.textContent = '×';
-            delBtn.title = 'Удалить актора из этого состояния';
+            delBtn.title = PF.ui.t('perm.actor.delete.tooltip');
             delBtn.addEventListener('click', async (ev) => {
                 ev.stopPropagation();
                 const ok = await showConfirm(
-                    'Удалить актора «' + p.actor + '» из состояния «' + stateName + '»?\n\n' +
-                    'Будет изменён только configuration.json.',
-                    'Удаление актора'
+                    PF.ui.t('perm.actor.delete.confirm', { actor: p.actor, state: stateName }),
+                    PF.ui.t('perm.actor.delete.title')
                 );
                 if (!ok) return;
                 PF.vscode.postMessage({
@@ -199,10 +198,10 @@
 
             const commentsSpan = document.createElement('span');
             if (p.allowComments) {
-                commentsSpan.textContent = 'разрешены';
+                commentsSpan.textContent = PF.ui.t('perm.comments.allowed');
                 commentsSpan.style.opacity = '.9';
             } else {
-                commentsSpan.textContent = 'запрещены';
+                commentsSpan.textContent = PF.ui.t('perm.comments.denied');
                 commentsSpan.style.opacity = '.55';
             }
             body.appendChild(makePermSection('comments', commentsSpan));
@@ -239,7 +238,10 @@
                 } else {
                     const isCopy = (r.targetDocument === DATA.relations.docName);
                     const title = PF.i18n.label(r.targetDocument, { trans: r.targetDocumentTitleTrans });
-                    linkItems.push({ kind: 'link', label: title + (isCopy ? ' (копия)' : '') });
+                    linkItems.push({
+                        kind: 'link',
+                        label: title + (isCopy ? PF.ui.t('perm.link.copySuffix') : '')
+                    });
                 }
             }
 
@@ -296,14 +298,14 @@
             const nameEl = document.createElement('span');
             nameEl.className = 'state-name clickable';
             nameEl.dataset.edit = r.stateName;
-            nameEl.title = 'Редактировать состояние';
+            nameEl.title = PF.ui.t('table.state.edit.tooltip');
             nameEl.textContent = stateLabel;
             tdState.appendChild(nameEl);
 
             const btnDel = document.createElement('button');
             btnDel.className = 'danger small state-del';
             btnDel.dataset.del = r.stateName;
-            btnDel.title = 'Удалить состояние';
+            btnDel.title = PF.ui.t('table.state.delete.tooltip');
             btnDel.textContent = '×';
             tdState.appendChild(btnDel);
 
@@ -340,11 +342,8 @@
             b.addEventListener('click', async () => {
                 const s = b.getAttribute('data-del');
                 const ok = await showConfirm(
-                    'Удалить состояние "' + s + '" со всеми отсылками?\n\n' +
-                    'Будут изменены: documentFlow.json, configuration.json, translation.csv,' +
-                    ' documentFlow.ui.json.\n' +
-                    'Файлы flowRules/*.js всех переходов этого состояния будут удалены.',
-                    'Удаление состояния'
+                    PF.ui.t('table.state.delete.confirm', { name: s }),
+                    PF.ui.t('table.state.delete.title')
                 );
                 if (!ok) return;
                 PF.vscode.postMessage({ type: 'deleteState', state: s });
@@ -416,8 +415,8 @@
         renderTable();
 
         document.getElementById('metaInfo').textContent =
-            'состояний: ' + PF.state.meta.states.length +
-            ', акторов: ' + PF.state.meta.actors.length;
+            PF.ui.plural(PF.state.meta.states.length, 'states') + ', ' +
+            PF.ui.plural(PF.state.meta.actors.length, 'actors');
     }
 
     PF.table = {

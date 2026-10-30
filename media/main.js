@@ -6,6 +6,7 @@
     const DATA = JSON.parse(dataEl.textContent);
 
     PF.state.setData(DATA);
+    PF.ui.init(DATA.uiLanguage || 'ru-RU');
 
     PF.toolbar.init();
     PF.legend.init();
@@ -14,4 +15,6 @@
     PF.app.applyViewMode();
     PF.render.updateSelectionToolbar();
     PF.compare.init();
+    PF.ui.attachUiSelector();
+    PF.ui.apply(document);
 })();

@@ -6,6 +6,85 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
+# Changelog
+
+Формат — по версиям, от новых к старым. Внутри версии — группы
+«Добавлено», «Исправлено», «Изменено», «Технические детали»,
+«Известные компромиссы».
+
+## [0.6.1] - 2026-10-30
+
+### Добавлено
+
+- **Переключатель языка интерфейса в тулбаре.** Рядом с селектором
+  языка данных (`🌐`, синяя рамка) появился второй селектор
+  (`🖥`, оранжевая рамка) — язык интерфейса расширения. Значения
+  берутся из доступных `PF_UI_LOCALES` (`ru-RU`, `en-US`, …).
+  Смена через тулбар пишет в настройку `adinsureDocFlow.uiLanguage`
+  (Global или Workspace — где она уже была) и перерисовывает webview
+  **без перезагрузки**: язык данных, позиции графа и текущее выделение
+  сохраняются. Изменение настройки вручную через `settings.json`
+  тоже подхватывается на лету.
+- **Полная мультиязычность интерфейса.** Язык интерфейса расширения
+  (кнопки, диалоги, подсказки, сообщения валидатора) больше не
+  зашит в код.
+  - Настройка VS Code `adinsureDocFlow.uiLanguage`: `auto` (по
+    `vscode.env.language`), `ru-RU`, `en-US`.
+  - Изменение настройки применяется на лету — webview и extension host
+    перерисовываются через `onDidChangeConfiguration`.
+  - **Независимость от языка данных.** Язык интерфейса и язык данных
+    (селектор `🌐` из `translation.csv`) — два независимых механизма.
+    Можно смотреть данные на македонском при английском интерфейсе.
+  - Все UI-строки webview вынесены в `media/locales/<lang>.js`, все
+    серверные сообщения — в `src/locales/<lang>.js`. Добавление нового
+    языка — новый файл-словарь, без правок кода.
+  - Плюрализация через `Intl.PluralRules` — «3 состояния» / «3 states»
+    в шапке таблицы, при удалении, при копировании акторов и т.д.
+  - Тех. имена полей (`Operations`, `Attachments`,
+    `actionToRunBefore`, `allowOnValidationErrors`, `serverSideEvents`,
+    enum-значения `all = true` / `codes` / `exceptForCodes`, `From`,
+    `To`, `Create`/`Read`/`Update`/`Delete`) осознанно не переводятся.
+
+- **HTML-шаблоны с data-i18n.** Заголовки модалок, labels, `<th>`,
+  `placeholder`, `title` кнопок главного и граф-тулбара, легенда,
+  кнопки Alert/Confirm — всё переведено через атрибуты
+  `data-i18n`, `data-i18n-title`, `data-i18n-placeholder`. Применение —
+  автоматически в `PF.utils.cloneTemplate`.
+
+- **Все серверные сообщения локализованы.** `vscode.window.show*Message`
+  и `throw new Error` в `handlers.js`, `attachments.js`, `extension.js`,
+  `transforms.js` теперь идут через `src/ui-i18n.js`. Пример: при
+  английском интерфейсе — `State "Draft" saved.`, при русском —
+  `Состояние «Draft» сохранено.`.
+
+- **Warnings в сравнении документов локализованы.** При применении
+  diff-а предупреждения (например, отсутствие ClientAction в образце)
+  приходят на языке интерфейса.
+
+### Изменено
+
+- `PF.ui` — новый клиентский движок (`media/modules/ui-i18n.js`):
+  `t()`, `plural()`, `apply()`, `getLang()`, `isLang()`.
+- `src/ui-i18n.js` — серверный движок с тем же API.
+- `media/main.js` — `PF.ui.init(DATA.uiLanguage)` вызывается до остальных
+  `init`, `PF.ui.apply(document)` — после.
+- При отмене apply в сравнении сервер больше не присылает строку
+  `error: 'Отменено пользователем.'`, а флаг `cancelled: true`. Клиент
+  проверяет флаг, а не строку.
+
+### Технические детали
+
+- `src/ui-i18n.js` — резолв языка: `auto` → `vscode.env.language` →
+  первая совпадающая локаль из `src/locales/` → `ru-RU` как fallback.
+- `media/modules/ui-i18n.js` — `apply(root)` идёт по
+  `[data-i18n]`, `[data-i18n-title]`, `[data-i18n-placeholder]`
+  рекурсивно, включая сам корневой элемент.
+- `media/modules/utils.js → cloneTemplate` вызывает `PF.ui.apply` на
+  каждом клонированном шаблоне.
+- `src/extension.js` — `onDidChangeConfiguration` слушает
+  `adinsureDocFlow.uiLanguage`, при изменении перезагружает данные и
+  `pushRender`.
+
 # [0.6.0] - 2026-10-22
 
 ## Добавлено

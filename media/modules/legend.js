@@ -3,48 +3,50 @@
 
   window.PF = window.PF || {};
 
+  // Группы храним по ключам — перевод применяется в buildBody.
+  // Это позволяет переводить легенду тем же PF.ui.t, что и остальной UI.
   const GROUPS = [
     {
-      title: 'Состояния',
+      titleKey: 'legend.group.states',
       items: [
-        ['Drag', 'переместить состояние'],
-        ['Double-click', 'редактировать'],
-        ['Right-click', 'начать рисовать переход'],
-        ['Ctrl+Click', 'добавить/убрать из выделения'],
-        ['Ctrl+стрелки', 'сдвинуть выделенные (Shift — шаг 10)']
+        ['legend.state.drag', 'legend.state.drag.hint'],
+        ['legend.state.dblclick', 'legend.state.dblclick.hint'],
+        ['legend.state.rclick', 'legend.state.rclick.hint'],
+        ['legend.state.ctrlclick', 'legend.state.ctrlclick.hint'],
+        ['legend.state.arrows', 'legend.state.arrows.hint']
       ]
     },
     {
-      title: 'Переходы',
+      titleKey: 'legend.group.transitions',
       items: [
-        ['Double-click', 'редактировать переход'],
-        ['Alt+Double-click', 'добавить промежуточную точку в месте клика']
+        ['legend.transition.dblclick', 'legend.transition.dblclick.hint'],
+        ['legend.transition.altdblclick', 'legend.transition.altdblclick.hint']
       ]
     },
     {
-      title: 'Рисование перехода',
+      titleKey: 'legend.group.draw',
       items: [
-        ['Right-click на исходном', 'начать рисование'],
-        ['Клик на целевом', 'завершить рисование'],
-        ['Escape', 'отменить']
+        ['legend.draw.start', 'legend.draw.start.hint'],
+        ['legend.draw.finish', 'legend.draw.finish.hint'],
+        ['legend.draw.cancel', 'legend.draw.cancel.hint']
       ]
     },
     {
-      title: 'Ручки выделенного перехода',
+      titleKey: 'legend.group.handles',
       items: [
-        ['Drag крайней точки', 'привязать к грани состояния'],
-        ['Drag средней точки', 'переместить точку'],
-        ['Right-click на средней', 'удалить промежуточную точку'],
-        ['Drag полоски между точками', 'сдвинуть сегмент']
+        ['legend.handles.edge', 'legend.handles.edge.hint'],
+        ['legend.handles.mid', 'legend.handles.mid.hint'],
+        ['legend.handles.midRemove', 'legend.handles.midRemove.hint'],
+        ['legend.handles.segment', 'legend.handles.segment.hint']
       ]
     },
     {
-      title: 'Общее',
+      titleKey: 'legend.group.general',
       items: [
-        ['Ctrl+wheel', 'зум'],
-        ['Drag фона', 'панорама'],
-        ['Delete', 'удалить выделенное'],
-        ['Escape', 'отменить рисование']
+        ['legend.general.zoom', 'legend.general.zoom.hint'],
+        ['legend.general.pan', 'legend.general.pan.hint'],
+        ['legend.general.delete', 'legend.general.delete.hint'],
+        ['legend.general.escape', 'legend.general.escape.hint']
       ]
     }
   ];
@@ -54,22 +56,22 @@
     for (const g of GROUPS) {
       const h = document.createElement('div');
       h.className = 'legend-group-title';
-      h.textContent = g.title;
+      h.textContent = PF.ui.t(g.titleKey);
       frag.appendChild(h);
 
       const body = document.createElement('div');
       body.className = 'legend-group-body';
-      for (const [action, hint] of g.items) {
+      for (const [actionKey, hintKey] of g.items) {
         const row = document.createElement('div');
         row.className = 'legend-row';
 
         const a = document.createElement('span');
         a.className = 'legend-action';
-        a.textContent = action;
+        a.textContent = PF.ui.t(actionKey);
 
         const t = document.createElement('span');
         t.className = 'legend-hint';
-        t.textContent = hint;
+        t.textContent = PF.ui.t(hintKey);
 
         row.appendChild(a);
         row.appendChild(t);
@@ -174,8 +176,18 @@
     }
   }
 
+  function reinit() {
+    const el = document.getElementById('graphLegend');
+    if (!el) return;
+    const body = el.querySelector('.legend-body');
+    if (!body) return;
+    body.innerHTML = '';
+    body.appendChild(buildBody());
+  }
+
   PF.legend = {
     init,
+    reinit,
     show,
     hide,
     isVisible: () => !!PF.state.legendVisible

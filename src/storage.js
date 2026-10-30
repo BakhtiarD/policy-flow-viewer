@@ -634,6 +634,7 @@ function writeConfig(ctx) {
 function pushRender(ctx, panel) {
     if (!panel || !ctx) return;
     const { flow, config, csv, ui, extensionUri, flowPath, authPath, auth } = ctx;
+    const uiLanguage = ctx.uiLanguage || 'ru-RU';
 
     const trans = buildTranslations(csv);
     const meta = buildMeta(flow, config, csv, trans, ctx);
@@ -647,7 +648,7 @@ function pushRender(ctx, panel) {
 
     const html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
-        authMeta, relMeta, attMeta
+        authMeta, relMeta, attMeta, uiLanguage
     );
     // Маркер, чтобы HTML всегда отличался — иначе VS Code не пересоздаёт iframe.
     panel.webview.html = html.replace('</body>', '<!--r' + Date.now() + '--></body>');
