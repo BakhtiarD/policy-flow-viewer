@@ -10,6 +10,52 @@
 «Добавлено», «Исправлено», «Изменено», «Технические детали»,
 «Известные компромиссы».
 
+## [0.7.1] - 2026-10-31
+
+### Изменено
+
+- **`media/modules/routing.js` разделён на два файла** для тестируемости.
+  - **`routing-core.js`** (новый) — чистые геометрические и маршрутные
+    функции, не трогают `document` / `window` / `PF.state`:
+    `rectsIntersect`, `chooseEdge`, `chooseEdgePair`, `pointOnEdge`,
+    `findNearestEdge`, `snapToEdge`, `simplifyOrtho`,
+    `buildRoundedPath`, `computeStubs`, `buildSimpleOrthoMiddle`,
+    `segmentHitsRect`, `findFirstBlocker`, `corridorHit`,
+    `buildDetourMiddle`, `segmentBlockedBetween`, `routeBetween`,
+    `labelFromWaypoints`, `segPerp`, `findSegmentIndex`,
+    `distToSegment`, константы `BASE_STATE_W` / `BASE_STATE_H` /
+    `EDGE_PAD`.
+  - **`routing.js`** (обёртка) — оставлены только state-зависимые
+    функции: `rerouteAll`, `spreadParallelSegments`,
+    `alignTransitions`, `optimizeTransitions`. В начале IIFE
+    подгружает core через `require('./routing-core')` (Node) или
+    `window.PF._routingCore` (webview).
+  - **Публичный API `PF.routing` не изменился.** Собирается через
+    `Object.assign({}, core, {...})` — все потребители
+    (`graph-render.js`, `graph-drag.js`, `toolbar.js`, `matrix.js`)
+    работают без правок.
+
+- **UMD-обёртка в `routing-core.js`.** В браузере кладёт себя в
+  `window.PF._routingCore`, в Node — `module.exports`. Один файл для
+  webview и для тестов.
+
+### Добавлено
+
+- **`test/routing-core.test.js`** — 35 тестов на чистые функции
+  маршрутизации. Без `jsdom`, без DOM, обычный `require` через UMD.
+
+### Технические детали
+
+- `media/index.html` — тег `<script src="{{JS_ROUTING_CORE}}">` перед
+  `<script src="{{JS_ROUTING}}">`. Порядок загрузки обязателен.
+- `src/html.js` — новый URI `jsRoutingCoreUri` и `replace` для
+  `{{JS_ROUTING_CORE}}`.
+- Тесты routing-core проверяют `chooseEdge`, `pointOnEdge`,
+  `rectsIntersect`, `simplifyOrtho`, `buildRoundedPath`,
+  `routeBetween`, `computeStubs`, `labelFromWaypoints`, `segPerp`,
+  `findSegmentIndex`, `distToSegment`, `findNearestEdge`,
+  `snapToEdge`, `chooseEdgePair`.
+
 ## [0.7.0] - 2026-10-31
 
 ### Добавлено

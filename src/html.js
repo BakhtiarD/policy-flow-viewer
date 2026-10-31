@@ -14,6 +14,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsI18nUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'i18n.js'));
     const jsIconsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'icons.js'));
     const jsRelationsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'relations.js'));
+    const jsRoutingCoreUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'routing-core.js'));
     const jsRoutingUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'routing.js'));
     const jsGraphLayoutUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'graph-layout.js'));
     const jsGraphRenderUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'graph-render.js'));
@@ -51,6 +52,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_I18N\}\}/g, () => jsI18nUri.toString())
         .replace(/\{\{JS_ICONS\}\}/g, () => jsIconsUri.toString())
         .replace(/\{\{JS_RELATIONS\}\}/g, () => jsRelationsUri.toString())
+        .replace(/\{\{JS_ROUTING_CORE\}\}/g, () => jsRoutingCoreUri.toString())
         .replace(/\{\{JS_ROUTING\}\}/g, () => jsRoutingUri.toString())
         .replace(/\{\{JS_GRAPH_LAYOUT\}\}/g, () => jsGraphLayoutUri.toString())
         .replace(/\{\{JS_GRAPH_RENDER\}\}/g, () => jsGraphRenderUri.toString())
