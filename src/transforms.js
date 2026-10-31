@@ -538,13 +538,19 @@ function buildGraph(flow, ui, trans, ctx) {
         uiStates[name] = { cx: 100 + col * 320, cy: 100 + row * 200 };
     });
 
+    const terminalByName = {};
+    for (const s of (flow.states || [])) {
+        if (s && s.name) terminalByName[s.name] = !!s.isTerminal;
+    }
+
     const states = flowStates.map(name => ({
         name,
         ru: trans.stateTrans[name] || name,
         trans: trans.stateTransAll[name] || {},
         x: uiStates[name].cx - 80,
         y: uiStates[name].cy - 25,
-        w: 160, h: 50
+        w: 160, h: 50,
+        isTerminal: !!terminalByName[name]
     }));
 
     const transitions = (flow.transitions || []).map(t => {

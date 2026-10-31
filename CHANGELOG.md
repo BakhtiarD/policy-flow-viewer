@@ -10,6 +10,107 @@
 «Добавлено», «Исправлено», «Изменено», «Технические детали»,
 «Известные компромиссы».
 
+## [0.7.2] - 2026-10-31
+
+### Добавлено
+
+- **Визуальные маркеры начального и конечных состояний на графе.**
+  - **▶** в левом верхнем углу — начальное состояние
+    (`documentFlow.json → initialState`).
+  - **■** в правом верхнем углу — терминальное состояние
+    (`isTerminal: true`).
+  - Если состояние одновременно и начальное, и конечное — оба маркера.
+  - Маркеры двигаются вместе с прямоугольником при drag и при
+    перемещении `Ctrl+стрелками`.
+  - Маркеры не перехватывают клики (`pointer-events: none`) — клик
+    по ним проходит на `<rect>` под ними.
+  - Обводка прямоугольников **не добавлена** осознанно: зелёный и
+    оранжевый цвет конфликтуют с цветом переходов на графе, а
+    маркеров в углу достаточно для визуальной идентификации.
+
+- **Селект «Начальное состояние» в граф-тулбаре.** Перед полем зума —
+  выпадающий список всех состояний документа плюс пункт
+  «— не задано —».
+  - Выбор состояния → `initialState` в `documentFlow.json` обновляется,
+    маркер ▶ переезжает на новое состояние, граф перерисовывается.
+  - Выбор «— не задано —» → `initialState = ''`, маркер ▶ исчезает.
+  - Опции селекта перерисовываются при смене языка данных (`🌐`) и
+    UI-языка (`🖥`).
+  - Раньше `initialState` менялся только правкой `documentFlow.json`
+    вручную или через сравнение документов.
+
+- **Валидация `initialState` при применении diff-а в сравнении
+  документов.** Раньше `changeInitialState` мог установить
+  `initialState` в значение, которого нет среди состояний текущего
+  документа. Теперь:
+  - при `changeInitialState` с непустым значением — проверка, что
+    состояние существует в текущем `documentFlow.json` на момент
+    применения;
+  - если состояние отсутствует — `warning` и `applied` не
+    инкрементится;
+  - пустое значение (`''`) разрешено всегда (сброс `initialState`);
+  - **`changeInitialState` переехал в конец очереди применения** —
+    после всех `add*`, чтобы сценарий «добавить состояние + сделать
+    его начальным одним apply» работал корректно.
+
+### Изменено
+
+- `src/compare-apply.js` — порядок применения (`ordered.sort`):
+  `changeInitialState` с rank `1` переехал на `12`; `removeDocAttachment`,
+  `addDocAttachment`, `removeGlobalActor` сдвинуты на `13`/`14`/`15`.
+- `src/transforms.js → buildGraph` — `isTerminal` пробрасывается в
+  каждый элемент `states[]` (рядом с `name`, `ru`, `trans`, `x`, `y`,
+  `w`, `h`). До этого `isTerminal` был только в `buildTable` для
+  табличного вида.
+- `media/modules/graph-render.js` — при построении `<g class="g-state">`
+  вычисляются `isInitial` / `isTerminal`, ставятся классы
+  `.is-initial` / `.is-terminal`, `data-is-initial` / `data-is-terminal`,
+  рисуются SVG-маркеры в углах.
+- `media/modules/graph-drag.js → startDrag → onMove` — при перетаскивании
+  состояния обновляется `transform` у маркеров (иначе маркер отстаёт
+  от прямоугольника).
+- `media/modules/toolbar.js` — новая функция `updateInitialStateSelect`,
+  обработчик `change` на селекте, вызов из `applyViewMode` при входе в
+  граф-режим, экспорт функции для перерисовки из `i18n.js` /
+  `ui-i18n.js`.
+- `media/modules/i18n.js → rerender` — вызов
+  `PF.toolbar.updateInitialStateSelect()` при смене языка данных.
+- `media/modules/ui-i18n.js → setLang` — то же при смене UI-языка.
+- `src/handlers.js` — новый хендлер `handleSetInitialState(ctx, panel,
+  stateName)`: валидирует имя, пишет `flow.initialState`,
+  `writeFlow`, `loadData`, `pushRender`, показывает уведомление.
+- `src/extension.js` — dispatch для `setInitialState`.
+- `media/index.html` — `<label class="initial-state-label">` с
+  `<select id="initialStateSelect">` перед полем зума.
+- `media/main.css` — стиль `.initial-state-label`, стили
+  `.g-state-marker` / `.g-state-marker-bg` / `.g-state-marker-icon`
+  для SVG-маркеров.
+
+### Технические детали
+
+- Маркеры — SVG-элементы `<g class="g-state-marker">` внутри
+  `<g class="g-state">`, а не HTML-overlay. Это позволяет двигать их
+  `transform`-ом в `onMove` (в отличие от `rect` + `text`, которые
+  двигаются через `setAttribute('x'/'y')`).
+- Классы `.is-initial` / `.is-terminal` на `<g>` — для будущих
+  стилевых вариаций (сейчас не используются, но упростят добавление
+  hover-эффекта или подсветки в легенде).
+- Селект использует `PF.i18n.label()` для перевода имени состояния —
+  при смене языка данных опции перерисовываются.
+- Хендлер `handleSetInitialState` пишет только `flow.initialState`
+  (один ключ в `documentFlow.json`), не трогает `configuration.json`,
+  `translation.csv`, `documentFlow.ui.json` — это атомарная операция
+  над одним полем.
+
+### Тесты
+
+- `test/compare-apply.test.js` — +4 теста на `changeInitialState`:
+  - к существующему состоянию применяется;
+  - к отсутствующему — `warning`, `applied = 0`;
+  - пустое значение сбрасывает без warning;
+  - `addState` + `changeInitialState` в одном вызове — порядок
+    корректный (state добавлен первым).
+
 ## [0.7.1] - 2026-10-31
 
 ### Изменено

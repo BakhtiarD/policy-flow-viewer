@@ -36,6 +36,19 @@
                     texts[1].setAttribute('y', cy + 13);
                 }
             }
+
+            // Маркеры initial / terminal привязаны к углам прямоугольника —
+            // при drag двигаются вместе с rect.
+            const markerInit = gEl.querySelector('.g-state-marker-initial');
+            if (markerInit) {
+                markerInit.setAttribute('transform',
+                    'translate(' + (state.x + 6) + ',' + (state.y + 6) + ')');
+            }
+            const markerTerm = gEl.querySelector('.g-state-marker-terminal');
+            if (markerTerm) {
+                markerTerm.setAttribute('transform',
+                    'translate(' + (state.x + state.w - 22) + ',' + (state.y + 6) + ')');
+            }
         }
 
         function onUp() {

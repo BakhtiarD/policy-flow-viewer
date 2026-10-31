@@ -598,4 +598,9 @@ window.PF_UI_LOCALES['ru-RU'] = {
     // ============ переключатели языка в тулбаре ============
     'dataLang.tooltip': 'Язык данных Adinsure (переводы из translation.csv)',
     'uiLang.tooltip': 'Язык интерфейса расширения (независим от языка данных)',
+
+    // ============ initialState (select в граф-тулбаре) ============
+    'initialState.label': 'Начальное',
+    'initialState.none': '— не задано —',
+    'initialState.tooltip': 'Начальное состояние документа (initialState в documentFlow.json)',
 };

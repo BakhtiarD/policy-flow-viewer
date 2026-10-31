@@ -549,6 +549,21 @@ body.vscode-high-contrast .g-transition.related .g-transition-label-text {
   line-height: 1.4;
 }
 
+.initial-state-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.initial-state-label select {
+    font-size: 12px;
+    padding: 1px 4px;
+    min-width: 100px;
+    max-width: 220px;
+    border-radius: 3px;
+}
+
 .zoom-label {
   display: inline-flex;
   gap: 6px;
@@ -2033,4 +2048,43 @@ body[data-toolbar-position="left"] #mainToolbar,
 body[data-toolbar-position="right"] #mainToolbar {
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+/* ============================================================
+ * Маркеры isInitial / isTerminal на состоянии графа
+ * ============================================================ */
+
+/* SVG-маркер в углу. pointer-events: none — чтобы клики/драг
+   проходили на <rect> под ним.
+   Обводку на самом rect не делаем: зелёный/оранжевый цвет
+   конфликтует с цветом переходов, маркеров в углу достаточно. */
+.g-state-marker {
+    pointer-events: none;
+    opacity: 0.95;
+}
+.g-state-marker .g-state-marker-bg {
+    fill: var(--vscode-editor-background, #1e1e1e);
+    stroke-width: 1.5;
+}
+.g-state-marker-initial .g-state-marker-bg {
+    stroke: var(--vscode-charts-green, #3fb950);
+}
+.g-state-marker-initial .g-state-marker-icon {
+    fill: var(--vscode-charts-green, #3fb950);
+}
+.g-state-marker-terminal .g-state-marker-bg {
+    stroke: var(--vscode-charts-orange, #d18616);
+}
+.g-state-marker-terminal .g-state-marker-icon {
+    fill: var(--vscode-charts-orange, #d18616);
+}
+
+/* Когда состояние и стартовое, и конечное — оба маркера фиолетовые */
+.g-state.is-initial.is-terminal .g-state-marker-initial .g-state-marker-bg,
+.g-state.is-initial.is-terminal .g-state-marker-terminal .g-state-marker-bg {
+    stroke: var(--vscode-charts-purple, #a371f7);
+}
+.g-state.is-initial.is-terminal .g-state-marker-initial .g-state-marker-icon,
+.g-state.is-initial.is-terminal .g-state-marker-terminal .g-state-marker-icon {
+    fill: var(--vscode-charts-purple, #a371f7);
 }

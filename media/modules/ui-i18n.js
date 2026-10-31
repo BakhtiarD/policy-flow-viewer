@@ -159,6 +159,9 @@
             if (PF.actors && PF.actors.render) PF.actors.render();
             if (PF.render && PF.render.renderGraph) PF.render.renderGraph();
             if (PF.layout && PF.layout.applyViewBox) PF.layout.applyViewBox();
+            if (PF.toolbar && PF.toolbar.updateInitialStateSelect) {
+                PF.toolbar.updateInitialStateSelect();
+            }
         } catch (e) {
             console.warn('ui.setLang re-render error', e);
         }

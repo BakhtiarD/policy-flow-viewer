@@ -132,7 +132,7 @@ function applyDiff(currentCtx, otherDoc, actions) {
     // 6. removeGlobalActor — в самом конце, чтобы не оборвать ссылки.
     const ordered = actions.slice().sort((a, b) => {
         const rank = {
-            changeInitialState: 1,
+            changeInitialState: 12,
             changeStateTerminal: 1,
             changeTransitionFrom: 1,
             changeTransitionTo: 1,
@@ -154,9 +154,9 @@ function applyDiff(currentCtx, otherDoc, actions) {
             addActorTransition: 10,
             addActorAttachment: 10,
             addTransition: 11,
-            removeDocAttachment: 12,
-            addDocAttachment: 13,
-            removeGlobalActor: 14
+            removeDocAttachment: 13,
+            addDocAttachment: 14,
+            removeGlobalActor: 15
         };
         return (rank[a.kind] || 99) - (rank[b.kind] || 99);
     });
@@ -213,7 +213,12 @@ function applyDiff(currentCtx, otherDoc, actions) {
             // ============ CHANGE ============
 
             if (a.kind === 'changeInitialState') {
-                flow.initialState = a.payload.value || '';
+                const value = a.payload.value || '';
+                if (value && !flow.states.some(s => s.name === value)) {
+                    result.warnings.push(uiI18n.t('warn.stateNotFound', { name: value }));
+                    continue;
+                }
+                flow.initialState = value;
                 result.applied++;
             }
             else if (a.kind === 'changeStateTerminal') {

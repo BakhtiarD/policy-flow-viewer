@@ -156,4 +156,8 @@ module.exports = {
 
     // ============ FlowRule rename errors ============
     'err.flowRule.renameExists': 'flowRules/{name}.js already exists.',
+
+    // ============ initialState ============
+    'msg.initialState.set': 'Initial state: {name}',
+    'msg.initialState.cleared': 'Initial state cleared.',
 };

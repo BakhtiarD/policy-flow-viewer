@@ -37,14 +37,73 @@ function authRow(role, docName, actorName, op) {
 }
 
 /* ============ 1. CHANGE: простые свойства ============ */
-
-test('applyDiff: changeInitialState sets flow.initialState', () => {
-    const cur = makeCtx({});
+test('applyDiff: changeInitialState to existing state applies', () => {
+    const cur = makeCtx({
+        flow: { states: [st('Draft'), st('Active')], transitions: [] }
+    });
     const oth = makeCtx({ docName: 'Other' });
     try {
-        const r = applyDiff(cur.ctx, oth.ctx, [act('changeInitialState', { value: 'Draft' })]);
+        const r = applyDiff(cur.ctx, oth.ctx, [
+            act('changeInitialState', { value: 'Active' })
+        ]);
         assert.equal(r.applied, 1);
+        assert.deepEqual(r.warnings, []);
+        assert.equal(cur.ctx.flow.initialState, 'Active');
+    } finally { cur.cleanup(); oth.cleanup(); }
+});
+
+test('applyDiff: changeInitialState to missing state — warning, applied=0', () => {
+    const cur = makeCtx({
+        flow: { states: [st('Draft')], transitions: [], initialState: 'Draft' }
+    });
+    const oth = makeCtx({ docName: 'Other' });
+    try {
+        const r = applyDiff(cur.ctx, oth.ctx, [
+            act('changeInitialState', { value: 'Missing' })
+        ]);
+        assert.equal(r.applied, 0);
+        assert.equal(r.warnings.length, 1);
         assert.equal(cur.ctx.flow.initialState, 'Draft');
+    } finally { cur.cleanup(); oth.cleanup(); }
+});
+
+test('applyDiff: changeInitialState to "" resets without warning', () => {
+    const cur = makeCtx({
+        flow: { states: [st('Draft')], transitions: [], initialState: 'Draft' }
+    });
+    const oth = makeCtx({ docName: 'Other' });
+    try {
+        const r = applyDiff(cur.ctx, oth.ctx, [
+            act('changeInitialState', { value: '' })
+        ]);
+        assert.equal(r.applied, 1);
+        assert.deepEqual(r.warnings, []);
+        assert.equal(cur.ctx.flow.initialState, '');
+    } finally { cur.cleanup(); oth.cleanup(); }
+});
+
+test('applyDiff: addState + changeInitialState in one call — state added first', () => {
+    const cur = makeCtx({
+        flow: { states: [], transitions: [] },
+        csv: makeCsv(['ItemType', 'TranslationKey', 'Translation_en-US'], [])
+    });
+    const oth = makeCtx({
+        docName: 'Other',
+        flow: { states: [st('New')], transitions: [] },
+        csv: makeCsv(['ItemType', 'TranslationKey', 'Translation_en-US'], [
+            { ItemType: 'states', TranslationKey: 'states@New', 'Translation_en-US': 'New' }
+        ])
+    });
+    try {
+        // Передаём в «неправильном» порядке: changeInitialState раньше addState.
+        // sort должен поставить addState первым.
+        const r = applyDiff(cur.ctx, oth.ctx, [
+            act('changeInitialState', { value: 'New' }),
+            act('addState', { name: 'New' })
+        ]);
+        assert.equal(r.warnings.length, 0);
+        assert.equal(cur.ctx.flow.initialState, 'New');
+        assert.equal(cur.ctx.flow.states.some(s => s.name === 'New'), true);
     } finally { cur.cleanup(); oth.cleanup(); }
 });
 

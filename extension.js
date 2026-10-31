@@ -37,6 +37,7 @@ const {
     handleSaveActorAuth,
     handleRenameActor,
     handleSetUiLanguage,
+    handleSetInitialState,
     handleListDocumentsForCompare,
     handleCompareDocuments,
     handleApplyCompareDocuments
@@ -145,6 +146,7 @@ function activate(context) {
                         else if (msg.type === 'saveActorAuth') await handleSaveActorAuth(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'renameActor') await handleRenameActor(currentCtx, currentPanel, msg.payload);
                         else if (msg.type === 'setUiLanguage') await handleSetUiLanguage(msg.payload);
+                        else if (msg.type === 'setInitialState') await handleSetInitialState(currentCtx, currentPanel, msg.state);
                         else if (msg.type === 'listDocumentsForCompare') {
                             const docs = await handleListDocumentsForCompare(currentCtx);
                             currentPanel.webview.postMessage({ type: 'documentsForCompare', docs });

@@ -237,6 +237,7 @@
             document.getElementById('graphHint').textContent = PF.ui.t(
                 PF.state.DATA.hasUi ? 'graphHint.fromUi' : 'graphHint.auto'
             );
+            updateInitialStateSelect();
             try {
                 requestAnimationFrame(() => {
                     PF.routing.rerouteAll();
@@ -260,6 +261,37 @@
 
         updateViewToggleIcon();
     }
+    function updateInitialStateSelect() {
+        const sel = document.getElementById('initialStateSelect');
+        if (!sel) return;
+
+        const gd = PF.state.graphData;
+        const meta = PF.state.meta || {};
+        const states = meta.states || [];
+        const cur = (gd && gd.initialState) || '';
+
+        const trs = meta.translations || {};
+        const stAll = trs.stateTransAll || {};
+        const stRu = trs.stateTrans || {};
+
+        while (sel.options.length) sel.remove(0);
+
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = PF.ui.t('initialState.none');
+        sel.appendChild(empty);
+
+        for (const s of states) {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = PF.i18n.label(s, { trans: stAll[s], ru: stRu[s] });
+            if (s === cur) opt.selected = true;
+            sel.appendChild(opt);
+        }
+
+        if (!cur) empty.selected = true;
+    }
+
     /* ============================================================
      * ИНИЦИАЛИЗАЦИЯ (привязка всех кнопок тулбара)
      * ============================================================ */
@@ -404,6 +436,18 @@
         }
         updateLayoutDirBtn();
 
+        // Селект «начальное состояние».
+        const initialStateSelect = document.getElementById('initialStateSelect');
+        if (initialStateSelect) {
+            initialStateSelect.addEventListener('change', () => {
+                PF.vscode.postMessage({
+                    type: 'setInitialState',
+                    state: initialStateSelect.value || ''
+                });
+            });
+            updateInitialStateSelect();
+        }
+
         // Подписи переходов
         const labelsToggleBtn = document.getElementById('labelsToggleBtn');
         if (labelsToggleBtn) {
@@ -502,6 +546,7 @@
         openToolbarMenu,
         updateLayoutDirBtn,
         updateLabelsToggleBtn,
+        updateInitialStateSelect,
         autoLayout,
         applyViewMode,
         init,

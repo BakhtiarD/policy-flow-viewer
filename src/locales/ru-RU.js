@@ -162,4 +162,8 @@ module.exports = {
     // ============ FlowRule rename errors ============
     'err.flowRule.renameExists': 'flowRules/{name}.js уже существует.',
 
+    // ============ initialState ============
+    'msg.initialState.set': 'Начальное состояние: {name}',
+    'msg.initialState.cleared': 'Начальное состояние сброшено.',
+
 };

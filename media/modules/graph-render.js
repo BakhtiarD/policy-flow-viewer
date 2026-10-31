@@ -373,12 +373,54 @@
         for (const s of graphData.states) {
             const g = svgEl('g', { class: 'g-state' });
             g.dataset.stateName = s.name;
+
+            const isInitial = !!graphData.initialState && s.name === graphData.initialState;
+            const isTerminal = !!s.isTerminal;
+            if (isInitial) g.classList.add('is-initial');
+            if (isTerminal) g.classList.add('is-terminal');
+            g.dataset.isInitial = String(isInitial);
+            g.dataset.isTerminal = String(isTerminal);
+
             if (selectedStates.has(s.name)) g.classList.add('selected');
 
             const rect = svgEl('rect', {
                 x: s.x, y: s.y, width: s.w, height: s.h, rx: 12
             });
             g.appendChild(rect);
+
+            // Маркер initial (▶) — слева сверху.
+            if (isInitial) {
+                const markerInit = svgEl('g', {
+                    class: 'g-state-marker g-state-marker-initial',
+                    transform: 'translate(' + (s.x + 6) + ',' + (s.y + 6) + ')'
+                });
+                markerInit.appendChild(svgEl('circle', {
+                    cx: 8, cy: 8, r: 8,
+                    class: 'g-state-marker-bg'
+                }));
+                markerInit.appendChild(svgEl('path', {
+                    d: 'M 5 4 L 11 8 L 5 12 Z',
+                    class: 'g-state-marker-icon'
+                }));
+                g.appendChild(markerInit);
+            }
+
+            // Маркер terminal (■) — справа сверху.
+            if (isTerminal) {
+                const markerTerm = svgEl('g', {
+                    class: 'g-state-marker g-state-marker-terminal',
+                    transform: 'translate(' + (s.x + s.w - 22) + ',' + (s.y + 6) + ')'
+                });
+                markerTerm.appendChild(svgEl('circle', {
+                    cx: 8, cy: 8, r: 8,
+                    class: 'g-state-marker-bg'
+                }));
+                markerTerm.appendChild(svgEl('rect', {
+                    x: 5, y: 5, width: 6, height: 6,
+                    class: 'g-state-marker-icon'
+                }));
+                g.appendChild(markerTerm);
+            }
 
             const cx = s.x + s.w / 2;
             const cy = s.y + s.h / 2;

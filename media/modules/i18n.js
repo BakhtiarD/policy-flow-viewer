@@ -53,6 +53,9 @@
             if (PF.matrix && PF.matrix.render) PF.matrix.render();
             if (PF.actors && PF.actors.render) PF.actors.render();
             if (PF.legend && PF.legend.render) PF.legend.render();
+            if (PF.toolbar && PF.toolbar.updateInitialStateSelect) {
+                PF.toolbar.updateInitialStateSelect();
+            }
         } catch (e) {
             console.warn('i18n rerender error', e);
         }

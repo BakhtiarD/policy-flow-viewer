@@ -1695,6 +1695,27 @@ async function handleRenameActor(ctx, panel, payload) {
     );
 }
 
+/* ---------- initialState ---------- */
+
+async function handleSetInitialState(ctx, panel, stateName) {
+    const name = (stateName || '').trim();
+
+    if (name && !(ctx.flow.states || []).some(s => s.name === name)) {
+        throw new Error(uiI18n.t('err.state.notFound', { name }));
+    }
+
+    ctx.flow.initialState = name;
+    writeFlow(ctx);
+    loadData(ctx);
+    pushRender(ctx, panel);
+
+    vscode.window.showInformationMessage(
+        name
+            ? uiI18n.t('msg.initialState.set', { name })
+            : uiI18n.t('msg.initialState.cleared')
+    );
+}
+
 /* ---------- Сравнение документов ---------- */
 
 async function handleListDocumentsForCompare(ctx) {
@@ -1803,5 +1824,6 @@ module.exports = {
     handleListDocumentsForCompare,
     handleCompareDocuments,
     handleApplyCompareDocuments,
+    handleSetInitialState,
     handleSetUiLanguage,
 };

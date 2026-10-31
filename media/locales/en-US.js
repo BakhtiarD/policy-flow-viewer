@@ -594,4 +594,9 @@ window.PF_UI_LOCALES['en-US'] = {
     // ============ toolbar language switchers ============
     'dataLang.tooltip': 'Adinsure data language (translations from translation.csv)',
     'uiLang.tooltip': 'Extension interface language (independent of data language)',
+
+    // ============ initialState (select in graph toolbar) ============
+    'initialState.label': 'Initial',
+    'initialState.none': '— not set —',
+    'initialState.tooltip': 'Initial document state (initialState in documentFlow.json)',
 };
