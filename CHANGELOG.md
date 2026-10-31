@@ -6,11 +6,64 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии следуют [Semantic Versioning](https://semver.org/lang/ru/).
 
-# Changelog
-
 Формат — по версиям, от новых к старым. Внутри версии — группы
 «Добавлено», «Исправлено», «Изменено», «Технические детали»,
 «Известные компромиссы».
+
+## [0.7.0] - 2026-10-31
+
+### Добавлено
+
+- **Тестовая инфраструктура.** `node --test` (встроенный test runner
+  Node.js 20+), без внешних зависимостей. Скрипт `npm test` запускает
+  все тесты из `test/`.
+- **Покрытие серверной логики** — 100+ тестов на самые рискованные
+  модули:
+  - `src/utils.js` (`stripBom`, `indexOf`, `escapeHtml`);
+  - `src/csv.js` (`parseCsv`, `serializeCsv`, roundtrip);
+  - `src/transforms.js → buildTranslations` (все варианты языковых
+    колонок, fallback en-US, ensureEn);
+  - `src/compare-diff.js → buildDiff` (states, transitions, actors,
+    permissions, attachments, docAttachments, initialState);
+  - `src/compare-apply.js → applyDiff` (change/remove/add для всех
+    сущностей, каскадные удаления, порядок применения, warnings);
+  - `src/storage.js` (`normalizeSourceDocumentStates`,
+    `loadDocumentForCompare`);
+- **Хелперы для тестов**:
+  - `test/helpers/mockVscode.js` — мок `require('vscode')`, чтобы
+    серверные модули загружались в обычном Node без extension host;
+  - `test/helpers/makeCsv.js` — быстрый конструктор CSV для тестов;
+  - `test/helpers/makeDoc.js` — конструктор документа в памяти для
+    `buildDiff`;
+  - `test/helpers/makeCtx.js` — конструктор `ctx` с реальной структурой
+    папок в `os.tmpdir()` (для `applyDiff`, где нужны `flowRules/`,
+    `ClientAction/`, `authorization.csv`);
+  - `test/helpers/docOnDisk.js` — конструктор документа на диске для
+    `loadDocumentForCompare`.
+- **`.gitignore`** — добавлена строка `test/tmp/` (запас на будущие
+  тесты с временными файлами в проекте).
+
+### Технические детали
+
+- **Тесты не требуют VS Code.** Через `mockVscode` заменяется
+  `Module._load` для `require('vscode')`. Все деструктуризации
+  vscode-API при загрузке модуля получают заглушки, но в тестах ни
+  один vscode-метод не вызывается.
+- **Изоляция:** каждый тест `applyDiff` создаёт временную папку через
+  `fs.mkdtempSync` и удаляет её в `finally`. Никаких общих состояний
+  между тестами.
+- **Быстрота:** весь набор (100+ тестов) проходит за **< 300 ms**.
+
+### Известные непокрытые места
+
+- `src/attachments.js`, `src/client-actions.js`, `src/flow-rules.js` —
+  тонкие обёртки над `fs`, покрываются легко при необходимости.
+- `src/compare-apply.js → addTransition` — ветки копирования
+  `flowRules` и `ClientAction` не покрыты (сложность в создании файла
+  в `<otherProductLevel>/flowRules/` — но добавление возможно).
+- Клиентские модули (`routing.js`, `i18n.js`, `ui-i18n.js`,
+  `forms.js`, `forms-other.js` и др.) — требуют jsdom или рефакторинга
+  в pure-модули. План — в `HANDOFF.md`.
 
 ## [0.6.1] - 2026-10-30
 

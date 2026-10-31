@@ -545,7 +545,7 @@ function applyDiff(currentCtx, otherDoc, actions) {
                     result.applied++;
 
                     if (sourceProductLevel) {
-                        const srcRulePath = path.join(sourceProductLevel, 'flowRules', name + '.js');
+                        const srcRulePath = path.join(path.dirname(otherDoc.flowPath), 'flowRules', name + '.js');
                         const dstRulePath = flowRulePath(currentCtx, name);
                         const s = copyFileIfMissing(srcRulePath, dstRulePath);
                         if (s === 'copied') result.touched.flowRules.push(name);

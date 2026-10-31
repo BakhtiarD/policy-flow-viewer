@@ -8,3 +8,5 @@ _check.js
 # локальные логи
 *.log
 npm-debug.log*
+
+test/tmp/

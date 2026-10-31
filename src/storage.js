@@ -772,5 +772,6 @@ module.exports = {
     loadRelationsFromDir, loadAllRelations,
     loadAllDocumentNames, loadAllDocumentTitles,
     invalidateProjectCache,
-    loadDocumentForCompare, listDocumentsForCompare
+    loadDocumentForCompare, listDocumentsForCompare,
+    normalizeSourceDocumentStates
 };

@@ -1,331 +1,398 @@
 # HANDOFF — Adinsure Document Flow Viewer
 
-> Документ для продолжения работы в новом чате. Содержит контекст,
-> который не выводится из кода: цели, решения, договорённости, что
-> сделано и что делать дальше.
-
-## 1. Цель проекта
-
-Расширение VS Code для визуализации и редактирования жизненного цикла
-документов **Adinsure**. Работает с файлами проекта:
-
-- `documentFlow.json` — состояния и переходы;
-- `configuration.json` — акторы и права;
-- `translation/translation.csv` — RU-переводы;
-- `documentFlow.ui.json` — координаты графа;
-- `authorization/authorization.csv` — маппинг ролей;
-- `documentRelation/*` — связанные документы.
-
-Полное описание функционала — в `README.md`. Здесь только то, что
-важно для разработки.
-
-## 2. Стек и окружение
-
-- Node.js 20+, VS Code `^1.75.0`.
-- Сборка: `vsce package` → `.vsix`.
-- Публикация: publisher `BakhtiarD`, репозиторий
-  https://github.com/BakhtiarD/policy-flow-viewer.git
-- Вебвью — ванильный JS (без сборщика), модули в `media/modules/*`
-  через IIFE и глобальный `window.PF`.
-- Граф — свой SVG-рендер + `media/vendor/dagre.min.js`.
-- Текущая версия: **0.2.0** (после рефакторинга вебвью).
-
-## 3. Структура проекта
-
-    extension.js                 — точка входа, регистрация команды, onDidReceiveMessage
-    package.json                 — конфиг расширения (команда policyFlow.showTable)
-    src/                         — backend (Node)
-      csv.js                     — парсинг/сериализация translation.csv, authorization.csv
-      handlers.js                — обработчики сообщений от вебвью
-      html.js                    — сборка HTML вебвью, вставка policyFlowData
-      storage.js                 — loadData, pushRender, writeAll/writeFlow/writeUi/writeAuth/writeConfig
-      transforms.js              — buildActorConfig, registerActorsInFlow, detectFlowName
-      utils.js                   — indexOf для CSV-хедеров и пр.
-    media/                       — frontend (webview)
-      index.html                 — разметка + template-ы для модалок + script src
-      main.css
-      main.js                    — bootstrap (~14 строк): parse policyFlowData → PF.state.setData → init модулей
-      modules/
-        state.js                 — PF.state, PF.app, PF.state.setData(DATA), PF.persistState, acquireVsCodeApi
-        utils.js                 — svgEl, cloneTemplate, showAlert, showConfirm
-        icons.js                 — SVG-иконки
-        relations.js             — getRelationsFor, stateHasRelation
-        routing.js               — маршруты переходов, BASE_STATE_W/H
-        graph-layout.js          — dagre, viewBox, zoom
-        graph-drag.js            — перетаскивание, Ctrl+стрелки → PF.graphDrag
-        graph-render.js          — рендер SVG, выделение, тулбар выделения → PF.render
-        forms.js                 — формы состояний и переходов → PF.forms
-        forms-other.js           — валидатор, связи, авторизация, копирование актора → PF.formsOther
-        toolbar.js               — инициализация тулбара, view mode, авто-раскладка → PF.toolbar
-        table.js                 — рендер таблицы, права, сортировка, collapse/expand → PF.table
-      vendor/
-        dagre.min.js
-
-**Порядок загрузки скриптов** (`media/index.html`, строго такой):
-
-    state → icons → utils → relations → routing → graph-layout → graph-drag
-    → forms → forms-other → graph-render → toolbar → table → main
-
-Зависимости от порядка:
-
-- `table.js` при загрузке деструктурирует `PF.utils` и `PF.relations`
-  → должен грузиться **после** обоих.
-- `main.js` вызывает `PF.table.init()` → должен грузиться **последним**.
-
-## 4. Ключевые решения и почему
-
-- **Один глобальный `window.PF`** — общий namespace для всех модулей.
-  Каждый модуль вешает себя на `PF.<module>` и не лезет в чужие поля.
-- **`PF.app`** — только app-level операции. Сейчас содержит ровно одну
-  функцию — `PF.app.applyViewMode` (регистрируется в `toolbar.js`,
-  вызывается из `forms-other.js` и `main.js`).
-- **IIFE + глобальный PF**, а не ES-модули: вебвью VS Code грузит скрипты
-  как обычные `script`, без модульной системы.
-- **`acquireVsCodeApi()` вызывается один раз** — в `state.js`. Все
-  остальные модули используют `PF.vscode`.
-- **`PF.state.setData(DATA)`** — единая точка инициализации данных.
-  Единственное место, где пишутся `PF.state.DATA / meta / stateDetails /
-  graphData`. `graphData` создаётся как deep-clone:
-  `JSON.parse(JSON.stringify(DATA.graph || { states: [], transitions: [] }))`,
-  чтобы drag-мутации не задевали `DATA.graph`.
-- **Шаблоны модалок** живут в `media/index.html` как `template id="tpl-*"`,
-  клонируются через `PF.utils.cloneTemplate`.
-- **`persistState`** в `PF.vscode.setState()` хранит UI-состояние
-  (сортировка, раскрытые блоки, viewMode, layoutRankDir, показ подписей,
-  позиция тулбара). Данные (DATA/meta/graphData) в persistState **не** кладутся.
-- **Ленивые вызовы между модулями.** Внутри функций модуль обращается
-  к другим через `PF.<module>.<fn>()` (не деструктурирует при загрузке),
-  если только зависимость не гарантирована порядком скриптов.
-
-## 5. Статус рефакторинга
-
-**Рефакторинг вебвью завершён (v0.2.0).** Все запланированные шаги закрыты.
-
-**Сделано:**
-
-- **Шаг 1:** монолитный `media/main.js` разбит на модули. Выделены:
-  `state`, `utils`, `icons`, `relations`, `routing`, `graph-layout`,
-  `graph-drag`, `graph-render`, `forms`, `forms-other`, `toolbar`.
-- **Шаг 2:** создан `media/modules/table.js`. Всё table-хозяйство вынесено
-  из `main.js`: `permKey`, `renderCellGroups`, `makePermSection`,
-  `makePermSectionList`, `renderPerms`, `renderTable`, `applyAllCollapsed`,
-  `updateSortIndicator`, `init`. `toolbar.js` дёргает
-  `PF.table.applyAllCollapsed`. `{{JS_TABLE}}` подключён в `src/html.js`.
-- **Шаг 3:** убраны двойные экспорты форм через `PF.app`. Все вызовы
-  переведены на `PF.forms.*` / `PF.formsOther.*`.
-- **Шаг 3b:** `PF.drag` → `PF.graphDrag`. Блок «Совместимость» с
-  `PF.app.startDrag` и т.п. удалён. Все вызовы в `graph-render.js`
-  переведены на `PF.graphDrag.*`.
-- **Шаг 4:** `PF.state.setData(DATA)` добавлен в `state.js`. `main.js`
-  больше не пишет напрямую в `PF.state.DATA/meta/stateDetails/graphData`.
-
-**Осталось:** — (рефакторинг закрыт)
-
-**Целевой вид `main.js` (текущий):**
-
-    (function () {
-        'use strict';
-
-        const dataEl = document.getElementById('policyFlowData');
-        if (!dataEl) throw new Error('policyFlowData script tag not found');
-        const DATA = JSON.parse(dataEl.textContent);
-
-        PF.state.setData(DATA);
-
-        PF.toolbar.init();
-        PF.table.init();
-        PF.routing.rerouteAll();
-        PF.app.applyViewMode();
-        PF.render.updateSelectionToolbar();
-    })();
-
-**Что осталось в `PF.app` (финальный вид):**
-
-- `PF.app.applyViewMode` — app-level, регистрируется в `toolbar.js`,
-  вызывается из `forms-other.js` и `main.js`.
-
-## 6. Договорённости и конвенции
-
-- Не использовать `PF.app` для экспорта модулей, кроме действительно
-  app-level вещей. Сейчас это ровно `applyViewMode`.
-- Каждый модуль сам себя регистрирует в `PF.<name>`. Обращения —
-  через `PF.<module>.<fn>`, а не через фасад.
-- `PF.vscode.postMessage` — только из вебвью в extension, типы сообщений
-  перечислены в `src/extension.js` → `onDidReceiveMessage`.
-- Все изменения файлов проекта (json/csv) идут через backend:
-  `loadData(ctx)` → мутация → `writeAll/writeUi/writeAuth/writeConfig(ctx)`
-  → `loadData(ctx)` → `pushRender(ctx, panel)`.
-- Ошибки из `handlers.js` показываются через
-  `vscode.window.showErrorMessage` в catch-блоке `onDidReceiveMessage`.
-- **Публичный API расширения и формат файлов проекта не меняются**
-  при рефакторинге вебвью. Ломающие изменения — только с мажорным бампом.
-- При добавлении нового модуля в `media/modules/`:
-  1. создать файл с IIFE-обёрткой `(function () { 'use strict'; ... })();`
-  2. зарегистрировать `PF.<module> = { ... };`
-  3. добавить `<script src="{{JS_<MODULE>}}"></script>` в `media/index.html`
-     **до** `main.js`;
-  4. в `src/html.js` добавить URI и `.replace(/\{\{JS_<MODULE>\}\}/g, ...)`;
-  5. учитывать порядок загрузки (см. §3).
-
-## 7. Известные особенности и подводные камни
-
-- **Кнопка «Перезагрузить из файлов» (`reloadBtn`)** перечитывает файлы
-  **с диска**. Если только что сохранил изменения — reload покажет уже
-  сохранённое. Это не баг, а ожидаемое поведение. Откат
-  несохранённых UI-правок пока не реализован.
-- **`pushRender`** в `storage.js` — ключевое место, которое сериализует
-  данные для вебвью. При изменениях формата DATA нужно править его
-  и `html.js` синхронно.
-- **`PF.state.setData`** должен делать deep-clone графа. Если случайно
-  заменить на присваивание ссылки — drag начнёт мутировать `DATA.graph`,
-  и «сохранённое» состояние поедет в `pushRender` без явного сохранения.
-- **`registerActorsInFlow` / `buildActorConfig`** в `transforms.js` —
-  важны при любых правках акторов и прав.
-- **Dagre** подключается как `script` и доступен как глобальный
-  `dagre`. Проверка на `typeof dagre === 'undefined'` уже есть в
-  `toolbar.autoLayout`.
-- **`PF.table`** инициализируется после `PF.toolbar.init()` в `main.js`.
-  Если поменять порядок — убедиться, что `toolbar.init()` не дёргает
-  `PF.table.renderTable()` до того, как `table.js` загружен (сейчас
-  не дёргает — init только вешает обработчики).
-
-## 8. Открытые вопросы
-
-- Стоит ли переводить вебвью на ES-модули (есть ли поддержка в текущей
-  версии VS Code) или оставить IIFE? Пока оставлено IIFE — работает,
-  не требует сборщика.
-- Нужен ли `PF.state` дополнительный метод `reset()` для сброса UI-состояния
-  при reload? Сейчас reload делает полный re-render с диска.
-- Нужны ли unit-тесты на `src/transforms.js` (buildActorConfig,
-  registerActorsInFlow)? Сейчас тестов нет.
-
-## 9. Как продолжить в новом чате
-
-Стартовое сообщение:
-
-    Продолжаем проект Adinsure Document Flow Viewer.
-    Ссылка: https://github.com/BakhtiarD/policy-flow-viewer.git
-    Текущая версия: 0.2.0 (рефакторинг вебвью завершён).
-    Структура: media/main.js — тонкий bootstrap, вся логика в media/modules/*.
-
-    Вот HANDOFF: <вставить содержимое файла>
-    Вот ключевые файлы на текущий момент: <main.js, state.js, ...>
-
-    Задача: <что делаем сейчас>
-
-## 10. Полезные команды
-
-    # посмотреть порядок загрузки скриптов вебвью
-    grep -n "<script" media/index.html
-    grep -n "JS_\|jsUri\|jsTableUri" src/html.js
-
-    # найти все вызовы PF.app (кандидаты на чистку)
-    grep -rn "PF\.app\." media/
-
-    # убедиться, что старые namespace не остались
-    grep -rn "PF\.drag\." media/                  # ожидаем: пусто
-    grep -rn "PF\.app\.applyAllCollapsed" media/  # ожидаем: пусто
-
-    # все PF.* экспорты модулей
-    grep -rn "^  PF\." media/modules/
-
-    # найти все postMessage типы
-    grep -rn "postMessage({" media/
-    grep -n "msg.type ===" src/extension.js
-
-    # собрать vsix
-    vsce package
-    code --uninstall-extension BakhtiarD.adinsure-document-flow-viewer
-    code --install-extension adinsure-document-flow-viewer-X.Y.Z.vsix
-
-## 11. История шагов рефакторинга (закрыто в 0.2.0)
-
-### Шаг 1 — разбиение `media/main.js` на модули
-
-Монолитный `main.js` (~700 строк) разбит на 11 модулей в `media/modules/*`
-(IIFE, общий `window.PF`). `main.js` стал тонким bootstrap'ом.
-
-### Шаг 2 — вынос таблицы
-
-Создан `media/modules/table.js` со всем, что касается таблицы состояний
-и прав. `toolbar.js` дёргает `PF.table.applyAllCollapsed`. `{{JS_TABLE}}`
-подключён в `src/html.js` и `media/index.html`.
-
-### Шаг 3 — уборка двойных экспортов форм
-
-Формы экспортировались одновременно как `PF.app.openX` и `PF.forms.openX`.
-Убраны все `PF.app.*`-дубли. Все вызовы переведены на `PF.forms.*` /
-`PF.formsOther.*`.
-
-### Шаг 3b — вынос drag-and-drop из `PF.app`
-
-Функции `startDrag`, `startHandleDrag`, `startEndPointDrag`,
-`startSegmentDrag`, `startTransitionDraw`, `removeWaypoint`,
-`attachGraphSvgHandlers`, `attachGraphKeydown` жили в `PF.app` через
-блок «Совместимость» в `graph-drag.js`. Блок удалён, `PF.drag`
-переименован в `PF.graphDrag`, все вызовы в `graph-render.js`
-переведены на `PF.graphDrag.*`.
-
-### Шаг 4 — `PF.state.setData(DATA)`
-
-Единая точка инициализации данных в вебвью. `main.js` больше не пишет
-напрямую в `PF.state.DATA / meta / stateDetails / graphData`. Логика
-deep-clone графа перенесена в `setData`.
-
-## 12. Маршруты
-
-Решения по дизайну (согласовано)
-Поиск route по переходу — сканируем route/entity/*/configuration.json, матчим по condition.documentStates. Если найдено несколько — показываем список с выбором. В списке видно, к каким состояниям привязан каждый route (чтобы выбрать правильный).
-
-Тип синка «standard» — конкретно documentTransition (транзакция/переход документа). Других стандартных типов пока не рассматриваем. Селект типа: ref / documentTransition / inline (document) / database.
-
-Куда добавлять новый синк — пользователь выбирает: sinks, completionSinks или initialSinks.
-
-mapping.js / apply.js при создании — создаём пустышки по базовому шаблону (см. выше), без логики:
-
-mapping.js: module.exports = function mapping(sinkInput, sinkExchange) { return sinkInput; };
-
-apply.js: пустышка-заглушка с комментарием.
-
-Input/output-схемы — только warning в UI (не блокируем сохранение). Показываем «не покрыто в mapping» и «не возвращается в mapping» рядом со схемами.
-
-Rename/delete перехода — route-файлы не трогаем автоматически. Показываем информационное сообщение «остаются маршруты-сироты», чтобы пользователь осознанно почистил вручную. (Отличие от flowRules из §11, где авто-rename/delete.)
-
-Что ещё нужно решить перед кодом
-UI открытия route-списка. Отдельная команда в тулбаре («Маршруты продукта» — все routes из route/entity/*) или из контекста перехода («Открыть routes для этого перехода»)? Скорее оба.
-
-Формат панели route. Модалка в стиле остальных, отдельная webview-панель, или отдельная вкладка в существующей панели? Если модалка — что показываем на верхнем уровне: таблицы Sinks / Completion Sinks / Initial Sinks + Condition?
-
-Создание apply.js. Всегда вместе с mapping.js или по чекбоксу в форме? (По умолчанию — по чекбоксу, чтобы не плодить пустышки.)
-
-Формат ввода для database — таблицы задаются текстом (по строке на таблицу) или как список с полями? MVP: текстом, потом улучшим.
-
-Валидация имён синков. ^[A-Za-z][A-Za-z0-9_]*$? Совпадает ли с реальностью (в примерах HalykBusSetContractRescinding — ок).
-
-transitionName в шаблоне documentTransition — откуда берётся? Из контекста перехода (если зашли из перехода) или запрашивается в форме?
-
-Файлы, которые понадобятся в работе
-src/storage.js — findProductLevel для поиска route/ и document/; loadDocumentNames уже есть.
-
-src/handlers.js — новые хендлеры: handleOpenRoute, handleAddSink, handleOpenSinkFile, handleCreateSinkFiles.
-
-src/routes.js (новый) — по аналогии с src/flow-rules.js: чтение/запись route-конфигов, поиск по condition.documentStates, поиск sinkGroup в dependencies, чтение inputSchema.json / outputSchema.json, шаблоны.
-
-media/modules/routes.js (новый) — UI route: список, форма добавления синка, просмотр схем.
-
-media/index.html — новые <template> для модалки route.
-
-src/html.js + media/index.html — подключение нового модуля (см. конвенцию в §6).
-
-extension.js — новые типы сообщений: openRoutesList, openRouteConfig, addSink, openSinkFile, createSinkFiles.
-
-Следующие шаги
-Работа не на сегодня. При следующем заходе:
-
-Согласовать UI-форму (модалка vs панель, layout).
-
-Собрать реальные примеры структуры route/entity/* и sinkGroup/* (хотя бы 2–3 разных).
-
-Реализовать src/routes.js (бэкенд) → handlers.js → extension.js → media/modules/routes.js + шаблон в index.html.
-
-Обновить CHANGELOG до 0.4.0.
+Актуально для **0.7.0**. Документ описывает: текущее состояние, что
+покрыто тестами, что осталось, какие улучшения запланированы. Для
+новой сессии — читать целиком, потом идти в раздел, соответствующий
+задаче.
+
+---
+
+## Текущее состояние
+
+**Версия:** 0.7.0
+**Стек:** VS Code extension (backend — Node.js в `src/*`, frontend —
+vanilla JS без сборщика в `media/modules/*` через IIFE и глобальный
+`window.PF`).
+**Тесты:** `node --test` (Node.js 20+), без внешних зависимостей,
+100+ зелёных.
+**Языки:**
+- интерфейс — `adinsureDocFlow.uiLanguage` (`auto` / `ru-RU` / `en-US`),
+  словари в `media/locales/*.js` и `src/locales/*.js`;
+- данные — селектор `🌐` в тулбаре, колонки `Translation_<lang>` из
+  `translation.csv`.
+
+**Уже реализовано (0.6.x):**
+- Мультиязычность интерфейса и данных (независимые механизмы);
+- Сравнение двух документов с apply (add/change/remove);
+- Ручки-полоски на всех сегментах переходов, перемещение стрелками;
+- Табличный вид прав на вложения;
+- Исправления по `data.csv` AttachmentType (multi-column);
+- `src/compare.js` переименован в `src/compare-diff.js` (чтобы не
+  путать с клиентским `media/modules/compare.js`).
+
+**Реализовано в 0.7.0:**
+- Тестовая инфраструктура `test/`, покрытие серверной логики;
+- `test/helpers/mockVscode.js` — мок для `require('vscode')`.
+
+---
+
+## Покрытие тестами
+
+### Что покрыто (0.7.0)
+
+| Файл | Функции | Тестов |
+|---|---|---|
+| `src/utils.js` | `stripBom`, `indexOf`, `escapeHtml` | 14 |
+| `src/csv.js` | `parseCsv`, `serializeCsv`, roundtrip | 19 |
+| `src/transforms.js` | `buildTranslations` | 15 |
+| `src/compare-diff.js` | `buildDiff` | 20 |
+| `src/compare-apply.js` | `applyDiff` | 28+ |
+| `src/storage.js` | `normalizeSourceDocumentStates`, `loadDocumentForCompare` | 21 |
+
+Прогон: `npm test`. Весь набор — **< 300 ms**.
+
+### Хелперы (в `test/helpers/`)
+
+- **`mockVscode.js`** — подменяет `Module._load` для `require('vscode')`.
+  Нужен для любого теста, где модуль на верхнем уровне тянет
+  `src/storage.js` (а тот читает `vscode`). Подключать **первой строкой**
+  тестового файла.
+- **`makeCsv.js`** — `makeCsv(header, rowsByName)` — конструктор CSV
+  в памяти.
+- **`makeDoc.js`** — `makeDoc(opts)` → голый объект `{ flowPath,
+  docName, flowName, flow, config, csv }`. **Не** пишет на диск,
+  возвращает чистый объект для `buildDiff`.
+- **`makeCtx.js`** — `makeCtx(opts)` → `{ ctx, cleanup, tmpRoot }`.
+  Создаёт реальную структуру папок (`document/<name>/`, `flowRules/`,
+  `UI/ClientAction/`, `authorization/`) в `os.tmpdir()`. Нужен для
+  `applyDiff`, где `removeState`/`addTransition` пишут файлы.
+  Обязателен `cleanup()` в `finally`.
+- **`docOnDisk.js`** — `docOnDisk(opts)` → `{ flowPath, configPath,
+  transPath, docName, tmpRoot, cleanup }`. Создаёт реальные файлы
+  (`documentFlow.json`, `configuration.json`,
+  `translation/translation.csv`, опционально `documentFlow.ui.json` и
+  `authorization.csv`). Для `loadDocumentForCompare`. Обязателен
+  `cleanup()`.
+
+### Что осталось покрыть
+
+**Сервер (приоритет 1 — легко и полезно):**
+
+- **`src/attachments.js`** — `loadAttachmentType`, `readDataCsvRaw`,
+  `saveAttachmentCodes`, `addAttachmentType`, `removeAttachmentType`,
+  `pickTrCol`. Чистые функции над `fs` + `csv`. Понадобится
+  `docOnDisk`-подобный хелпер для справочника AttachmentType
+  (`data.csv` + `translation/translation.csv`) — или расширить
+  `makeCtx` параметром `attachmentDir`.
+- **`src/client-actions.js`** — `clientActionPath`,
+  `writeClientAction`, `renameClientAction`, `findClientActionInProject`.
+- **`src/flow-rules.js`** — `writeFlowRule`, `renameFlowRule`,
+  `deleteFlowRule`.
+- **`src/compare-apply.js → addTransition`** — ветки копирования
+  `flowRules` и `ClientAction`. Нужно создать `flowRules/<name>.js` и
+  `UI/ClientAction/<action>.js` в `otherDoc.productLevel` и проверить,
+  что `copyFileIfMissing` их скопировал. После фикса пути
+  (`path.dirname(otherDoc.flowPath) + '/flowRules'`) — тривиально.
+- **`src/compare-apply.js → buildDefaultAttachmentRestrictions`** — не
+  экспортируется, но если экспортировать, покрыть режимы
+  `'read-all'` / `'by-template'`.
+
+**Клиент (приоритет 2 — сложно, требует jsdom или рефакторинга):**
+
+- **`media/modules/routing.js`** — самый ценный клиентский тест.
+  Логика `chooseEdge`, `chooseEdgePair`, `routeBetween`,
+  `optimizeTransitions`, `alignTransitions` — сложная, ломается
+  регулярно. **Подход:** вынести чистые функции в отдельный модуль
+  без DOM-зависимостей (`routing-core.js`) или рефакторить существующий
+  так, чтобы `PF.routing` не зависел от `document`. Тогда тесты
+  становятся тривиальными.
+- **`media/modules/i18n.js`** — `PF.i18n.tr`, `label`, `setLang`,
+  `init`. Зависит от `PF.state` и `document` (селектор). Можно
+  мокать `PF.state` через `global.PF = { state: {...} }` и
+  использовать `vm.runInNewContext`.
+- **`media/modules/ui-i18n.js`** — то же + `Intl.PluralRules`
+  (встроенный в Node, работает).
+- **`media/modules/graph-render.js`**, **`forms.js`**,
+  **`forms-other.js`**, **`table.js`**, **`actors.js`**,
+  **`matrix.js`**, **`legend.js`**, **`compare.js`**,
+  **`toolbar.js`** — DOM-тяжёлые, требуют jsdom. Покрытие — точечное:
+  - `renderTable` — что DOM получает ожидаемые элементы;
+  - `computeRelated` (в graph-render) — что подсветка правильная;
+  - `validateFlow` (в forms-other) — что валидатор ловит ожидаемые
+    проблемы;
+  - `openDiff` (в compare) — что diff-секции строятся.
+
+**Три подхода для клиентских тестов:**
+
+1. **jsdom** — самый простой путь, `npm install --save-dev jsdom`.
+   Плюс: работает почти всё как в браузере. Минус: +1 зависимость,
+   +200 MB node_modules. Пример:
+
+   ```js
+   const { JSDOM } = require('jsdom');
+   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+   global.window = dom.window;
+   global.document = dom.window.document;
+   // далее require('../media/modules/routing.js') — но нужен PF.state
+2. vm.runInNewContext — Node.js встроенный. Плюс: без
+зависимостей. Минус: нужно вручную собирать sandbox-контекст
+(window, document, PF, Intl) и загружать код через vm.runInContext.
+Годится для i18n.js, ui-i18n.js, routing.js (если убрать
+DOM-зависимость).
+
+Рефакторинг в pure-модули. Вынести чистую логику из IIFE в
+отдельный файл, экспортировать через module.exports (не через
+window.PF), а обёртку PF.routing = require('./routing-core') —
+в IIFE. Плюс: тестируется как обычный серверный код, без jsdom.
+Минус: рефакторинг существующих файлов.
+
+Моя рекомендация:
+
+routing.js — рефакторинг в routing-core.js + IIFE-обёртка.
+
+i18n.js / ui-i18n.js — vm.runInNewContext (мало зависимостей
+от DOM).
+
+graph-render.js, table.js, compare.js и др. — jsdom, только
+если нужно тестировать DOM-рендеринг.
+
+Улучшения (приоритизированные)
+Оценка: S = часы, M = 1-2 дня, L = 3+ дня.
+
+Приоритет 1 — Надёжность и целостность данных
+1.1. Атомарная запись с бэкапом (M)
+writeAll пишет напрямую через fs.writeFileSync. Падение в момент
+записи → полупустой файл. Решение: писать в <file>.tmp, затем
+fs.renameSync (atomic на уровне FS). Хранить 1-2 последние версии в
+.documentFlow.bak/. При старте — если .tmp есть, но не
+завершён — предложить восстановление.
+Файлы: src/storage.js (writeAll, writeFlow, writeConfig,
+writeUi, writeAuth).
+
+1.2. Undo/Redo (L)
+Сейчас любое удаление необратимо. Нужна история в памяти (ring
+buffer из 20-30 снапшотов {flow, config, csv, ui, auth} перед
+каждым изменением), Ctrl+Z/Ctrl+Y в webview. Не сохранять между
+сессиями. Кнопка ↺ в тулбаре с counter.
+Файлы: media/modules/main.js (инициализация), src/extension.js
+(dispatch), src/handlers.js (обёртка withHistory), новая команда
+undo/redo.
+
+1.3. Транзакции в applyDiff (M)
+applyDiff может применить половину действий, потом упасть.
+Пользователь видит Actions applied: 5, но не знает, что реально
+записалось. Решение: снапшот перед накатом, writeAll одним вызовом,
+при ошибке — восстановить снапшот, вернуть { ok: false }.
+Файлы: src/handlers.js → handleApplyCompareDocuments.
+
+1.4. Валидация initialState при apply (S)
+changeInitialState не проверяет, что значение существует в текущем
+документе. Добавить проверку:
+
+js
+if (!flow.states.some(s => s.name === value)) {
+    result.warnings.push(uiI18n.t('warn.stateNotFound', { name: value }));
+    continue;
+}
+Файлы: src/compare-apply.js.
+
+1.5. File watcher для внешних изменений (M)
+Если пользователь параллельно редактирует configuration.json в VS
+Code или git pull принёс изменения — расширение не узнаёт до Reload.
+Решение: vscode.workspace.createFileSystemWatcher на ключевые файлы,
+invalidateProjectCache + loadData + pushRender при изменении.
+При наличии открытых форм с несохранёнными правками — предупредить.
+Файлы: src/extension.js (activate), src/storage.js.
+
+1.6. Проверка flowRules/*.js на синтаксис (S)
+После writeFlowRule/renameFlowRule — new Function(content) в
+try/catch. Если синтаксис битый — showWarningMessage с номером
+строки (используя require('vm').Script для получения позиции).
+Файлы: src/flow-rules.js (writeFlowRule, renameFlowRule).
+
+Приоритет 2 — UX
+2.1. Поиск / фильтр (M)
+В большой таблице (50+ состояний) и в графе — не найти нужное.
+Ctrl+F в webview → мини-поиск в шапке. В таблице — фильтр по
+имени / актору / переходу. В графе — подсветка совпадений (не
+скрывать остальные, а ослаблять opacity). В матрице — то же.
+Файлы: media/index.html (поле), media/main.css (стили),
+media/modules/table.js, media/modules/graph-render.js,
+media/modules/matrix.js.
+
+2.2. Focus mode в графе (S)
+Для 30+ состояний — режим «покажи только это состояние и соседей».
+F на выделенном → скрыть остальные. Повторный F → 2-hop.
+Escape → вернуть всё. Визуальный фильтр, ui.json не меняется.
+Файлы: media/modules/graph-render.js, media/modules/graph-drag.js.
+
+2.3. Экспорт (M)
+
+Граф → SVG/PNG (serializeToString + canvas);
+
+Таблица → CSV;
+
+Diff → markdown (для code review);
+
+Всё через vscode.window.showSaveDialog.
+Файлы: src/extension.js (dispatch), src/handlers.js
+(handleExport*), media/modules/toolbar.js (кнопки).
+
+2.4. Preview перевода при редактировании (S)
+В форме редактирования состояния/перехода — рядом с полем перевода
+маленький SVG-превью «как будет выглядеть» (прямоугольник + 2 строки).
+Обновляется при вводе.
+Файлы: media/modules/forms.js, media/index.html (шаблон),
+media/main.css.
+
+2.5. Множественные открытые документы (L)
+currentPanel / currentCtx — глобальные, второй документ закрывает
+первый. Заменить на Map<flowPath, {panel, ctx}>, не закрывать старый.
+Файлы: src/extension.js.
+
+2.6. Мультивыделение по критерию (S)
+ПКМ по состоянию → контекстное меню: «Выделить 1-hop соседей»,
+«Выделить все состояния этого актора», «Выделить все терминальные»,
+«Выделить все недостижимые» (из валидатора).
+Файлы: media/modules/graph-render.js.
+
+2.7. Закрепление позиций при auto-layout (S)
+«Зафиксировать текущую позицию этого состояния, остальные расставить
+вокруг». Флаг в documentFlow.ui.json. autoLayout учитывает pin.
+Файлы: media/modules/toolbar.js, media/modules/graph-render.js,
+src/handlers.js → handleSaveGraph.
+
+Приоритет 3 — Производительность
+3.1. Инкрементальный рендер графа (M)
+renderGraph сносит svg.innerHTML = '' каждый раз. При 100+
+состояниях — заметно. При изменении одного перехода/состояния
+обновлять только его g.transition / g.state. Полный rebuild —
+только при loadData или смене viewMode. Выигрыш 5-10x на типичных
+операциях.
+Файлы: media/modules/graph-render.js.
+
+3.2. Кэш rerouteAll (S)
+rerouteAll вызывается после каждого drag. Для 50 состояний —
+50 × routeBetween. Кэш по ключу
+(fromName, fromEdge, toName, toEdge).
+Файлы: media/modules/routing.js.
+
+3.3. loadData не перечитывает с диска (S)
+write* только что записал — не читать обратно. Держать в памяти,
+мутировать.
+Файлы: src/handlers.js (не вызывать loadData после writeAll).
+
+3.4. optimizeTransitions через Worker (M)
+Для 100 состояний — миллионы routeBetween. Worker в webview
+или ограничение перебора.
+Файлы: media/modules/routing.js, новый media/modules/routing-worker.js.
+
+Приоритет 4 — Тестируемость
+4.1. Клиентские тесты (L) — см. выше в разделе «Что осталось».
+
+4.2. Проверка полноты словарей (S)
+Скрипт scripts/check-locales.js — сравнивает набор ключей ru-RU
+и en-US (webview и server). Exit code ≠ 0 при расхождении.
+Запускается перед vsce package.
+Файлы: новый scripts/check-locales.js, package.json (script
+pretest или отдельный).
+
+Приоритет 5 — Архитектура
+5.1. Разделить ctx на read-only и write (M)
+Сейчас ctx.flow, ctx.config, ctx.csv мутируются в каждом
+handler'е. Легко забыть мутировать одно при изменении другого.
+Handler возвращает Patch ({ flow?, config?, csv?, ui?, auth? }),
+централизованный applyPatch(ctx, patch) знает, что записывать.
+Снимет целый класс багов.
+Файлы: src/handlers.js (все handle*), новый
+src/ctx-patch.js.
+
+5.2. Единый handle* интерфейс (S)
+Сейчас handlers — (ctx, panel, payload) или (ctx, transitionName, actionName), по-разному. Единый контракт:
+async (ctx, payload) → { ok: true, data } | { ok: false, code, message }.
+Все сообщения пользователю — на клиенте.
+Файлы: src/handlers.js, src/extension.js.
+
+5.3. Заменить findFileByName (S)
+Ищет рекурсивно по всей папке, останавливаясь на node_modules.
+Может найти не тот файл. Искать по стандартному пути
+<root>/document/<DocName>/documentFlow.json, а findFileByName —
+только fallback.
+Файлы: src/storage.js.
+
+Приоритет 6 — Новые фичи
+6.1. Diff между двумя состояниями (M)
+Выделил 2 состояния → кнопка «Сравнить состояния» в граф-тулбаре.
+Diff-панель по тому же шаблону, что сравнение документов.
+Файлы: media/modules/compare.js, src/compare-diff.js
+(новая функция buildStatesDiff).
+
+6.2. Импорт/экспорт состояний (M)
+Экспорт: code,ru,en,isTerminal,actors,outgoing → CSV. Импорт:
+обратный парсинг с валидацией.
+Файлы: media/modules/forms-other.js, src/handlers.js.
+
+6.3. Аудит (S)
+Если проект в git — брать git blame по documentFlow.json /
+configuration.json. Иконка «история» на состоянии — последние 10
+коммитов.
+Файлы: src/git.js (новый), media/modules/forms.js.
+
+6.4. Сравнение с шаблоном (M)
+Кнопка «Создать по шаблону» в генераторе каркаса. Выбираешь папку
+образца → применяется сравнение → всё добавляется автоматически.
+Файлы: media/modules/forms-other.js,
+src/handlers.js → handleGenerateFlow.
+
+6.5. Проверка flowRules содержимого (M)
+Загрузить flowRules/<code>.js в vm (sandbox). Проверить:
+экспортирует функцию, arity ≥ 1, базовый вызов fn({}) не падает.
+Предупреждение в валидаторе.
+Файлы: media/modules/forms-other.js → validateFlow,
+src/flow-rules.js.
+
+Договорённости по стилю работы
+Правки в существующем коде — diff. Якорь + заменяемый блок,
+не полный файл, если меняется 1-5 строк.
+
+Полный файл — только если новый или переписывается целиком.
+
+Не более 3 файлов за раз в одном сообщении.
+
+Сначала дослушать, потом код. Если запрос неоднозначен —
+переспросить.
+
+Ссылки на прошлые сообщения — только если правка действительно
+была дана. Не «как в прошлом сообщении», если её не было.
+
+Локализация: все пользовательские строки — через PF.ui.t
+(клиент) или uiI18n.t (сервер). Тех. имена полей JSON не
+переводятся.
+
+Тесты: новые функции — с тестами; баг-фиксы — с regression-
+тестом.
+
+Namespace: клиент — window.PF.*, сервер — module.exports.
+
+IIFE для клиентских модулей: (function () { 'use strict'; ... })();
+
+Известные баги и компромиссы
+addTransition + copyFileIfMissing — путь к flowRules
+в sourceProductLevel может быть неверным, если productLevel —
+это папка с document/, а flowRules/ лежит рядом с
+documentFlow.json. Проверить и при необходимости заменить на
+path.dirname(otherDoc.flowPath) + '/flowRules'.
+
+changeActorAttachmentPerms — если актор не существует, делает
+continue в warnings, но не создаёт. Правильно ли это — открытый
+вопрос.
+
+compare-apply.js → removeState — каскадно удаляет flowRules
+через deleteFlowRule, но не удаляет ClientAction, если они были
+привязаны к переходам этого состояния. Потенциальная утечка файлов.
+
+media/modules/routing.js — самая сложная часть клиента,
+покрыта тестами только вручную.
+
+optimizeTransitions — при больших графах может работать 1-2
+секунды. Не оптимизирован.

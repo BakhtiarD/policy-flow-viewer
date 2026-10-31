@@ -329,6 +329,29 @@ Then `Ctrl+Shift+P → Developer: Reload Window`.
 - Data translations — `translation.csv` columns `Translation_<lang>`.
   No registration required; the extension discovers them automatically.
 
+### Testing
+
+Tests use the built-in Node.js test runner (`node --test`), no external
+dependencies:
+
+    npm test
+
+Coverage (as of 0.7.0):
+
+- `src/utils.js`, `src/csv.js` — primitives and parsing;
+- `src/transforms.js → buildTranslations` — all language column variants;
+- `src/compare-diff.js → buildDiff` — document diff;
+- `src/compare-apply.js → applyDiff` — apply selected actions;
+- `src/storage.js` — `normalizeSourceDocumentStates`,
+  `loadDocumentForCompare`.
+
+Server modules that require `vscode` are loaded in tests via
+`test/helpers/mockVscode.js` (patches `Module._load`).
+
+Not yet covered: client-side modules in `media/modules/*` (routing,
+forms, i18n), plus `attachments.js`, `client-actions.js`, `flow-rules.js`.
+See `HANDOFF.md` for the plan.
+
 ## License
 
 MIT.
