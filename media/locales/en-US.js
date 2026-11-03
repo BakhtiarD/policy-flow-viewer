@@ -599,4 +599,12 @@ window.PF_UI_LOCALES['en-US'] = {
     'initialState.label': 'Initial',
     'initialState.none': '— not set —',
     'initialState.tooltip': 'Initial document state (initialState in documentFlow.json)',
+
+    // ============ undo / redo ============
+    'history.undo': 'Undo',
+    'history.redo': 'Redo',
+    'history.undo.tooltip': 'Undo: {label}',
+    'history.redo.tooltip': 'Redo: {label}',
+    'history.undo.hint': 'Ctrl+Z',
+    'history.redo.hint': 'Ctrl+Y',
 };

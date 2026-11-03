@@ -34,7 +34,8 @@
         selectedTransitions: new Set(),
         focusedSegment: null,   // { transitionName, segIdx } | null
         draftTransition: null,
-        lastContextMenuBlockUntil: 0
+        lastContextMenuBlockUntil: 0,
+        historyState: null      // { canUndo, canRedo, undoLabel, redoLabel } | null
     };
 
     PF.state.setData = function (DATA) {
@@ -43,6 +44,9 @@
         PF.state.stateDetails = DATA.stateDetails;
         // graphData — отдельная копия, чтобы drag/reroute не мутировал DATA.graph
         PF.state.graphData = JSON.parse(JSON.stringify(DATA.graph || { states: [], transitions: [] }));
+        // Состояние undo/redo — приезжает в DATA (не postMessage-ом),
+        // потому что pushRender пересоздаёт iframe.
+        PF.state.historyState = DATA.historyState || null;
         if (PF.i18n && PF.i18n.init) {
             PF.i18n.init(
                 (DATA.meta && DATA.meta.languages) || [],

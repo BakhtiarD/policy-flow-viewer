@@ -292,6 +292,35 @@
         if (!cur) empty.selected = true;
     }
 
+    function updateHistoryButtons(state) {
+        const s = state || { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null };
+        PF.state.historyState = s;
+
+        const undoBtn = document.getElementById('undoBtn');
+        if (undoBtn) {
+            undoBtn.disabled = !s.canUndo;
+            if (s.canUndo) {
+                undoBtn.title = s.undoLabel
+                    ? PF.ui.t('history.undo.tooltip', { label: s.undoLabel })
+                    : PF.ui.t('history.undo');
+            } else {
+                undoBtn.title = PF.ui.t('history.undo');
+            }
+        }
+
+        const redoBtn = document.getElementById('redoBtn');
+        if (redoBtn) {
+            redoBtn.disabled = !s.canRedo;
+            if (s.canRedo) {
+                redoBtn.title = s.redoLabel
+                    ? PF.ui.t('history.redo.tooltip', { label: s.redoLabel })
+                    : PF.ui.t('history.redo');
+            } else {
+                redoBtn.title = PF.ui.t('history.redo');
+            }
+        }
+    }
+
     /* ============================================================
      * ИНИЦИАЛИЗАЦИЯ (привязка всех кнопок тулбара)
      * ============================================================ */
@@ -304,6 +333,33 @@
         document.getElementById('reloadBtn').addEventListener('click', () => {
             PF.vscode.postMessage({ type: 'reload' })
         });
+
+        const undoBtn = document.getElementById('undoBtn');
+        if (undoBtn) {
+            undoBtn.addEventListener('click', () => {
+                if (!PF.state.historyState || !PF.state.historyState.canUndo) return;
+                PF.vscode.postMessage({ type: 'undo' });
+            });
+        }
+        const redoBtn = document.getElementById('redoBtn');
+        if (redoBtn) {
+            redoBtn.addEventListener('click', () => {
+                if (!PF.state.historyState || !PF.state.historyState.canRedo) return;
+                PF.vscode.postMessage({ type: 'redo' });
+            });
+        }
+
+        // Состояние истории приходит от extension host:
+        //   - при первом рендере (сразу после openWebviewPanel),
+        //   - после каждой мутирующей операции,
+        //   - после undo/redo,
+        //   - после reload.
+        window.addEventListener('message', (ev) => {
+            const msg = ev.data;
+            if (!msg || msg.type !== 'historyState') return;
+            updateHistoryButtons(msg.state);
+        });
+
         document.getElementById('collapseAllBtn').addEventListener('click',
             () => PF.table.applyAllCollapsed(true));
         document.getElementById('expandAllBtn').addEventListener('click',
@@ -547,6 +603,7 @@
         updateLayoutDirBtn,
         updateLabelsToggleBtn,
         updateInitialStateSelect,
+        updateHistoryButtons,
         autoLayout,
         applyViewMode,
         init,

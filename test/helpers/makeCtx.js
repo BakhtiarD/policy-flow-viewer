@@ -15,12 +15,14 @@ function makeCtx(opts) {
     const flowPath = path.join(docDir, 'documentFlow.json');
     const configPath = path.join(docDir, 'configuration.json');
     const transPath = path.join(docDir, 'translation', 'translation.csv');
+    const uiPath = path.join(docDir, 'documentFlow.ui.json');
     fs.mkdirSync(path.dirname(transPath), { recursive: true });
 
     const ctx = {
         flowPath,
         configPath,
         transPath,
+        uiPath,
         productLevel: tmpRoot,
         docName,
         flowName: o.flowName || (docName + 'Flow'),

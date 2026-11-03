@@ -22,6 +22,39 @@ const {
 } = require('./attachments');
 const { applyDiff } = require('./compare-apply');
 
+// Собирает actionToRunBefore из набора переходов.
+function collectActionsFromTransitions(transitions) {
+    const out = new Set();
+    for (const t of (transitions || [])) {
+        if (t && typeof t.actionToRunBefore === 'string' && t.actionToRunBefore.trim()) {
+            out.add(t.actionToRunBefore.trim());
+        }
+    }
+    return out;
+}
+
+// Удаляет ClientAction-файлы, которые больше не используются ни одним
+// переходом в текущем документе. Вызывается после удаления переходов
+// (или состояний, вместе с которыми удаляются переходы).
+//
+// Не трогает файлы, на которые ссылаются другие переходы.
+// Не трогает файлы из других пакетов (findClientActionInProject) —
+// clientActionPath(ctx, action) смотрит только текущий документ.
+function deleteOrphanClientActions(ctx, candidateActions) {
+    if (!candidateActions || !candidateActions.size) return;
+    const stillUsed = collectActionsFromTransitions(ctx.flow.transitions || []);
+    for (const action of candidateActions) {
+        if (stillUsed.has(action)) continue;
+        const p = clientActionPath(ctx, action);
+        if (!fs.existsSync(p)) continue;
+        try {
+            fs.unlinkSync(p);
+        } catch (e) {
+            console.warn('[clientAction auto-delete] failed:', action, e.message);
+        }
+    }
+}
+
 /* ---------- toggle isTerminal ---------- */
 async function handleToggleTerminal(ctx, panel, stateName, value) {
     const s = (ctx.flow.states || []).find(x => x.name === stateName);
@@ -37,9 +70,10 @@ async function handleToggleTerminal(ctx, panel, stateName, value) {
 async function handleDeleteState(ctx, panel, stateName) {
     const { flow, config, csv } = ctx;
 
-    const removedTransitions = (flow.transitions || [])
-        .filter(t => t.from === stateName || t.to === stateName)
-        .map(t => t.name);
+    const involvingTransitions = (flow.transitions || [])
+        .filter(t => t.from === stateName || t.to === stateName);
+    const removedTransitions = involvingTransitions.map(t => t.name);
+    const candidateActions = collectActionsFromTransitions(involvingTransitions);
 
     for (const n of removedTransitions) {
         try { deleteFlowRule(ctx, n); }
@@ -83,6 +117,8 @@ async function handleDeleteState(ctx, panel, stateName) {
         }
         return true;
     });
+
+    deleteOrphanClientActions(ctx, candidateActions);
 
     writeAll(ctx);
     writeUi(ctx);
@@ -187,6 +223,11 @@ async function handleEditState(ctx, panel, payload) {
         outgoingTransitions.filter(t => t.originalName).map(t => t.originalName)
     );
     const removedNames = oldNames.filter(n => !keptOriginalNames.has(n));
+
+    // Собираем actionToRunBefore снимаемых переходов ДО их удаления.
+    const candidateActions = collectActionsFromTransitions(
+        oldOutgoing.filter(t => removedNames.includes(t.name))
+    );
 
     const renameMap = {};
     for (const t of outgoingTransitions) {
@@ -313,6 +354,12 @@ async function handleEditState(ctx, panel, payload) {
             }
             return true;
         });
+    }
+
+    // Клиентские экшены, ставшие «сиротами» после снятия переходов.
+    // Вызывается до writeAll, чтобы файл удалился в этой же транзакции.
+    if (removedNames.length) {
+        deleteOrphanClientActions(ctx, candidateActions);
     }
 
     /* 5. Переименование переходов */
@@ -680,6 +727,12 @@ async function handleDeleteTransitions(ctx, panel, names) {
 
     const { flow, config, csv } = ctx;
 
+    // Собираем actionToRunBefore удаляемых переходов ДО удаления —
+    // после удаления их уже не найти.
+    const candidateActions = collectActionsFromTransitions(
+        (flow.transitions || []).filter(t => list.includes(t.name))
+    );
+
     flow.transitions = (flow.transitions || []).filter(t => !list.includes(t.name));
 
     for (const s of (config.states || [])) {
@@ -712,6 +765,8 @@ async function handleDeleteTransitions(ctx, panel, names) {
         try { deleteFlowRule(ctx, n); }
         catch (e) { console.warn('flowRules delete failed:', n, e.message); }
     }
+
+    deleteOrphanClientActions(ctx, candidateActions);
 
     writeAll(ctx);
     writeUi(ctx);

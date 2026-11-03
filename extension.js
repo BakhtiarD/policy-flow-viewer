@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const { findFileByName, resolveRoot, loadData, pushRender } = require('./src/storage');
 const uiI18n = require('./src/ui-i18n');
+const history = require('./src/history');
 const {
     handleDeleteState,
     handleAddState,
@@ -45,6 +46,54 @@ const {
 
 let currentPanel = null;
 let currentCtx = null;
+
+// Типы сообщений, которые изменяют данные документа и попадают в историю.
+// Файловые операции (ClientAction, flowRules) и настройки (uiLanguage)
+// сюда не входят — undo не восстанавливает .js-файлы.
+const MUTATING_TYPES = new Set([
+    'deleteState', 'addState', 'editState', 'toggleTerminal',
+    'saveGraph', 'deleteTransitions', 'editTransition',
+    'generateFlow', 'saveAuth', 'deleteActorFromState',
+    'copyActor', 'addTransition', 'addActor', 'deleteActor',
+    'addStateToActor', 'deleteStateFromActor',
+    'addTransitionToActor', 'deleteTransitionFromActor',
+    'editActorPerm', 'duplicateActor', 'saveActorAuth',
+    'renameActor', 'setInitialState', 'applyCompareDocuments',
+    'addAttachmentToDoc', 'removeAttachmentFromDoc'
+]);
+
+function labelForMessage(msg) {
+    const p = msg.payload || {};
+    switch (msg.type) {
+        case 'addState': return uiI18n.t('history.action.addState', { name: p.name || '' });
+        case 'editState': return uiI18n.t('history.action.editState', { name: p.originalName || p.name || '' });
+        case 'deleteState': return uiI18n.t('history.action.deleteState', { name: msg.state || '' });
+        case 'toggleTerminal': return uiI18n.t('history.action.toggleTerminal', { name: msg.state || '' });
+        case 'saveGraph': return uiI18n.t('history.action.saveGraph');
+        case 'deleteTransitions': return uiI18n.t('history.action.deleteTransitions', { n: String((msg.names || []).length) });
+        case 'editTransition': return uiI18n.t('history.action.editTransition', { name: p.originalName || p.name || '' });
+        case 'generateFlow': return uiI18n.t('history.action.generateFlow');
+        case 'saveAuth': return uiI18n.t('history.action.saveAuth');
+        case 'deleteActorFromState': return uiI18n.t('history.action.deleteActorFromState', { actor: p.actorName || '', state: p.stateName || '' });
+        case 'copyActor': return uiI18n.t('history.action.copyActor', { actor: p.toActor || '' });
+        case 'addTransition': return uiI18n.t('history.action.addTransition', { name: p.name || '' });
+        case 'addActor': return uiI18n.t('history.action.addActor', { name: p.name || '' });
+        case 'deleteActor': return uiI18n.t('history.action.deleteActor', { name: p.name || '' });
+        case 'addStateToActor': return uiI18n.t('history.action.addStateToActor', { actor: p.actor || '', state: p.state || '' });
+        case 'deleteStateFromActor': return uiI18n.t('history.action.deleteStateFromActor', { actor: p.actor || '', state: p.state || '' });
+        case 'addTransitionToActor': return uiI18n.t('history.action.addTransitionToActor', { transition: p.transition || '', actor: p.actor || '' });
+        case 'deleteTransitionFromActor': return uiI18n.t('history.action.deleteTransitionFromActor', { transition: p.transition || '', actor: p.actor || '' });
+        case 'editActorPerm': return uiI18n.t('history.action.editActorPerm', { actor: p.actorName || '', state: p.stateName || '' });
+        case 'duplicateActor': return uiI18n.t('history.action.duplicateActor', { old: p.oldName || '', new: p.newName || '' });
+        case 'saveActorAuth': return uiI18n.t('history.action.saveActorAuth', { name: p.actorName || '' });
+        case 'renameActor': return uiI18n.t('history.action.renameActor', { old: p.oldName || '', new: p.newName || '' });
+        case 'setInitialState': return uiI18n.t('history.action.setInitialState', { name: msg.state || '' });
+        case 'applyCompareDocuments': return uiI18n.t('history.action.applyCompareDocuments');
+        case 'addAttachmentToDoc': return uiI18n.t('history.action.addAttachmentToDoc', { code: p.code || '' });
+        case 'removeAttachmentFromDoc': return uiI18n.t('history.action.removeAttachmentFromDoc', { code: msg.code || '' });
+        default: return msg.type;
+    }
+}
 
 function resolveUiLanguage() {
     const cfg = vscode.workspace.getConfiguration('adinsureDocFlow');
@@ -92,6 +141,7 @@ function activate(context) {
                     flowPath, configPath, transPath, extensionUri,
                     uiLanguage: uiI18n.getLang()
                 };
+                history.init(currentCtx);
                 loadData(currentCtx);
 
                 const panel = vscode.window.createWebviewPanel(
@@ -107,6 +157,10 @@ function activate(context) {
                 currentPanel = panel;
 
                 panel.webview.onDidReceiveMessage(async (msg) => {
+                    const isMutating = MUTATING_TYPES.has(msg.type);
+                    if (isMutating) {
+                        history.pushSnapshot(currentCtx, labelForMessage(msg));
+                    }
                     try {
                         if (msg.type === 'deleteState') await handleDeleteState(currentCtx, currentPanel, msg.state);
                         else if (msg.type === 'addState') await handleAddState(currentCtx, currentPanel, msg.payload);
@@ -115,7 +169,16 @@ function activate(context) {
                         else if (msg.type === 'reload') {
                             const { invalidateProjectCache } = require('./src/storage');
                             invalidateProjectCache(currentCtx);
+                            history.clear(currentCtx);
                             loadData(currentCtx);
+                            pushRender(currentCtx, currentPanel);
+                        }
+                        else if (msg.type === 'undo') {
+                            history.undo(currentCtx);
+                            pushRender(currentCtx, currentPanel);
+                        }
+                        else if (msg.type === 'redo') {
+                            history.redo(currentCtx);
                             pushRender(currentCtx, currentPanel);
                         }
                         else if (msg.type === 'saveGraph') await handleSaveGraph(currentCtx, msg.payload);
@@ -225,9 +288,14 @@ function activate(context) {
                             }
                         }
                     } catch (e) {
+                        if (isMutating) {
+                            history.popLastSnapshot(currentCtx);
+                        }
                         vscode.window.showErrorMessage(uiI18n.t('err.extension.prefix', { message: e.message }));
                         console.error(e);
+                        return;
                     }
+
                 });
 
                 panel.onDidDispose(() => {

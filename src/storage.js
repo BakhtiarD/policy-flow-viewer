@@ -489,6 +489,26 @@ function ensureDir(p) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// Удаляет «осиротевшие» .documentFlow.tmp, оставшиеся после падения
+// VS Code между writeFileSync и renameSync. Порог — 5 минут: свежий
+// tmp может означать идущую прямо сейчас запись (маловероятно, но
+// безопаснее не трогать). Вызывается из loadData при открытии
+// документа.
+const STALE_TMP_MS = 5 * 60 * 1000;
+
+function cleanupStaleTmp(paths) {
+    for (const p of paths) {
+        if (!p) continue;
+        const tmp = p + '.documentFlow.tmp';
+        try {
+            const st = fs.statSync(tmp);
+            if (Date.now() - st.mtimeMs > STALE_TMP_MS) {
+                fs.unlinkSync(tmp);
+            }
+        } catch { /* нет файла — нечего чистить */ }
+    }
+}
+
 function loadData(ctx) {
     const { flowPath, configPath, transPath } = ctx;
 
@@ -602,6 +622,54 @@ function loadData(ctx) {
     ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
     ctx.attachmentTypeTranslationsAll = ctx.projectCache.attachmentTypeTranslationsAll || {};
     ctx.groupRoles = ctx.projectCache.groupRoles;
+
+    // Чистим «осиротевшие» .tmp от предыдущих падений. Все 5 файлов
+    // уже прочитаны выше — здесь только уборка мусора.
+    cleanupStaleTmp([
+        flowPath, configPath, transPath,
+        ctx.uiPath, ctx.authPath
+    ]);
+}
+
+// Сохраняет предыдущую версию файла в <dir>/.documentFlow.bak/<basename>.N.
+// Хранит 3 последние версии, старые (N > 3) удаляются.
+// Бэкап не критичен для работы расширения — при ошибке просто
+// пишется warning в console, запись нового содержимого продолжается.
+function backupExisting(filePath, existingContent) {
+    try {
+        const dir = path.dirname(filePath);
+        const base = path.basename(filePath);
+        const bakDir = path.join(dir, '.documentFlow.bak');
+        if (!fs.existsSync(bakDir)) {
+            fs.mkdirSync(bakDir, { recursive: true });
+            // Вложенный .gitignore с '*' скрывает содержимое папки от git:
+            // `git add .` не подсосёт бэкапы случайно, а `git status` покажет
+            // только саму папку как untracked. Пользователь сам решит,
+            // добавлять `.documentFlow.bak/` в свой .gitignore или нет.
+            try {
+                fs.writeFileSync(path.join(bakDir, '.gitignore'), '*\n', 'utf8');
+            } catch { /* ignore */ }
+        }
+
+        const p1 = path.join(bakDir, base + '.1');
+        const p2 = path.join(bakDir, base + '.2');
+        const p3 = path.join(bakDir, base + '.3');
+
+        // Удаляем самый старый
+        try { fs.unlinkSync(p3); } catch { /* ignore */ }
+        // .2 → .3
+        if (fs.existsSync(p2)) {
+            try { fs.renameSync(p2, p3); } catch { /* ignore */ }
+        }
+        // .1 → .2
+        if (fs.existsSync(p1)) {
+            try { fs.renameSync(p1, p2); } catch { /* ignore */ }
+        }
+        // Текущая (existing) → .1
+        fs.writeFileSync(p1, existingContent, 'utf8');
+    } catch (e) {
+        console.warn('[backup] failed for', filePath, ':', e.message);
+    }
 }
 
 // Пишет файл только если содержимое отличается от того, что на диске.
@@ -609,13 +677,36 @@ function loadData(ctx) {
 // совпало и запись пропущена. Так файлы, в которых не было фактических
 // изменений, не перезаписываются: не меняется mtime, не триггерится
 // file-watcher, не появляется diff в git.
+//
+// При изменении существующего файла:
+//   1. Сохраняет предыдущую версию в .documentFlow.bak/<name>.1–3.
+//   2. Пишет новое содержимое в <file>.documentFlow.tmp в той же папке.
+//   3. Атомарно подменяет <file> через fs.renameSync.
+// Если rename не удался (Windows + антивирус) — fallback на прямой
+// writeFileSync, чтобы файл в любом случае был записан.
 function writeIfChanged(filePath, content) {
+    let existing = null;
     try {
-        const existing = fs.readFileSync(filePath, 'utf8');
+        existing = fs.readFileSync(filePath, 'utf8');
         if (existing === content) return false;
-    } catch { /* файла нет — пишем */ }
+    } catch { /* файла нет — пишем как новый */ }
+
     ensureDir(filePath);
-    fs.writeFileSync(filePath, content, 'utf8');
+
+    if (existing !== null) {
+        backupExisting(filePath, existing);
+    }
+
+    const tmpPath = filePath + '.documentFlow.tmp';
+    fs.writeFileSync(tmpPath, content, 'utf8');
+    try {
+        fs.renameSync(tmpPath, filePath);
+    } catch (e) {
+        // Fallback: rename может падать на Windows, если файл в этот
+        // момент читается другим процессом (антивирус, file watcher).
+        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+        fs.writeFileSync(filePath, content, 'utf8');
+    }
     return true;
 }
 
@@ -633,6 +724,10 @@ function writeFlow(ctx) {
 }
 
 function writeUi(ctx) {
+    if (!ctx.uiPath && ctx.flowPath) {
+        ctx.uiPath = path.join(path.dirname(ctx.flowPath), 'documentFlow.ui.json');
+    }
+    if (!ctx.uiPath) return false;
     return writeIfChanged(ctx.uiPath, JSON.stringify(ctx.ui || [], null, 4));
 }
 
@@ -660,9 +755,19 @@ function pushRender(ctx, panel) {
     const relMeta = buildRelationsMeta(ctx, flow, ctx.documentTitles || {});
     const attMeta = { path: ctx.attachmentTypeDir || null };
 
+    // historyState передаётся в HTML-данных, а не postMessage-ом:
+    // pushRender заменяет panel.webview.html → iframe пересоздаётся,
+    // postMessage после этого не гарантированно доходит до свежей
+    // страницы. А DATA_JSON читается сразу после загрузки страницы.
+    let historyState = { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null };
+    try {
+        const history = require('./history');
+        historyState = history.getState(ctx);
+    } catch { /* ignore */ }
+
     const html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
-        authMeta, relMeta, attMeta, uiLanguage
+        authMeta, relMeta, attMeta, uiLanguage, historyState
     );
     // Маркер, чтобы HTML всегда отличался — иначе VS Code не пересоздаёт iframe.
     panel.webview.html = html.replace('</body>', '<!--r' + Date.now() + '--></body>');
@@ -789,4 +894,5 @@ module.exports = {
     loadDocumentForCompare, listDocumentsForCompare,
     normalizeSourceDocumentStates,
     writeIfChanged,
+    cleanupStaleTmp,
 };

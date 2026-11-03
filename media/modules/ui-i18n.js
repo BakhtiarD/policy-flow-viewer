@@ -139,6 +139,9 @@
                 if (PF.toolbar.updateViewToggleIcon) PF.toolbar.updateViewToggleIcon();
                 if (PF.toolbar.updateLayoutDirBtn) PF.toolbar.updateLayoutDirBtn();
                 if (PF.toolbar.updateLabelsToggleBtn) PF.toolbar.updateLabelsToggleBtn();
+                if (PF.toolbar.updateHistoryButtons) {
+                    PF.toolbar.updateHistoryButtons(PF.state.historyState);
+                }
             }
 
             const gh = document.getElementById('graphHint');

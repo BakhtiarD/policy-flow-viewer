@@ -10,6 +10,64 @@
 «Добавлено», «Исправлено», «Изменено», «Технические детали»,
 «Известные компромиссы».
 
+## [0.7.4] - 2026-11-03
+
+### Добавлено
+
+- **Атомарная запись с бэкапом.** Все `write*` в `src/storage.js` пишут через `.documentFlow.tmp` + `renameSync` (atomic на уровне FS). Перед записью существующего файла сохраняется его предыдущая версия в `<dir>/.documentFlow.bak/<name>.1–3` (ротация: держится 3 последние версии). Внутри `.documentFlow.bak/` создаётся вложенный `.gitignore` с `*` — `git add .` не подсосёт бэкапы случайно.
+  - Осиротевшие `.documentFlow.tmp` старше 5 минут чистятся в `loadData` (функция `cleanupStaleTmp`) — остаются, если VS Code упал между `writeFileSync` и `renameSync`.
+  - `writeAll` возвращает `{ flow, config, csv }` — какие файлы реально перезаписаны (`writeIfChanged` пропускает неизменённые).
+
+- **Undo/Redo с восстановлением `.js` файлов.** Кольцевой буфер на 30 снапшотов в `ctx.history` (сервер). Кнопки `↶` / `↷` в главном тулбаре, `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z` — тоже redo).
+  - Снапшот включает `flow`, `config`, `csv`, `ui`, `auth` **и** содержимое `flowRules/*.js` + `UI/ClientAction/*.js`.
+  - При undo/redo удалённые `.js` восстанавливаются, добавленные — удаляются, изменённые — перезаписываются через `writeIfChanged`.
+  - `Ctrl+Z` игнорируется при фокусе в `<input>` / `<textarea>` / `contenteditable` (нативный undo в поле) и при открытой модалке (защита от несохранённых правок).
+  - При `reload` история очищается.
+  - `historyState` (`canUndo`, `canRedo`, `undoLabel`, `redoLabel`) передаётся клиенту через `DATA_JSON` при каждом `pushRender` — а не `postMessage`. Причина: `pushRender` заменяет `panel.webview.html`, iframe пересоздаётся, `postMessage` после этого может не дойти.
+
+- **Автоудаление `ClientAction/*.js` при удалении перехода.** Когда удаляется переход (или состояние вместе с его переходами), файл `ClientAction/<actionToRunBefore>.js` из текущего документа удаляется, **если** на него больше не ссылается ни один оставшийся переход. Файлы из других пакетов не трогаются (ищутся только в `ctx`-документе). Срабатывает в `handleDeleteTransitions`, `handleDeleteState`, `handleEditState` (при снятии переходов).
+
+### Исправлено
+
+- **Undo не откатывал данные после пересоздания webview.** `historyState` через `postMessage` терялся после `pushRender` → кнопки undo/redo оставались навсегда disabled. Теперь передаётся в `DATA_JSON`.
+
+- **Удалённые `.js` файлы не восстанавливались при undo.** Снапшот истории теперь включает содержимое `flowRules/` и `UI/ClientAction/`.
+
+- **`Ctrl+Z` / `Ctrl+Y` не работали в русской раскладке.** Обработчик использовал `ev.key` (`Ctrl+я` вместо `Ctrl+z`). Теперь `ev.code` (`KeyZ` / `KeyY`) — не зависит от раскладки.
+
+### Технические детали
+
+- `src/history.js` — новый модуль: `init`, `pushSnapshot`, `popLastSnapshot`, `undo`, `redo`, `clear`, `getState`. Коллектор `collectJsFiles` читает `.js` из двух папок документа. `restoreDir` удаляет файлы, которых нет в снапшоте, и записывает все файлы из снапшота через `writeIfChanged`.
+- `src/storage.js` — `writeIfChanged` через `.tmp` + `renameSync`, `backupExisting` с ротацией `.1–.3`, `cleanupStaleTmp`.
+- `src/extension.js` — `MUTATING_TYPES` (список сообщений, идущих в историю), `labelForMessage` (метка для tooltip), `history.pushSnapshot` до `handler`, `history.popLastSnapshot` при ошибке. Dispatch `undo` / `redo`. Убраны все `postMessage({ type: 'historyState', ... })`.
+- `src/handlers.js` — `collectActionsFromTransitions`, `deleteOrphanClientActions`. Вызовы в трёх handler'ах.
+- `src/html.js` — `renderHtml` принимает `historyState` и кладёт в `DATA_JSON`.
+- `media/index.html` — кнопки `#undoBtn` / `#redoBtn` в главный тулбар.
+- `media/modules/icons.js` — иконки `undo` / `redo`.
+- `media/modules/state.js` — поле `PF.state.historyState`, инициализация из `DATA.historyState` в `setData`.
+- `media/modules/toolbar.js` — `updateHistoryButtons`, обработчики кнопок.
+- `media/main.js` — `keydown` на `document.body` (с `ev.code`), `updateHistoryButtons` после `toolbar.init`.
+- `media/modules/ui-i18n.js` — `updateHistoryButtons` при смене UI-языка.
+- `media/locales/*.js`, `src/locales/*.js` — ключи `history.*` и `history.action.*`.
+
+### Тесты
+
+- `test/history.test.js` — 18 тестов:
+  - init / getState / pushSnapshot / popLastSnapshot / clear;
+  - undo / redo на данных (`flow`, `config`, `csv`);
+  - limit 30, redo-стек очищается при новой мутации;
+  - восстановление удалённого `ClientAction/*.js` при undo;
+  - удаление добавленного `ClientAction/*.js` при undo;
+  - восстановление удалённого `flowRules/*.js` при undo;
+  - redo повторно удаляет `.js`.
+
+- `test/storage.test.js` — +6 тестов:
+  - `.gitignore` внутри `.documentFlow.bak/` создаётся и не перезаписывается;
+  - `cleanupStaleTmp` удаляет старые (`>5 мин`), сохраняет свежие, no-op на отсутствующих, обрабатывает null/undefined;
+  - несколько путей в одном вызове.
+
+- `test/helpers/makeCtx.js` — добавлено поле `uiPath`, чтобы `history.undo` / `history.redo` могли писать `ui.json` в тестах.
+
 ## [0.7.3] - 2026-11-03
 
 ### Изменено

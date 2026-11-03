@@ -603,4 +603,12 @@ window.PF_UI_LOCALES['ru-RU'] = {
     'initialState.label': 'Начальное',
     'initialState.none': '— не задано —',
     'initialState.tooltip': 'Начальное состояние документа (initialState в documentFlow.json)',
+
+    // ============ undo / redo ============
+    'history.undo': 'Отменить',
+    'history.redo': 'Повторить',
+    'history.undo.tooltip': 'Отменить: {label}',
+    'history.redo.tooltip': 'Повторить: {label}',
+    'history.undo.hint': 'Ctrl+Z',
+    'history.redo.hint': 'Ctrl+Y',
 };

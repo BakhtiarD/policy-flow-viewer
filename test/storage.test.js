@@ -9,7 +9,8 @@ const {
     normalizeSourceDocumentStates,
     loadDocumentForCompare,
     writeIfChanged,
-    writeAll
+    writeAll,
+    cleanupStaleTmp
 } = require('../src/storage');
 
 const { docOnDisk } = require('./helpers/docOnDisk');
@@ -288,5 +289,202 @@ test('writeAll: only changed files are written', () => {
 
         const r2 = writeAll(ctx);
         assert.deepEqual(r2, { flow: false, config: false, csv: false });
+    } finally { d.cleanup(); }
+});
+
+
+/* ============================================================
+ * Бэкап и атомарная запись
+ * ============================================================ */
+
+test('writeIfChanged: creates backup on first change of existing file', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'file.json');
+        fs.writeFileSync(target, 'old-content', 'utf8');
+
+        writeIfChanged(target, 'new-content');
+
+        const bakDir = path.join(d.tmpRoot, '.documentFlow.bak');
+        assert.equal(fs.existsSync(bakDir), true);
+        assert.equal(fs.readFileSync(path.join(bakDir, 'file.json.1'), 'utf8'), 'old-content');
+        assert.equal(fs.readFileSync(target, 'utf8'), 'new-content');
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: does not create backup for new file', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'brand-new.json');
+
+        writeIfChanged(target, 'first-content');
+
+        const bakDir = path.join(d.tmpRoot, '.documentFlow.bak');
+        assert.equal(fs.existsSync(bakDir), false);
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: does not create backup if content is identical', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'same.json');
+        fs.writeFileSync(target, 'same-content', 'utf8');
+
+        const wrote = writeIfChanged(target, 'same-content');
+
+        assert.equal(wrote, false);
+        const bakDir = path.join(d.tmpRoot, '.documentFlow.bak');
+        assert.equal(fs.existsSync(bakDir), false);
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: backup rotates, keeps 3 versions', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'rot.json');
+        fs.writeFileSync(target, 'v0', 'utf8');
+
+        writeIfChanged(target, 'v1');   // .1 = v0
+        writeIfChanged(target, 'v2');   // .1 = v1, .2 = v0
+        writeIfChanged(target, 'v3');   // .1 = v2, .2 = v1, .3 = v0
+        writeIfChanged(target, 'v4');   // .1 = v3, .2 = v2, .3 = v1, v0 удалён
+
+        const bakDir = path.join(d.tmpRoot, '.documentFlow.bak');
+        assert.equal(fs.readFileSync(path.join(bakDir, 'rot.json.1'), 'utf8'), 'v3');
+        assert.equal(fs.readFileSync(path.join(bakDir, 'rot.json.2'), 'utf8'), 'v2');
+        assert.equal(fs.readFileSync(path.join(bakDir, 'rot.json.3'), 'utf8'), 'v1');
+        assert.equal(fs.existsSync(path.join(bakDir, 'rot.json.4')), false);
+        assert.equal(fs.readFileSync(target, 'utf8'), 'v4');
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: no .tmp file left after write', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'atomic.json');
+        writeIfChanged(target, 'content-1');
+        writeIfChanged(target, 'content-2');
+
+        const files = fs.readdirSync(d.tmpRoot);
+        const tmpFiles = files.filter(f => f.endsWith('.documentFlow.tmp'));
+        assert.deepEqual(tmpFiles, []);
+    } finally { d.cleanup(); }
+});
+
+
+/* ============================================================
+ * .gitignore внутри .documentFlow.bak/
+ * ============================================================ */
+
+test('backupExisting: creates .gitignore inside .documentFlow.bak', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'file.json');
+        fs.writeFileSync(target, 'old', 'utf8');
+
+        writeIfChanged(target, 'new');
+
+        const gitignorePath = path.join(d.tmpRoot, '.documentFlow.bak', '.gitignore');
+        assert.equal(fs.existsSync(gitignorePath), true);
+        assert.equal(fs.readFileSync(gitignorePath, 'utf8'), '*\n');
+    } finally { d.cleanup(); }
+});
+
+test('backupExisting: does not overwrite .gitignore on subsequent backups', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'file.json');
+        fs.writeFileSync(target, 'v0', 'utf8');
+
+        writeIfChanged(target, 'v1');
+        const gitignorePath = path.join(d.tmpRoot, '.documentFlow.bak', '.gitignore');
+        // Имитируем ручное изменение — если код перезапишет, тест упадёт.
+        fs.writeFileSync(gitignorePath, '# custom content\n', 'utf8');
+
+        writeIfChanged(target, 'v2');
+
+        assert.equal(fs.readFileSync(gitignorePath, 'utf8'), '# custom content\n');
+    } finally { d.cleanup(); }
+});
+
+/* ============================================================
+ * cleanupStaleTmp
+ * ============================================================ */
+
+test('cleanupStaleTmp: removes tmp older than 5 minutes', () => {
+    const d = docOnDisk({});
+    try {
+        const srcPath = path.join(d.tmpRoot, 'file.json');
+        const tmpPath = srcPath + '.documentFlow.tmp';
+        fs.writeFileSync(tmpPath, 'stale', 'utf8');
+
+        // mtime — 10 минут назад (STALE_TMP_MS = 5 минут)
+        const oldTime = (Date.now() - 10 * 60 * 1000) / 1000;
+        fs.utimesSync(tmpPath, oldTime, oldTime);
+
+        cleanupStaleTmp([srcPath]);
+
+        assert.equal(fs.existsSync(tmpPath), false);
+    } finally { d.cleanup(); }
+});
+
+test('cleanupStaleTmp: keeps tmp younger than 5 minutes', () => {
+    const d = docOnDisk({});
+    try {
+        const srcPath = path.join(d.tmpRoot, 'file.json');
+        const tmpPath = srcPath + '.documentFlow.tmp';
+        fs.writeFileSync(tmpPath, 'fresh', 'utf8');
+
+        // mtime — 1 минуту назад (< 5 минут)
+        const freshTime = (Date.now() - 60 * 1000) / 1000;
+        fs.utimesSync(tmpPath, freshTime, freshTime);
+
+        cleanupStaleTmp([srcPath]);
+
+        assert.equal(fs.existsSync(tmpPath), true);
+    } finally { d.cleanup(); }
+});
+
+test('cleanupStaleTmp: missing tmp does not throw', () => {
+    const d = docOnDisk({});
+    try {
+        const srcPath = path.join(d.tmpRoot, 'no-such-file.json');
+        // tmp рядом с srcPath не существует — не должно быть исключения
+        cleanupStaleTmp([srcPath]);
+        assert.ok(true); // дошло без throw
+    } finally { d.cleanup(); }
+});
+
+test('cleanupStaleTmp: handles null, undefined and empty paths', () => {
+    const d = docOnDisk({});
+    try {
+        // Все три кейса — no-op, без throw
+        cleanupStaleTmp([null, undefined, '']);
+        assert.ok(true);
+    } finally { d.cleanup(); }
+});
+
+test('cleanupStaleTmp: processes multiple paths independently', () => {
+    const d = docOnDisk({});
+    try {
+        const oldSrc = path.join(d.tmpRoot, 'old.json');
+        const freshSrc = path.join(d.tmpRoot, 'fresh.json');
+        const missingSrc = path.join(d.tmpRoot, 'missing.json');
+
+        const oldTmp = oldSrc + '.documentFlow.tmp';
+        const freshTmp = freshSrc + '.documentFlow.tmp';
+
+        fs.writeFileSync(oldTmp, 'stale', 'utf8');
+        fs.writeFileSync(freshTmp, 'fresh', 'utf8');
+
+        const oldTime = (Date.now() - 10 * 60 * 1000) / 1000;
+        fs.utimesSync(oldTmp, oldTime, oldTime);
+        const freshTime = (Date.now() - 60 * 1000) / 1000;
+        fs.utimesSync(freshTmp, freshTime, freshTime);
+
+        cleanupStaleTmp([oldSrc, freshSrc, missingSrc]);
+
+        assert.equal(fs.existsSync(oldTmp), false);
+        assert.equal(fs.existsSync(freshTmp), true);
     } finally { d.cleanup(); }
 });
