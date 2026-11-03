@@ -7,7 +7,9 @@ const path = require('path');
 
 const {
     normalizeSourceDocumentStates,
-    loadDocumentForCompare
+    loadDocumentForCompare,
+    writeIfChanged,
+    writeAll
 } = require('../src/storage');
 
 const { docOnDisk } = require('./helpers/docOnDisk');
@@ -206,5 +208,85 @@ test('loadDocumentForCompare: auth loaded when authorization.csv present', () =>
         assert.equal(doc.auth.rows.length, 1);
         assert.equal(doc.auth.rows[0][0], 'Admin');
         assert.equal(doc.auth.rows[0][4], 'Editor');
+    } finally { d.cleanup(); }
+});
+
+/* ============================================================
+ * writeIfChanged / writeAll
+ * ============================================================ */
+
+test('writeIfChanged: creates file when missing', () => {
+    const d = docOnDisk({ flowMissing: true });
+    try {
+        const target = path.join(d.tmpRoot, 'new-file.txt');
+        const wrote = writeIfChanged(target, 'hello');
+        assert.equal(wrote, true);
+        assert.equal(fs.readFileSync(target, 'utf8'), 'hello');
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: creates parent directories', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'nested', 'deep', 'file.txt');
+        const wrote = writeIfChanged(target, 'content');
+        assert.equal(wrote, true);
+        assert.equal(fs.readFileSync(target, 'utf8'), 'content');
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: skips write if content is identical', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'same.txt');
+        const first = writeIfChanged(target, 'same');
+        const second = writeIfChanged(target, 'same');
+        assert.equal(first, true);
+        assert.equal(second, false);
+    } finally { d.cleanup(); }
+});
+
+test('writeIfChanged: rewrites if content differs', () => {
+    const d = docOnDisk({});
+    try {
+        const target = path.join(d.tmpRoot, 'changed.txt');
+        writeIfChanged(target, 'old');
+        const wrote = writeIfChanged(target, 'new');
+        assert.equal(wrote, true);
+        assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    } finally { d.cleanup(); }
+});
+
+test('writeAll: only changed files are written', () => {
+    const d = docOnDisk({ docName: 'DocA' });
+    try {
+        const csv = {
+            header: ['ItemType', 'TranslationKey'],
+            rows: [['states', 'states@Draft']],
+            trailingNewline: true
+        };
+        const csvText = 'ItemType\tTranslationKey\nstates\tstates@Draft\n';
+        fs.writeFileSync(d.transPath, csvText, 'utf8');
+        fs.writeFileSync(d.flowPath,
+            JSON.stringify({ states: [], transitions: [], actors: [], initialState: '' }, null, 4),
+            'utf8');
+        fs.writeFileSync(d.configPath,
+            JSON.stringify({ states: [], attachments: [] }, null, 4),
+            'utf8');
+
+        const ctx = {
+            flowPath: d.flowPath,
+            configPath: d.configPath,
+            transPath: d.transPath,
+            flow: { states: [], transitions: [], actors: [], initialState: '' },
+            config: { states: [{ name: 'Draft', actors: [] }], attachments: [] },
+            csv
+        };
+
+        const r = writeAll(ctx);
+        assert.deepEqual(r, { flow: false, config: true, csv: false });
+
+        const r2 = writeAll(ctx);
+        assert.deepEqual(r2, { flow: false, config: false, csv: false });
     } finally { d.cleanup(); }
 });

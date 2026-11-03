@@ -604,31 +604,45 @@ function loadData(ctx) {
     ctx.groupRoles = ctx.projectCache.groupRoles;
 }
 
+// Пишет файл только если содержимое отличается от того, что на диске.
+// Возвращает true, если файл был записан, false — если содержимое
+// совпало и запись пропущена. Так файлы, в которых не было фактических
+// изменений, не перезаписываются: не меняется mtime, не триггерится
+// file-watcher, не появляется diff в git.
+function writeIfChanged(filePath, content) {
+    try {
+        const existing = fs.readFileSync(filePath, 'utf8');
+        if (existing === content) return false;
+    } catch { /* файла нет — пишем */ }
+    ensureDir(filePath);
+    fs.writeFileSync(filePath, content, 'utf8');
+    return true;
+}
+
 function writeAll(ctx) {
     const { flowPath, configPath, transPath, flow, config, csv } = ctx;
-    ensureDir(flowPath);
-    ensureDir(configPath);
-    ensureDir(transPath);
-    fs.writeFileSync(flowPath, JSON.stringify(flow, null, 4), 'utf8');
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8');
-    fs.writeFileSync(transPath, serializeCsv(csv), 'utf8');
+    return {
+        flow: writeIfChanged(flowPath, JSON.stringify(flow, null, 4)),
+        config: writeIfChanged(configPath, JSON.stringify(config, null, 4)),
+        csv: writeIfChanged(transPath, serializeCsv(csv))
+    };
 }
 
 function writeFlow(ctx) {
-    fs.writeFileSync(ctx.flowPath, JSON.stringify(ctx.flow, null, 4), 'utf8');
+    return writeIfChanged(ctx.flowPath, JSON.stringify(ctx.flow, null, 4));
 }
 
 function writeUi(ctx) {
-    fs.writeFileSync(ctx.uiPath, JSON.stringify(ctx.ui || [], null, 4), 'utf8');
+    return writeIfChanged(ctx.uiPath, JSON.stringify(ctx.ui || [], null, 4));
 }
 
 function writeAuth(ctx) {
-    if (!ctx.authPath || !ctx.auth) return;
-    fs.writeFileSync(ctx.authPath, serializeCsv(ctx.auth), 'utf8');
+    if (!ctx.authPath || !ctx.auth) return false;
+    return writeIfChanged(ctx.authPath, serializeCsv(ctx.auth));
 }
 
 function writeConfig(ctx) {
-    fs.writeFileSync(ctx.configPath, JSON.stringify(ctx.config, null, 4), 'utf8');
+    return writeIfChanged(ctx.configPath, JSON.stringify(ctx.config, null, 4));
 }
 
 function pushRender(ctx, panel) {
@@ -773,5 +787,6 @@ module.exports = {
     loadAllDocumentNames, loadAllDocumentTitles,
     invalidateProjectCache,
     loadDocumentForCompare, listDocumentsForCompare,
-    normalizeSourceDocumentStates
+    normalizeSourceDocumentStates,
+    writeIfChanged,
 };
