@@ -598,17 +598,6 @@ function loadData(ctx) {
         const att = loadAttachmentType(projectRoot);
         const groupRoles = [...collectGroupRoles(projectRoot)];
 
-        // Расхождения ключей в файлах локализации (webview + server).
-        // Файлы локалей меняются только при обновлении расширения,
-        // поэтому считаем один раз на projectCache и переиспользуем.
-        let localeIssues = [];
-        try {
-            const { checkLocales } = require('./locales-check');
-            localeIssues = checkLocales();
-        } catch (e) {
-            console.warn('[loadData] checkLocales failed:', e.message);
-        }
-
         ctx.projectCache = {
             projectRoot,
             pkgName,
@@ -619,8 +608,7 @@ function loadData(ctx) {
             attachmentTypeCodes: att.codes,
             attachmentTypeTranslations: att.translations,
             attachmentTypeTranslationsAll: att.translationsAll || {},
-            groupRoles,
-            localeIssues
+            groupRoles
         };
     }
 
@@ -634,7 +622,6 @@ function loadData(ctx) {
     ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
     ctx.attachmentTypeTranslationsAll = ctx.projectCache.attachmentTypeTranslationsAll || {};
     ctx.groupRoles = ctx.projectCache.groupRoles;
-    ctx.localeIssues = ctx.projectCache.localeIssues || [];
 
     // Чистим «осиротевшие» .tmp от предыдущих падений. Все 5 файлов
     // уже прочитаны выше — здесь только уборка мусора.
@@ -780,7 +767,7 @@ function pushRender(ctx, panel) {
 
     const html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
-        authMeta, relMeta, attMeta, uiLanguage, historyState, ctx.localeIssues || []
+        authMeta, relMeta, attMeta, uiLanguage, historyState
     );
     // Маркер, чтобы HTML всегда отличался — иначе VS Code не пересоздаёт iframe.
     panel.webview.html = html.replace('</body>', '<!--r' + Date.now() + '--></body>');

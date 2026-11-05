@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vscode = require('vscode');
 
-function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta, attMeta, uiLanguage, historyState, localeIssues) {
+function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta, attMeta, uiLanguage, historyState) {
     const tplPath = path.join(extensionUri.fsPath, 'media', 'index.html');
     const tpl = fs.readFileSync(tplPath, 'utf8');
 
@@ -35,7 +35,6 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         rows, meta, stateDetails, graph, hasUi,
         uiLanguage: uiLanguage || 'ru-RU',
         historyState: historyState || { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null },
-        localeIssues: Array.isArray(localeIssues) ? localeIssues : [],
         auth: authMeta || { found: false, docName: '', path: null, rows: [], allRoles: [] },
         relations: relMeta || { docName: '', path: null, relations: [] },
         attachmentTypePath: (attMeta && attMeta.path) || null

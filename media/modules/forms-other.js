@@ -36,13 +36,8 @@
             noActors: [],
             missingServerSideEvents: [],
             actorsWithoutRoles: [],
-            relations: [],
-            localeIssues: []
+            relations: []
         };
-        // Расхождения ключей локализации — приходят с сервера в DATA.
-        if (Array.isArray(DATA.localeIssues)) {
-            issues.localeIssues = DATA.localeIssues.slice();
-        }
 
         if (!initialState) {
             issues.unreachable.push({ name: null, note: PF.ui.t('validate.initialStateMissing') });
@@ -188,8 +183,7 @@
                 issues.noActors.length +
                 issues.missingServerSideEvents.length +
                 issues.actorsWithoutRoles.length +
-                issues.relations.length +
-                issues.localeIssues.length;
+                issues.relations.length;
 
             summary.textContent = total === 0
                 ? PF.ui.t('validate.summary.ok')
@@ -285,18 +279,6 @@
                 it => '<a class="validate-link" data-actor="' + escHtml(it.name) + '">' +
                     actorLabel(it.name) + '</a>',
                 PF.ui.t('validate.empty.actorsWithoutRoles'));
-
-            section(PF.ui.t('validate.section.locales'), issues.localeIssues,
-                it => PF.ui.t('validate.localeIssue', {
-                    key: escHtml(it.key),
-                    scope: escHtml(it.scope),
-                    side: PF.ui.t(
-                        it.side === 'only-ru'
-                            ? 'validate.localeSide.onlyRu'
-                            : 'validate.localeSide.onlyEn'
-                    )
-                }),
-                PF.ui.t('validate.empty.locales'));
 
             body.querySelectorAll('.validate-link').forEach(a => {
                 a.addEventListener('click', () => {

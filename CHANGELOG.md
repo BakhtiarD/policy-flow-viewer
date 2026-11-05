@@ -14,49 +14,33 @@
 
 ### Добавлено
 
-- **Проверка расхождений ключей локализации.** Новый модуль `src/locales-check.js` сравнивает наборы ключей `ru-RU` ↔ `en-US` в двух парах файлов:
-  - `media/locales/*.js` (webview);
-  - `src/locales/*.js` (extension host).
-
-  Ловит ситуацию «добавил ключ в один язык, забыл во второй» — без проверки такой ключ в UI попадает в fallback: при английском интерфейсе пользователь видит русский текст, при русском — сам ключ вместо перевода.
-
-  Ключи с префиксом `plural.*` из сравнения исключены: набор грамматических форм зависит от языка (русский — `one/few/many`, английский — `one/other`), и различие в этом наборе — правильное поведение `Intl.PluralRules`, а не рассинхронизация.
-
-  Результат выводится в валидаторе (`🔍 Проверка`) отдельной секцией **8. Расхождения ключей локализации** и участвует в общем счётчике проблем. Результат кэшируется в `ctx.projectCache.localeIssues` — считается один раз на сессию, потому что файлы локалей меняются только при обновлении расширения.
-
-- **Транзакция при применении сравнения документов.** `handleApplyCompareDocuments` теперь снимает снапшот `ctx` (flow/config/csv/ui/auth) перед вызовом `applyDiff`. Если на любом шаге (`applyDiff` / `writeAll` / `writeUi` / `writeAuth` / `loadData` / `pushRender`) происходит ошибка:
+- **Транзакция при применении сравнения документов.** `handleApplyCompareDocuments` снимает снапшот `ctx` (flow/config/csv/ui/auth) перед вызовом `applyDiff`. Если на любом шаге (`applyDiff` / `writeAll` / `writeUi` / `writeAuth` / `loadData` / `pushRender`) происходит ошибка:
   - `ctx` возвращается к снапшоту;
   - выполняется попытка привести файлы на диске обратно к снапшоту (`writeAll` / `writeUi` / `writeAuth`);
   - `webview` перерисовывается из снапшота;
-  - пользователь видит `showErrorMessage` с текстом «Сравнение не применено. Документ возвращён в исходное состояние: <причина>»;
-  - ошибка пробрасывается дальше — `extension.js` откатывает снапшот истории (`history.popLastSnapshot`), поэтому undo-история не «съедает» откаченную операцию.
+  - пользователь видит сообщение «Сравнение не применено. Документ возвращён в исходное состояние: <причина>»;
+  - ошибка пробрасывается дальше — `extension.js` откатывает снапшот истории (`history.popLastSnapshot`), поэтому undo-история не «съедает» неудавшуюся операцию.
 
   Раньше сбой на `writeAll` оставлял `ctx` частично изменённым: данные в памяти уже мутированы, а на диск записано не всё.
 
-### Исправлено
+- **Тест на согласованность ключей локализации.** `src/locales-check.js` + `test/locales-check.test.js` проверяют, что наборы ключей `ru-RU` ↔ `en-US` в `media/locales/*.js` и `src/locales/*.js` совпадают. Ловит ситуацию «разработчик добавил ключ в один язык, забыл во второй» — без такой проверки `npm test` проходит, а при английском UI пользователь видит русский текст (fallback через `t()`).
 
-- **Рассинхронизация ключей `plural.*` между языками больше не считается ошибкой.** До этой версии проверка локалей (если бы она была) ложно срабатывала бы на `plural.states.few` / `plural.states.many` в русском против `plural.states.other` в английском. Логика `plural()` в рантайме использует fallback через `tryKeys`, поэтому отсутствие формы в целевом языке корректно обрабатывается.
+  Ключи с префиксом `plural.*` из сравнения исключены: набор грамматических форм зависит от языка (русский — `one/few/many`, английский — `one/other`), различие — правильное поведение `Intl.PluralRules`, а не рассинхронизация. Рантайм-функция `plural()` использует fallback через `tryKeys`, поэтому отсутствие формы в целевом языке корректно обрабатывается.
+
+  Проверка работает только в `npm test`. В UI расширения не выводится — это внутренняя проверка сборки расширения, а не свойство проекта пользователя.
 
 ### Технические детали
 
-- `src/locales-check.js` — новый модуль, `checkLocales()`. Webview-локали загружаются через `vm.runInContext` с фейковым `window.PF_UI_LOCALES`, server-локали — обычным `require` с очисткой `require.cache`. Сортировка результата: сначала `webview`, потом `server`; внутри одинакового scope — по алфавиту.
-- `src/storage.js → loadData` — `checkLocales()` вызывается один раз на `projectCache`, результат кладётся в `ctx.projectCache.localeIssues` и `ctx.localeIssues`. Ошибка загрузки перехватывается (`try/catch`), при сбое `localeIssues = []`.
-- `src/storage.js → pushRender` — `ctx.localeIssues` передаётся в `renderHtml`.
-- `src/html.js → renderHtml` — принимает `localeIssues`, кладёт в `DATA_JSON`.
-- `media/modules/forms-other.js → validateFlow` — `issues.localeIssues` из `DATA.localeIssues`.
-- `media/modules/forms-other.js → openValidationForm` — новая секция «8. Расхождения ключей локализации», входит в `total`.
-- `media/locales/*.js` — ключи `validate.section.locales`, `validate.empty.locales`, `validate.localeIssue`, `validate.localeSide.onlyRu`, `validate.localeSide.onlyEn`.
-- `src/locales/*.js` — ключ `msg.compare.rollback`.
-- `src/handlers.js → handleApplyCompareDocuments` — снапшот/откат в `try/catch`.
+- `src/locales-check.js` — новый модуль, `checkLocales()`. Webview-локали загружаются через `vm.runInContext` с фейковым `window.PF_UI_LOCALES`, server-локали — обычным `require` с очисткой `require.cache`. Сортировка: сначала `webview`, потом `server`; внутри одинакового scope — по алфавиту.
+- `src/handlers.js → handleApplyCompareDocuments` — снапшот/возврат в `try/catch`.
+- `src/locales/ru-RU.js`, `src/locales/en-US.js` — ключ `msg.compare.rollback`.
 
 ### Тесты
 
-- `test/locales-check.test.js` — 3 теста:
-  - в текущем проекте нет расхождений ключей;
-  - каждое расхождение имеет правильную форму (`scope`, `key`, `side`);
-  - сортировка: `webview` перед `server`, ключи по алфавиту.
+- `test/locales-check.test.js` — 3 теста: расхождений в текущем проекте нет; каждое расхождение имеет корректную форму (`scope`, `key`, `side`); сортировка — `webview` перед `server`, ключи по алфавиту.
 
 - Общее количество тестов: **197**.
+
 
 ## [0.7.4] - 2026-11-03
 
