@@ -12,7 +12,8 @@ const {
     loadData, writeAll, writeFlow, writeUi, writeAuth, pushRender, writeConfig, invalidateProjectCache
 } = require('./storage');
 const {
-    flowRulePath, writeFlowRule, deleteFlowRule, renameFlowRule, flowRuleTemplate
+    flowRulePath, writeFlowRule, deleteFlowRule, renameFlowRule, flowRuleTemplate,
+    checkFlowRuleSyntax
 } = require('./flow-rules');
 const {
     clientActionPath, writeClientAction, clientActionTemplate, findClientActionInProject, renameClientAction
@@ -1087,7 +1088,21 @@ async function handleOpenFlowRule(ctx, transitionName) {
             uiI18n.t('common.cancel')
         );
         if (answer !== uiI18n.t('msg.flowRule.createBtn')) return;
-        writeFlowRule(ctx, transitionName, flowRuleTemplate(transitionName));
+        const check = writeFlowRule(ctx, transitionName, flowRuleTemplate(transitionName));
+        if (check && !check.ok) {
+            vscode.window.showWarningMessage(
+                check.line
+                    ? uiI18n.t('warn.flowRuleSyntaxAtLine', {
+                        name: transitionName,
+                        line: String(check.line),
+                        message: check.message
+                    })
+                    : uiI18n.t('warn.flowRuleSyntax', {
+                        name: transitionName,
+                        message: check.message
+                    })
+            );
+        }
     }
 
     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
@@ -1823,25 +1838,75 @@ async function handleApplyCompareDocuments(ctx, panel, payload) {
     const otherDoc = loadDocumentForCompare(otherFlowPath);
     if (!otherDoc) throw new Error(uiI18n.t('err.compare.readFailed', { path: otherFlowPath }));
 
-    const result = applyDiff(ctx, otherDoc, actions);
+    // --- Транзакция: снапшот данных до наката ---
+    // Копируем всё, что applyDiff может мутировать. Если на любом шаге
+    // (applyDiff / writeAll / writeUi / writeAuth / loadData / pushRender)
+    // произойдёт ошибка — откатываем ctx и best-effort возвращаем диск
+    // к снапшоту.
+    const snap = {
+        flow: JSON.parse(JSON.stringify(ctx.flow)),
+        config: JSON.parse(JSON.stringify(ctx.config)),
+        csv: JSON.parse(JSON.stringify(ctx.csv)),
+        auth: ctx.auth ? JSON.parse(JSON.stringify(ctx.auth)) : null,
+        ui: JSON.parse(JSON.stringify(ctx.ui || []))
+    };
+    const hadAuth = !!(ctx.auth && ctx.authPath);
 
-    writeAll(ctx);
-    writeUi(ctx);
-    if (result.touched.auth) writeAuth(ctx);
+    try {
+        const result = applyDiff(ctx, otherDoc, actions);
 
-    loadData(ctx);
-    pushRender(ctx, panel);
+        writeAll(ctx);
+        writeUi(ctx);
+        if (result.touched.auth) writeAuth(ctx);
 
-    vscode.window.showInformationMessage(
-        uiI18n.t('msg.compare.applied', {
-            n: String(result.applied),
-            warnings: result.warnings.length
-                ? uiI18n.t('msg.compare.warnings', { n: String(result.warnings.length) })
-                : ''
-        })
-    );
+        loadData(ctx);
+        pushRender(ctx, panel);
 
-    return result;
+        vscode.window.showInformationMessage(
+            uiI18n.t('msg.compare.applied', {
+                n: String(result.applied),
+                warnings: result.warnings.length
+                    ? uiI18n.t('msg.compare.warnings', { n: String(result.warnings.length) })
+                    : ''
+            })
+        );
+
+        return result;
+    } catch (err) {
+        // Откат данных.
+        ctx.flow = snap.flow;
+        ctx.config = snap.config;
+        ctx.csv = snap.csv;
+        ctx.auth = snap.auth;
+        ctx.ui = snap.ui;
+
+        // Best-effort: вернуть диск к снапшоту. Если это не удалось —
+        // хотя бы ctx в памяти верный, следующий reload покажет актуальное
+        // состояние диска.
+        try {
+            writeAll(ctx);
+            writeUi(ctx);
+            if (hadAuth) writeAuth(ctx);
+        } catch (rollbackErr) {
+            console.error('[applyCompare] rollback write failed:', rollbackErr);
+        }
+
+        // Best-effort: перерисовать webview из снапшота.
+        try {
+            loadData(ctx);
+            pushRender(ctx, panel);
+        } catch (renderErr) {
+            console.error('[applyCompare] rollback render failed:', renderErr);
+        }
+
+        vscode.window.showErrorMessage(
+            uiI18n.t('msg.compare.rollback', { message: err.message })
+        );
+
+        // Пробрасываем — extension.js в catch отправит клиенту
+        // { ok: false, error } и откатит снапшот истории (popLastSnapshot).
+        throw err;
+    }
 }
 
 module.exports = {

@@ -162,9 +162,16 @@ module.exports = {
     // ============ FlowRule rename errors ============
     'err.flowRule.renameExists': 'flowRules/{name}.js уже существует.',
 
+    // ============ FlowRule syntax check ============
+    'warn.flowRuleSyntax': 'flowRules/{name}.js — синтаксическая ошибка: {message}',
+    'warn.flowRuleSyntaxAtLine': 'flowRules/{name}.js — синтаксическая ошибка (строка {line}): {message}',
+
     // ============ initialState ============
     'msg.initialState.set': 'Начальное состояние: {name}',
     'msg.initialState.cleared': 'Начальное состояние сброшено.',
+
+    // ============ транзакция applyDiff ============
+    'msg.compare.rollback': 'Сравнение не применено. Документ возвращён в исходное состояние: {message}',
 
     // ============ history actions ============
     'history.action.addState': 'Добавить состояние {name}',

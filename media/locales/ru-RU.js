@@ -178,6 +178,11 @@ window.PF_UI_LOCALES['ru-RU'] = {
     'validate.noActorsWithRights': 'нет акторов с правами',
     'validate.requireServerSide': 'требуется broadcastEvent.serverSideEvents = true',
     'validate.actorsPrefix': 'акторы: {list}',
+    'validate.section.locales': '8. Расхождения ключей локализации',
+    'validate.empty.locales': 'Ключи ru-RU и en-US во всех файлах совпадают',
+    'validate.localeIssue': '{scope}: «{key}» — {side}',
+    'validate.localeSide.onlyRu': 'только в ru-RU, отсутствует в en-US',
+    'validate.localeSide.onlyEn': 'только в en-US, отсутствует в ru-RU','validate.actorsPrefix': 'акторы: {list}',
 
     // ============ связи ============
     'relations.title': 'Связи документов',

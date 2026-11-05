@@ -174,6 +174,11 @@ window.PF_UI_LOCALES['en-US'] = {
     'validate.noActorsWithRights': 'no actors with rights',
     'validate.requireServerSide': 'broadcastEvent.serverSideEvents = true is required',
     'validate.actorsPrefix': 'actors: {list}',
+    'validate.section.locales': '8. Localization key mismatches',
+    'validate.empty.locales': 'Keys in ru-RU and en-US are identical across all files',
+    'validate.localeIssue': '{scope}: "{key}" — {side}',
+    'validate.localeSide.onlyRu': 'only in ru-RU, missing in en-US',
+    'validate.localeSide.onlyEn': 'only in en-US, missing in ru-RU',
 
     // ============ relations ============
     'relations.title': 'Document relations',

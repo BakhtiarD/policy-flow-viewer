@@ -5,7 +5,7 @@ const { stripBom, indexOf } = require('./utils');
 const { parseCsv, serializeCsv } = require('./csv');
 const { findProductLevel } = require('./storage');
 const uiI18n = require('./ui-i18n');
-const { flowRulePath, deleteFlowRule } = require('./flow-rules');
+const { flowRulePath, deleteFlowRule, checkFlowRuleSyntax } = require('./flow-rules');
 const { clientActionPath } = require('./client-actions');
 
 function listCommonLangs(targetCsv, sourceCsv) {
@@ -553,7 +553,31 @@ function applyDiff(currentCtx, otherDoc, actions) {
                         const srcRulePath = path.join(path.dirname(otherDoc.flowPath), 'flowRules', name + '.js');
                         const dstRulePath = flowRulePath(currentCtx, name);
                         const s = copyFileIfMissing(srcRulePath, dstRulePath);
-                        if (s === 'copied') result.touched.flowRules.push(name);
+                        if (s === 'copied') {
+                            result.touched.flowRules.push(name);
+                            // Проверяем синтаксис скопированного .js — в образце
+                            // мог быть битый файл, и мы его только что перенесли.
+                            try {
+                                const content = fs.readFileSync(dstRulePath, 'utf8');
+                                const check = checkFlowRuleSyntax(content);
+                                if (!check.ok) {
+                                    result.warnings.push(
+                                        check.line
+                                            ? uiI18n.t('warn.flowRuleSyntaxAtLine', {
+                                                name,
+                                                line: String(check.line),
+                                                message: check.message
+                                            })
+                                            : uiI18n.t('warn.flowRuleSyntax', {
+                                                name,
+                                                message: check.message
+                                            })
+                                    );
+                                }
+                            } catch (e) {
+                                // Не смогли прочитать — не критично, файл скопирован.
+                            }
+                        }
                     }
 
                     if (othT.actionToRunBefore && sourceProductLevel) {

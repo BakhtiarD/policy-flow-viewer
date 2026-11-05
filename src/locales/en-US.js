@@ -157,9 +157,16 @@ module.exports = {
     // ============ FlowRule rename errors ============
     'err.flowRule.renameExists': 'flowRules/{name}.js already exists.',
 
+    // ============ FlowRule syntax check ============
+    'warn.flowRuleSyntax': 'flowRules/{name}.js — syntax error: {message}',
+    'warn.flowRuleSyntaxAtLine': 'flowRules/{name}.js — syntax error (line {line}): {message}',
+
     // ============ initialState ============
     'msg.initialState.set': 'Initial state: {name}',
     'msg.initialState.cleared': 'Initial state cleared.',
+
+    // ============ applyDiff transaction ============
+    'msg.compare.rollback': 'Comparison not applied. Document restored to its previous state: {message}',
 
     // ============ history actions ============
     'history.action.addState': 'Add state {name}',
