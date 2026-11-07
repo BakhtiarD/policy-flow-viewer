@@ -377,6 +377,9 @@
         const relationsBtn = document.getElementById('relationsBtn');
         if (relationsBtn) relationsBtn.addEventListener('click', PF.formsOther.openRelationsForm);
 
+        const routesBtn = document.getElementById('routesBtn');
+        if (routesBtn) routesBtn.addEventListener('click', PF.routes.open);
+
         const attachmentsBtn = document.getElementById('attachmentsBtn');
         if (attachmentsBtn) attachmentsBtn.addEventListener('click', PF.formsOther.openAttachmentsForm);
 

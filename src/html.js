@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vscode = require('vscode');
 
-function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta, attMeta, uiLanguage, historyState) {
+function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasUi, authMeta, relMeta, attMeta, uiLanguage, historyState, routesMeta) {
     const tplPath = path.join(extensionUri.fsPath, 'media', 'index.html');
     const tpl = fs.readFileSync(tplPath, 'utf8');
 
@@ -27,6 +27,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
     const jsActorsUri     = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'actors.js'));
     const jsLegendUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'legend.js'));
     const jsCompareUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'compare.js'));
+    const jsRoutesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'routes.js'));
     const jsUiI18nUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'modules', 'ui-i18n.js'));
     const jsUiLocaleRuUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'locales', 'ru-RU.js'));
     const jsUiLocaleEnUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'locales', 'en-US.js'));
@@ -35,6 +36,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         rows, meta, stateDetails, graph, hasUi,
         uiLanguage: uiLanguage || 'ru-RU',
         historyState: historyState || { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null },
+        routes: routesMeta || { docName: '', routes: [] },
         auth: authMeta || { found: false, docName: '', path: null, rows: [], allRoles: [] },
         relations: relMeta || { docName: '', path: null, relations: [] },
         attachmentTypePath: (attMeta && attMeta.path) || null
@@ -66,6 +68,7 @@ function renderHtml(webview, extensionUri, rows, meta, stateDetails, graph, hasU
         .replace(/\{\{JS_MATRIX\}\}/g,    () => jsMatrixUri.toString())
         .replace(/\{\{JS_ACTORS\}\}/g,    () => jsActorsUri.toString())
         .replace(/\{\{JS_COMPARE\}\}/g,   () => jsCompareUri.toString())
+        .replace(/\{\{JS_ROUTES\}\}/g,    () => jsRoutesUri.toString())
         .replace(/\{\{JS_UI_LOCALE_RU\}\}/g, () => jsUiLocaleRuUri.toString())
         .replace(/\{\{JS_UI_LOCALE_EN\}\}/g, () => jsUiLocaleEnUri.toString())
         .replace(/\{\{JS_UI_I18N\}\}/g,   () => jsUiI18nUri.toString())

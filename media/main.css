@@ -2088,3 +2088,259 @@ body[data-toolbar-position="right"] #mainToolbar {
 .g-state.is-initial.is-terminal .g-state-marker-terminal .g-state-marker-icon {
     fill: var(--vscode-charts-purple, #a371f7);
 }
+
+/* ============================================================
+ * Маршруты (route configuration)
+ * ============================================================ */
+
+.routes-modal {
+    max-width: 1100px;
+    width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.routes-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.routes-empty {
+    padding: 16px;
+    opacity: 0.6;
+    text-align: center;
+    font-size: 13px;
+}
+
+.routes-route {
+    background: var(--vscode-editorWidget-background, rgba(128,128,128,0.06));
+    border-radius: 6px;
+    border: 1px solid rgba(128,128,128,0.15);
+    padding: 4px 8px;
+}
+
+.routes-route-summary {
+    cursor: pointer;
+    padding: 6px 4px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 13px;
+    list-style: none;
+}
+.routes-route-summary::-webkit-details-marker { display: none; }
+.routes-route-summary::before {
+    content: '▸';
+    display: inline-block;
+    width: 12px;
+    opacity: 0.6;
+    transition: transform 0.15s;
+}
+.routes-route[open] > .routes-route-summary::before {
+    transform: rotate(90deg);
+}
+
+.routes-route-name {
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.routes-meta {
+    font-size: 11px;
+    opacity: 0.7;
+}
+.routes-meta-pkg {
+    font-family: monospace;
+    opacity: 0.55;
+}
+
+.routes-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 14px;
+}
+.routes-badge-kind {
+    background: rgba(128,128,128,0.18);
+    color: inherit;
+    text-transform: none;
+    font-weight: 500;
+}
+.routes-badge-current {
+    background: rgba(46,160,67,0.2);
+    color: #2ea043;
+}
+.routes-badge-notfound {
+    background: rgba(207,34,46,0.2);
+    color: #cf222e;
+}
+.routes-badge-truncated {
+    background: rgba(210,153,34,0.2);
+    color: #bf8700;
+}
+.routes-badge-ref {
+    background: rgba(56,139,253,0.2);
+    color: #388bfd;
+    text-transform: lowercase;
+}
+
+.routes-condition {
+    background: rgba(128,128,128,0.04);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 4px 0 8px;
+    font-size: 12px;
+}
+.routes-condition-title {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 6px;
+}
+.routes-cond-row {
+    padding: 2px 0;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+}
+.routes-cond-label {
+    min-width: 100px;
+    opacity: 0.7;
+}
+.routes-cond-value {
+    font-family: monospace;
+    word-break: break-word;
+}
+.routes-cond-dims {
+    margin: 0;
+    padding: 4px 8px;
+    background: rgba(128,128,128,0.08);
+    border-radius: 3px;
+    font-size: 11px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.routes-sink-section {
+    margin-top: 6px;
+    padding-left: 8px;
+}
+.routes-sink-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+
+.routes-sink {
+    margin: 3px 0;
+    padding: 2px 6px;
+    border-left: 2px solid rgba(128,128,128,0.25);
+    border-radius: 2px;
+}
+.routes-sink-ref {
+    border-left-color: #388bfd;
+}
+.routes-sink-summary {
+    cursor: pointer;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    list-style: none;
+}
+.routes-sink-summary::-webkit-details-marker { display: none; }
+.routes-sink-summary::before {
+    content: '▸';
+    display: inline-block;
+    width: 10px;
+    opacity: 0.5;
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+.routes-sink[open] > .routes-sink-summary::before {
+    transform: rotate(90deg);
+}
+
+.routes-sink-name {
+    font-family: monospace;
+    font-weight: 500;
+}
+
+.routes-sink-config,
+.routes-mapping-content {
+    margin: 4px 0 6px 16px;
+    padding: 6px 10px;
+    background: rgba(128,128,128,0.08);
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: monospace;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.45;
+}
+
+.routes-sink-children {
+    padding-left: 16px;
+}
+
+.routes-mapping {
+    margin: 4px 0 4px 16px;
+    border-left: 2px solid rgba(210,153,34,0.4);
+    border-radius: 2px;
+    padding: 2px 6px;
+}
+.routes-mapping-summary {
+    cursor: pointer;
+    padding: 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    list-style: none;
+}
+.routes-mapping-summary::-webkit-details-marker { display: none; }
+.routes-mapping-summary::before {
+    content: '▸';
+    display: inline-block;
+    width: 10px;
+    opacity: 0.5;
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+.routes-mapping[open] > .routes-mapping-summary::before {
+    transform: rotate(90deg);
+}
+.routes-mapping-title {
+    font-weight: 600;
+    color: #bf8700;
+    font-family: monospace;
+}
+
+.routes-error {
+    padding: 4px 8px;
+    margin: 4px 0 4px 16px;
+    background: rgba(207,34,46,0.1);
+    color: #cf222e;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: monospace;
+}

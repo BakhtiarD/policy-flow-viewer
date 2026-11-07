@@ -24,6 +24,7 @@
         <button id="authBtn" data-icon="key" data-i18n-title="btn.auth.title"></button>
         <button id="validateBtn" data-icon="checklist" data-i18n-title="btn.validate.title"></button>
         <button id="relationsBtn" data-icon="link" data-i18n-title="btn.relations.title"></button>
+        <button id="routesBtn" data-icon="routes" data-i18n-title="btn.routes.title"></button>
         <button id="attachmentsBtn" data-icon="paperclip" data-i18n-title="btn.attachments.title"></button>
         <button id="compareBtn" class="primary compare-btn" data-icon="compare" data-i18n-title="btn.compare.title"></button>
         <span class="toolbar-spacer"></span>
@@ -630,6 +631,22 @@
         </div>
     </template>
 
+    <!-- Маршруты (route configuration) -->
+    <template id="tpl-routes-modal">
+        <div class="modal-backdrop">
+            <div class="modal routes-modal">
+                <h2 data-i18n="routes.title">Маршруты</h2>
+                <div class="hint routes-doc-hint"></div>
+
+                <div class="routes-body"></div>
+
+                <div class="actions">
+                    <button data-act="close" data-i18n="common.close">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <template id="tpl-attachments-modal">
         <div class="modal-backdrop">
             <div class="modal attachments-modal">
@@ -682,6 +699,7 @@
     <script src="{{JS_MATRIX}}"></script>
     <script src="{{JS_ACTORS}}"></script>
     <script src="{{JS_COMPARE}}"></script>
+    <script src="{{JS_ROUTES}}"></script>
     <script src="{{JS_UI_LOCALE_RU}}"></script>
     <script src="{{JS_UI_LOCALE_EN}}"></script>
     <script src="{{JS_UI_I18N}}"></script>

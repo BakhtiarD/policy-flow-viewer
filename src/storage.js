@@ -6,7 +6,7 @@ const { stripBom, indexOf } = require('./utils');
 const { parseCsv, serializeCsv } = require('./csv');
 const {
     buildTranslations, buildMeta, buildTable, buildStateDetails, buildGraph,
-    buildAuthMeta, buildRelationsMeta
+    buildAuthMeta, buildRelationsMeta, buildRoutesMeta
 } = require('./transforms');
 const { renderHtml } = require('./html');
 const { collectGroupRoles } = require('./authorization');
@@ -598,6 +598,19 @@ function loadData(ctx) {
         const att = loadAttachmentType(projectRoot);
         const groupRoles = [...collectGroupRoles(projectRoot)];
 
+        // Route-конфигурации: сканируем все @config-* пакеты, оставляем
+        // те, что привязаны к текущему документу, плюс все остальные
+        // (для возможного показа «все маршруты проекта»).
+        const { collectRoutesForDoc } = require('./routes');
+        const currentDocName = path.basename(path.dirname(flowPath));
+        let routes = [];
+        try {
+            const pkgs = listConfigPackages(projectRoot);
+            routes = collectRoutesForDoc(pkgs, currentDocName);
+        } catch (e) {
+            console.warn('[loadData] routes scan failed:', e.message);
+        }
+
         ctx.projectCache = {
             projectRoot,
             pkgName,
@@ -608,7 +621,8 @@ function loadData(ctx) {
             attachmentTypeCodes: att.codes,
             attachmentTypeTranslations: att.translations,
             attachmentTypeTranslationsAll: att.translationsAll || {},
-            groupRoles
+            groupRoles,
+            routes
         };
     }
 
@@ -622,6 +636,7 @@ function loadData(ctx) {
     ctx.attachmentTypeTranslations = ctx.projectCache.attachmentTypeTranslations;
     ctx.attachmentTypeTranslationsAll = ctx.projectCache.attachmentTypeTranslationsAll || {};
     ctx.groupRoles = ctx.projectCache.groupRoles;
+    ctx.routes = ctx.projectCache.routes || [];
 
     // Чистим «осиротевшие» .tmp от предыдущих падений. Все 5 файлов
     // уже прочитаны выше — здесь только уборка мусора.
@@ -753,6 +768,7 @@ function pushRender(ctx, panel) {
     const hasUi = Array.isArray(ui) && ui.length > 0;
     const authMeta = buildAuthMeta(flowPath, auth, authPath, ctx.groupRoles || []);
     const relMeta = buildRelationsMeta(ctx, flow, ctx.documentTitles || {});
+    const routesMeta = buildRoutesMeta(ctx);
     const attMeta = { path: ctx.attachmentTypeDir || null };
 
     // historyState передаётся в HTML-данных, а не postMessage-ом:
@@ -767,7 +783,7 @@ function pushRender(ctx, panel) {
 
     const html = renderHtml(
         panel.webview, extensionUri, rows, meta, details, graph, hasUi,
-        authMeta, relMeta, attMeta, uiLanguage, historyState
+        authMeta, relMeta, attMeta, uiLanguage, historyState, routesMeta
     );
     // Маркер, чтобы HTML всегда отличался — иначе VS Code не пересоздаёт iframe.
     panel.webview.html = html.replace('</body>', '<!--r' + Date.now() + '--></body>');

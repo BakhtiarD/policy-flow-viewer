@@ -335,6 +335,16 @@ function buildRelationsMeta(ctx, flow, documentTitles) {
     };
 }
 
+function buildRoutesMeta(ctx) {
+    const path = require('path');
+    const docName = ctx && ctx.flowPath ? path.basename(path.dirname(ctx.flowPath)) : '';
+    const routes = (ctx && ctx.routes) || [];
+    return {
+        docName,
+        routes
+    };
+}
+
 /* ============================================================
  * TABLE
  * ============================================================ */
@@ -667,6 +677,7 @@ module.exports = {
     buildTranslations, detectFlowName, buildMeta,
     buildTable, buildStateDetails, buildGraph,
     buildActorConfig, registerActorsInFlow, buildAuthMeta, buildRelationsMeta,
+    buildRoutesMeta,
     normalizeOperationName, normalizeTransitionName, normalizeFlowOperations,
     extractActorExtra, extractTransitionExtra
 };
